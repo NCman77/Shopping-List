@@ -21,8 +21,8 @@ test('settings merge guard replaces destructive add handlers with Firestore merg
   assert.match(source, /handleAddCategory/);
   assert.match(source, /handleAddLocation/);
   assert.match(source, /\{ merge: true \}/);
-  assert.match(source, /categories:/);
-  assert.match(source, /locations:/);
+  assert.match(source, /addOption\('categories'/);
+  assert.match(source, /addOption\('locations'/);
 });
 
 test('country save guard assigns an id before enhanced save and merges country after successful save', async () => {
@@ -31,8 +31,7 @@ test('country save guard assigns an id before enhanced save and merges country a
   assert.match(source, /randomUUID/);
   assert.match(source, /item-website/);
   assert.match(source, /await originalSave/);
-  assert.match(source, /country:/);
-  assert.match(source, /\{ merge: true \}/);
+  assert.match(source, /setDoc\(itemRef, \{ country \}, \{ merge: true \}\)/);
 });
 
 test('feature bootstrap loads both data guards independently', async () => {
