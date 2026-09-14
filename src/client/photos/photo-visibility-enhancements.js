@@ -227,7 +227,7 @@ export async function initPhotoVisibilityEnhancements() {
         hasDriveToken: true
       })) {
         blob ||= await downloadDrivePhoto(cover.driveFileId);
-        void backfillThumbnail(itemId, driveCoverId, blob);
+        await backfillThumbnail(itemId, driveCoverId, blob);
       }
     } catch (error) {
       if (error?.message === 'authorization-required') renderAuthorizationRequired(card);
