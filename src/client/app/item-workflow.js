@@ -71,6 +71,11 @@ export function nextPageForSwipe({ direction, page, totalPages }) {
   return current;
 }
 
+export function shouldReorderIds(currentIds = [], desiredIds = []) {
+  if (currentIds.length !== desiredIds.length) return true;
+  return currentIds.some((id, index) => id !== desiredIds[index]);
+}
+
 export function detailStateForOpen({ itemId } = {}) {
   if (String(itemId || '').trim()) return { mode: 'view', canSave: false, canEdit: true };
   return { mode: 'edit', canSave: true, canEdit: false };
