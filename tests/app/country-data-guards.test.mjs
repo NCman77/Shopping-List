@@ -34,6 +34,16 @@ test('country save guard assigns an id before enhanced save and merges country a
   assert.match(source, /setDoc\(itemRef, \{ country \}, \{ merge: true \}\)/);
 });
 
+test('failed validation clears a generated id and edited item country is resolved from the saved document', async () => {
+  const source = await readFile(new URL('../../src/client/app/country-save-guard.js', import.meta.url), 'utf8');
+  assert.match(source, /generatedNewId/);
+  assert.match(source, /idInput\.value = ''/);
+  const saveIndex = source.indexOf('await originalSave');
+  const snapshotIndex = source.indexOf('await getDoc');
+  const countryIndex = source.lastIndexOf('resolveCountryForSave');
+  assert.ok(saveIndex >= 0 && snapshotIndex > saveIndex && countryIndex > snapshotIndex);
+});
+
 test('feature bootstrap loads both data guards independently', async () => {
   const source = await readFile(new URL('../../src/client/app/feature-bootstrap.js', import.meta.url), 'utf8');
   assert.match(source, /settings-merge-guard\.js/);
