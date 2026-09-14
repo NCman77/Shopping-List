@@ -33,5 +33,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
         .then(({ installDriveUploadRollbackFetch }) => installDriveUploadRollbackFetch(window))
         .then(() => import('./app-enhancements.js'))
         .then(({ initShoppingListEnhancements }) => initShoppingListEnhancements())
+        .then(() => import('./home-ui-enhancements.js'))
+        .then(({ initHomeUiEnhancements }) => initHomeUiEnhancements())
         .catch((error) => console.error('購物清單增強功能載入失敗:', error));
 }
