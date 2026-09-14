@@ -52,7 +52,7 @@ Rules:
 - `endDate` cannot be before `startDate`.
 - title and dates may be edited later.
 - country may be changed only while the trip has no items. Once items exist, country is locked to prevent item/trip country divergence.
-- a trip containing items cannot be deleted. The UI explains that its products must first be deleted or moved by a future explicit move feature. This prevents accidental bulk data loss.
+- a trip containing items cannot be deleted. The UI explains that its products must first be deleted. This prevents accidental bulk data loss. A separate bulk-move feature is outside this scope.
 
 ### Item additions
 
@@ -90,6 +90,8 @@ On startup, after trips are loaded, resolve the active trip in this order:
 4. Otherwise, choose the most recently ended past trip.
 5. Otherwise, choose the legacy migrated list, if one exists.
 6. If there are no trips at all, show an empty onboarding state with `新增第一趟旅程`.
+
+`today` means the browser's local calendar date; no additional timezone preference is introduced.
 
 When the active trip changes:
 
@@ -275,7 +277,9 @@ Target-derived/reset fields:
 - `purchased` = `false`;
 - `createdAt` = now;
 - `updatedAt` = now;
-- optional `copiedFromItemId` for duplicate-copy detection/audit.
+- `copiedFromItemId` = source item ID.
+
+`copiedFromItemId` is required on copied items and is used to detect accidental duplicate copies into the same target trip.
 
 ### Photo-copy rule
 
@@ -289,7 +293,7 @@ If the source has photos:
 4. create new `itemPhotos` metadata documents for the target item;
 5. generate/persist the copied item's cover thumbnail using the existing photo persistence rules;
 6. only commit the target item and photo metadata after all required Drive uploads succeed;
-7. if a Drive upload fails, clean up already-created copied Drive files and do not leave a partial target item.
+7. if any Drive upload or the final Firestore batch fails, clean up every newly uploaded copied Drive file and do not leave a partial target item.
 
 This costs more storage than shared references but preserves historical independence and matches the existing deletion model.
 
@@ -325,7 +329,7 @@ The goal is one source of truth for "which list am I editing?": active trip.
 - If active-trip persistence fails after an in-memory switch, notify the user but keep the visible selection for the current session; retry on the next settings update.
 - If an item save occurs with no resolved active trip, block the save and prompt the user to create/select a trip rather than producing an unassigned item.
 - If legacy migration partially fails, leave already assigned items intact and retry only unassigned items later.
-- If a copied photo operation fails, clean up newly uploaded Drive files and leave the source item untouched.
+- If a copied photo operation or its final Firestore write fails, clean up newly uploaded Drive files and leave the source item untouched.
 - Never delete source products/photos as part of copy.
 
 ## 12. Testing strategy
@@ -350,6 +354,7 @@ Add regression/source/integration tests for:
 - copy to another trip creates a new independent item;
 - copied photo metadata points to newly uploaded Drive file IDs;
 - deleting/removing a copied photo cannot affect the source photo;
+- failed copy cleanup leaves no partial item metadata and queues/retries Drive cleanup when immediate deletion cannot complete;
 - legacy migration preserves all existing item/photo data;
 - two migration attempts do not create duplicate legacy trips.
 
