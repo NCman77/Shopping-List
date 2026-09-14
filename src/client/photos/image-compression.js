@@ -11,6 +11,17 @@ export function calculateContainedSize(width, height, maxEdge = DEFAULTS.maxEdge
   };
 }
 
+export function calculateWidthBoundSize(width, height, maxWidth = 1280) {
+  if (![width, height, maxWidth].every(Number.isFinite) || width <= 0 || height <= 0 || maxWidth <= 0) {
+    throw new RangeError('圖片尺寸必須是正數。');
+  }
+  const scale = Math.min(1, maxWidth / width);
+  return {
+    width: Math.max(1, Math.round(width * scale)),
+    height: Math.max(1, Math.round(height * scale))
+  };
+}
+
 function canvasToBlob(canvas, type, quality) {
   return new Promise((resolve) => canvas.toBlob(resolve, type, quality));
 }
