@@ -2,10 +2,7 @@ export const DETAIL_PHOTO_CARD_CLASS = 'relative self-start rounded-xl overflow-
 export const DETAIL_PHOTO_IMAGE_CLASS = 'block w-auto max-w-full h-auto object-contain bg-white mx-auto';
 
 const DETAIL_VIEW_STYLE_ID = 'photo-detail-view-mode-styles';
-
-function applyClassTokens(node, tokens) {
-  tokens.split(/\s+/).filter(Boolean).forEach((token) => node.classList.add(token));
-}
+const GRID_WAIT_TIMEOUT_MS = 10000;
 
 function installDetailViewStyles(documentRef) {
   if (!documentRef?.head || documentRef.getElementById?.(DETAIL_VIEW_STYLE_ID)) return;
@@ -25,11 +22,12 @@ function installDetailViewStyles(documentRef) {
     .workflow-view-mode #photo-preview-grid {
       display: flex !important;
       flex-direction: column;
-      align-items: center;
+      align-items: stretch;
       gap: 1rem;
       width: 100%;
     }
     .workflow-view-mode #photo-preview-grid > div {
+      display: block !important;
       width: 100%;
       max-width: 100%;
       aspect-ratio: auto !important;
@@ -38,19 +36,31 @@ function installDetailViewStyles(documentRef) {
       border: 0 !important;
       border-radius: 0 !important;
       background: transparent !important;
-      overflow: visible !important;
-      justify-content: center;
+      overflow: hidden !important;
+    }
+    .workflow-view-mode #photo-preview-grid > div[data-detail-image-ready="false"] {
+      display: none !important;
+    }
+    .workflow-view-mode #photo-preview-grid > div[data-detail-image-ready="action"] {
+      display: block !important;
+      position: relative !important;
+      min-height: 8rem !important;
+    }
+    .workflow-view-mode #photo-preview-grid .fa-image {
+      display: none !important;
+    }
+    .workflow-view-mode #photo-preview-grid > div > span {
+      display: none !important;
     }
     .workflow-view-mode #photo-preview-grid img {
       position: static !important;
       inset: auto !important;
-      width: auto !important;
+      display: block !important;
+      width: 100% !important;
       max-width: 100% !important;
       height: auto !important;
       object-fit: contain !important;
-      display: block;
-      margin-left: auto;
-      margin-right: auto;
+      margin: 0 auto !important;
       background: transparent !important;
     }
   `;
@@ -58,22 +68,18 @@ function installDetailViewStyles(documentRef) {
 }
 
 export function normalizeDetailPhotoCard(card) {
-  if (!card?.classList) return;
-
-  card.classList.remove('aspect-square');
-  applyClassTokens(card, DETAIL_PHOTO_CARD_CLASS);
-
+  if (!card) return;
   const img = card.querySelector?.('img');
-  if (!img?.classList) {
-    card.classList.add('min-h-20');
+  const loadAction = card.querySelector?.('[data-detail-load-action]');
+
+  if (!img) {
+    if (card.dataset) card.dataset.detailImageReady = loadAction ? 'action' : 'false';
     return;
   }
 
-  card.classList.remove('min-h-20');
+  if (card.dataset) card.dataset.detailImageReady = 'true';
   const placeholderIcon = card.querySelector?.('.fa-image');
   placeholderIcon?.closest?.('div')?.remove?.();
-  ['absolute', 'inset-0', 'w-full', 'h-full', 'object-cover'].forEach((token) => img.classList.remove(token));
-  applyClassTokens(img, DETAIL_PHOTO_IMAGE_CLASS);
 }
 
 export function applyNaturalDetailPhotoLayout(grid) {
@@ -81,14 +87,39 @@ export function applyNaturalDetailPhotoLayout(grid) {
   [...grid.children].forEach(normalizeDetailPhotoCard);
 }
 
-export function initPhotoDetailNaturalLayout({
+export function waitForPhotoGrid(documentRef, MutationObserverImpl, timeoutMs = GRID_WAIT_TIMEOUT_MS) {
+  const existing = documentRef?.getElementById?.('photo-preview-grid');
+  if (existing) return Promise.resolve(existing);
+  if (!documentRef?.documentElement || !MutationObserverImpl) return Promise.resolve(null);
+
+  return new Promise((resolve) => {
+    let settled = false;
+    let timer = null;
+    const finish = (grid) => {
+      if (settled) return;
+      settled = true;
+      observer.disconnect();
+      if (timer !== null) clearTimeout(timer);
+      resolve(grid || null);
+    };
+    const observer = new MutationObserverImpl(() => {
+      const grid = documentRef.getElementById?.('photo-preview-grid');
+      if (grid) finish(grid);
+    });
+    observer.observe(documentRef.documentElement, { childList: true, subtree: true });
+    timer = setTimeout(() => finish(documentRef.getElementById?.('photo-preview-grid') || null), timeoutMs);
+  });
+}
+
+export async function initPhotoDetailNaturalLayout({
   documentRef = typeof document !== 'undefined' ? document : null,
   MutationObserverImpl = typeof MutationObserver !== 'undefined' ? MutationObserver : null
 } = {}) {
   installDetailViewStyles(documentRef);
+  if (!documentRef || !MutationObserverImpl) return () => {};
 
-  const grid = documentRef?.getElementById?.('photo-preview-grid');
-  if (!grid || !MutationObserverImpl) return () => {};
+  const grid = await waitForPhotoGrid(documentRef, MutationObserverImpl);
+  if (!grid) return () => {};
   if (grid.dataset.naturalDetailLayout === 'true') return () => {};
 
   grid.dataset.naturalDetailLayout = 'true';
@@ -109,7 +140,7 @@ export function initPhotoDetailNaturalLayout({
     childList: true,
     subtree: true,
     attributes: true,
-    attributeFilter: ['class', 'src']
+    attributeFilter: ['src']
   });
 
   return () => observer.disconnect();
