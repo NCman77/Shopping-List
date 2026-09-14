@@ -1,3 +1,5 @@
+import { installGoogleDriveSignIn } from '../auth/google-drive-signin.js';
+
 export function createAuthSessionController({ startSession, stopSession, resetSession, rejectAnonymous }) {
     let activeUserId = null;
 
@@ -57,6 +59,7 @@ export function runEnhancementsIndependently(...tasks) {
 
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     applyCoreHomeShell(document);
+    installGoogleDriveSignIn({ windowRef: window, documentRef: document });
 
     void runEnhancementsIndependently(
         async () => {
@@ -82,9 +85,13 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
         async () => {
             const { initPhotoDetailFallbackEnhancements } = await import('../photos/photo-detail-fallback-enhancements.js');
             return initPhotoDetailFallbackEnhancements();
+        },
+        async () => {
+            const { initPhotoDetailNaturalLayout } = await import('../photos/photo-detail-layout.js');
+            return initPhotoDetailNaturalLayout();
         }
     ).then((results) => {
-        const [homeUiResult, appResult, photoVisibilityResult, detailPreviewResult, detailFallbackResult] = results;
+        const [homeUiResult, appResult, photoVisibilityResult, detailPreviewResult, detailFallbackResult, detailLayoutResult] = results;
         if (homeUiResult.status === 'rejected') {
             console.error('首頁介面增強功能載入失敗:', homeUiResult.reason);
         }
@@ -99,6 +106,9 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
         }
         if (detailFallbackResult.status === 'rejected') {
             console.error('商品詳情照片 fallback 載入失敗:', detailFallbackResult.reason);
+        }
+        if (detailLayoutResult.status === 'rejected') {
+            console.error('商品詳情照片比例功能載入失敗:', detailLayoutResult.reason);
         }
     });
 }
