@@ -5,6 +5,7 @@ import {
   paginateItems,
   resolveShoppingStatus,
   shouldReorderIds,
+  shouldShowWorkflowEmpty,
   sortForHomepage,
   statusWritePatch
 } from './item-workflow.js';
@@ -204,6 +205,7 @@ export async function initItemWorkflowEnhancements() {
   const state = {
     userId: '',
     items: new Map(),
+    itemsLoaded: false,
     filter: 'all',
     page: 1,
     totalPages: 1,
@@ -293,7 +295,7 @@ export async function initItemWorkflowEnhancements() {
       event.stopPropagation();
       const id = cardItemId(card);
       if (action.requiresConfirmation) openNotWantedModal(id);
-      else void writeStatus(id, action.targetStatus);
+      else void writeStatus(id, action.targetStatus).catch(() => {});
     };
   }
 
@@ -304,6 +306,10 @@ export async function initItemWorkflowEnhancements() {
     try {
       ensureStatusFilterButton();
       ensureDetailEditUi();
+      const baseEmpty = document.getElementById('empty-state');
+      baseEmpty?.classList.add('hidden');
+      baseEmpty?.classList.remove('flex');
+
       const candidates = eligibleCards();
       const sortedItems = state.filter === 'all'
         ? sortForHomepage(candidates.map(({ item }) => item))
@@ -341,9 +347,10 @@ export async function initItemWorkflowEnhancements() {
         empty.textContent = '這個分類目前沒有商品';
         list.appendChild(empty);
       }
-      empty.classList.toggle('hidden', sortedItems.length > 0);
+      const showEmpty = shouldShowWorkflowEmpty({ loaded: state.itemsLoaded, count: sortedItems.length });
+      empty.classList.toggle('hidden', !showEmpty);
 
-      pagination.classList.toggle('hidden', state.totalPages <= 1);
+      pagination.classList.toggle('hidden', !state.itemsLoaded || state.totalPages <= 1);
       pageLabel.textContent = `第 ${state.page} / ${state.totalPages} 頁`;
       prevButton.disabled = state.page <= 1;
       nextButton.disabled = state.page >= state.totalPages;
@@ -485,12 +492,14 @@ export async function initItemWorkflowEnhancements() {
     state.itemUnsub = null;
     state.userId = user?.uid || '';
     state.items = new Map();
+    state.itemsLoaded = false;
     state.page = 1;
     if (!user) return scheduleApply();
     const itemsRef = collection(db, 'artifacts', APP_ID, 'users', user.uid, 'items');
     state.itemUnsub = onSnapshot(itemsRef, (snapshot) => {
       if (state.userId !== user.uid) return;
       state.items = new Map(snapshot.docs.map((itemDoc) => [itemDoc.id, { id: itemDoc.id, ...itemDoc.data() }]));
+      state.itemsLoaded = true;
       scheduleApply();
     }, (error) => {
       console.error('Item workflow listener failed:', error);
