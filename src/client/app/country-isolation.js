@@ -36,6 +36,12 @@ export function itemMatchesActiveCountry(item, activeCountry) {
   return resolveItemCountry(item) === country;
 }
 
+export function createCountryMapsSearchUrl(location, item) {
+  const place = String(location || '').trim();
+  if (!place) return '';
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${place} ${resolveItemCountry(item)}`)}`;
+}
+
 export async function initCountryIsolation() {
   if (typeof window === 'undefined' || typeof document === 'undefined') return;
   if (window.__shoppingListCountryIsolationInitialized) return;
@@ -90,6 +96,13 @@ export async function initCountryIsolation() {
       const visible = !item || itemMatchesActiveCountry(item, state.activeCountry);
       card.classList.toggle('country-filter-hidden', !visible);
       card.style.display = visible ? '' : 'none';
+
+      if (item?.location) {
+        const mapAnchor = card.querySelector('a[href*="google.com/maps/search"]');
+        const countryAwareUrl = createCountryMapsSearchUrl(item.location, item);
+        if (mapAnchor && countryAwareUrl) mapAnchor.href = countryAwareUrl;
+      }
+
       if (visible) visibleProducts += 1;
     }
 
@@ -101,8 +114,8 @@ export async function initCountryIsolation() {
   function resetCoreFilters() {
     const categoryAll = document.querySelector('#category-filters [data-cat="all"]');
     const locationAll = document.querySelector('#location-filters [data-loc="all"]');
-    if (categoryAll && !categoryAll.classList.contains('bg-pastelOrange')) categoryAll.click();
-    if (locationAll && !locationAll.classList.contains('bg-pastelBlue')) locationAll.click();
+    categoryAll?.click();
+    locationAll?.click();
   }
 
   function setActiveCountry(country, { resetFilters = false } = {}) {
