@@ -44,28 +44,7 @@ export async function initCountrySaveGuard() {
   const app = appSdk.getApps()[0] || appSdk.getApp();
   const auth = authSdk.getAuth(app);
   const db = firestoreSdk.getFirestore(app);
-  const { collection, doc, getDoc, onSnapshot, setDoc } = firestoreSdk;
-
-  const state = {
-    userId: '',
-    items: new Map(),
-    itemsUnsub: null
-  };
-
-  function subscribeUser(user) {
-    state.itemsUnsub?.();
-    state.itemsUnsub = null;
-    state.userId = user?.uid || '';
-    state.items = new Map();
-    if (!user) return;
-    const itemsRef = collection(db, 'artifacts', APP_ID, 'users', user.uid, 'items');
-    state.itemsUnsub = onSnapshot(itemsRef, (snapshot) => {
-      if (state.userId !== user.uid) return;
-      state.items = new Map(snapshot.docs.map((itemDoc) => [itemDoc.id, { id: itemDoc.id, ...itemDoc.data() }]));
-    }, (error) => console.error('Country save item listener failed:', error));
-  }
-
-  authSdk.onAuthStateChanged(auth, subscribeUser);
+  const { doc, getDoc, setDoc } = firestoreSdk;
 
   const originalSave = window.saveItem;
   window.saveItem = async function(...args) {
@@ -76,26 +55,32 @@ export async function initCountrySaveGuard() {
     const modalContent = document.getElementById('add-modal-content');
     let itemId = String(idInput?.value || '').trim();
     const wasEditing = Boolean(itemId);
-    const existingItem = wasEditing ? (state.items.get(itemId) || {}) : null;
+    const generatedNewId = !itemId;
 
-    if (!itemId) {
+    if (generatedNewId) {
       itemId = makeItemId();
       if (idInput) idInput.value = itemId;
     }
 
     const activeCountry = String(window.shoppingListActiveCountry || '').trim()
       || readCachedActiveCountry(window.localStorage, user.uid);
-    const country = resolveCountryForSave({ existingItem, activeCountry });
 
     const result = await originalSave.apply(this, args);
-
     const saveSucceeded = Boolean(modalContent?.classList?.contains('translate-y-full'));
-    if (!saveSucceeded) return result;
+
+    if (!saveSucceeded) {
+      if (generatedNewId && idInput?.value === itemId) idInput.value = '';
+      return result;
+    }
 
     const itemRef = doc(db, 'artifacts', APP_ID, 'users', user.uid, 'items', itemId);
     try {
       const snapshot = await getDoc(itemRef);
       if (!snapshot.exists()) return result;
+      const country = resolveCountryForSave({
+        existingItem: wasEditing ? snapshot.data() : null,
+        activeCountry
+      });
       await setDoc(itemRef, { country }, { merge: true });
     } catch (error) {
       console.error('Country persistence failed:', error);
