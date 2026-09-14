@@ -19,6 +19,10 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       return initTripUi();
     },
     async () => {
+      const { initTripFilterOptions } = await import('./trip-filter-options.js');
+      return initTripFilterOptions();
+    },
+    async () => {
       const { initBackgroundPersonalization } = await import('./background-personalization.js');
       return initBackgroundPersonalization();
     },
@@ -39,7 +43,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       return registerShoppingListServiceWorker();
     }
   ).then((results) => {
-    const labels = ['旅程資料', '國家篩選', '帳號設定', '旅程介面', '背景個人化', '設定合併保護', '商品旅程儲存', '商品狀態與分頁', 'PWA 安裝'];
+    const labels = ['旅程資料', '國家篩選', '帳號設定', '旅程介面', '旅程篩選選項', '背景個人化', '設定合併保護', '商品旅程儲存', '商品狀態與分頁', 'PWA 安裝'];
     results.forEach((result, index) => {
       if (result.status === 'rejected') {
         console.error(`${labels[index]}功能載入失敗:`, result.reason);
