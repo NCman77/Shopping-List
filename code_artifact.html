@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>日本旅行 購物清單</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"M PLUS Rounded 1c"', 'sans-serif'],
+                    },
+                    colors: {
+                        pastelYellow: '#FFF1B9', 
+                        pastelPink: '#FCD5CE',   
+                        pastelBlue: '#D5E5F2',   
+                        pastelGreen: '#D0F0C0',  
+                        pastelOrange: '#FFB5A7', 
+                        warmBrown: '#5C4033',    
+                        shinBg: '#FAFAFA',       
+                        shinText: '#4A3B32',     
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        .custom-checkbox {
+            appearance: none;
+            background-color: #fff;
+            margin: 0;
+            font: inherit;
+            color: currentColor;
+            width: 1.6em;
+            height: 1.6em;
+            border: 2px solid #5C4033;
+            border-radius: 50%;
+            display: grid;
+            place-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 2px 2px 0px rgba(92, 64, 51, 0.3);
+        }
+        .custom-checkbox::before {
+            content: "";
+            width: 0.8em;
+            height: 0.8em;
+            transform: scale(0);
+            transition: 0.2s transform cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            background-color: #FFB5A7;
+            border-radius: 50%;
+        }
+        .custom-checkbox:checked {
+            background-color: #FCD5CE;
+            box-shadow: 0px 0px 0px rgba(92, 64, 51, 0.3);
+            transform: translate(2px, 2px);
+            border-color: #5C4033;
+        }
+        .custom-checkbox:checked::before {
+            transform: scale(1);
+        }
+        .float-anim {
+            animation: floating 3s ease-in-out infinite;
+        }
+        @keyframes floating {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-5px); }
+            100% { transform: translateY(0px); }
+        }
+        .fade-in {
+            animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(15px) scale(0.95); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .icon-circle {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 30px;
+            color: #5C4033;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-shinText font-sans antialiased h-screen flex justify-center">
+
+<div class="w-full max-w-md bg-shinBg h-full flex flex-col relative border-x-4 border-warmBrown overflow-hidden shadow-xl">
+    
+    <header class="bg-pastelPink text-warmBrown px-4 pt-8 pb-10 border-b-4 border-warmBrown relative z-20 flex flex-col items-center justify-center">
+        <div class="absolute top-4 left-4 w-4 h-4 rounded-full bg-pastelYellow border-2 border-warmBrown"></div>
+        <div class="absolute top-8 right-6 w-3 h-3 rounded-full bg-pastelBlue border-2 border-warmBrown"></div>
+        <div class="absolute bottom-4 right-10 w-5 h-5 rounded-full bg-pastelGreen border-2 border-warmBrown"></div>
+
+        <h1 class="text-3xl font-bold tracking-wide mb-2 relative z-10">購物清單 🛒</h1>
+        <p class="text-xs font-bold tracking-widest uppercase bg-white text-warmBrown px-3 py-1 rounded-full border-2 border-warmBrown shadow-[2px_2px_0_rgba(92,64,51,1)]">Shin-chan Style</p>
+    </header>
+
+    <!-- 篩選器區塊 -->
+    <div class="z-30 relative mt-4">
+        
+        <div class="flex mx-4 p-1.5 bg-white border-4 border-warmBrown rounded-full shadow-[3px_3px_0_rgba(92,64,51,0.2)] items-center gap-1" id="status-filters">
+            <button data-status="all" class="status-btn flex-1 text-center py-2 rounded-full bg-pastelYellow text-warmBrown border-2 border-warmBrown font-bold text-sm transition-all shadow-[2px_2px_0_rgba(92,64,51,1)]">全部</button>
+            <button data-status="unpurchased" class="status-btn flex-1 text-center py-2 rounded-full bg-transparent text-gray-400 font-bold text-sm border-2 border-transparent transition-all hover:bg-gray-50">想買</button>
+            <button data-status="purchased" class="status-btn flex-1 text-center py-2 rounded-full bg-transparent text-gray-400 font-bold text-sm border-2 border-transparent transition-all hover:bg-gray-50">到手</button>
+        </div>
+
+        <div class="px-4 mt-5 mb-2 flex flex-col gap-3">
+            <div class="flex items-center">
+                <div class="bg-pastelOrange text-warmBrown text-xs font-bold px-3 py-1.5 rounded-full border-2 border-warmBrown shadow-[2px_2px_0_rgba(92,64,51,1)] mr-2 shrink-0"><i class="fas fa-tag mr-1"></i> 分類</div>
+                <div class="flex overflow-x-auto space-x-2 no-scrollbar flex-1 items-center py-1 pl-1" id="category-filters">
+                    <!-- 透過 JS 動態產生 -->
+                </div>
+                <button onclick="openInputModal('新增分類', '輸入新分類...', handleAddCategory)" class="ml-2 bg-white text-warmBrown border-2 border-warmBrown shadow-[2px_2px_0_rgba(92,64,51,1)] w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-transform active:translate-y-1 active:shadow-none hover:bg-pastelYellow"><i class="fas fa-plus font-bold"></i></button>
+            </div>
+            
+            <div class="flex items-center">
+                <div class="bg-pastelBlue text-warmBrown text-xs font-bold px-3 py-1.5 rounded-full border-2 border-warmBrown shadow-[2px_2px_0_rgba(92,64,51,1)] mr-2 shrink-0"><i class="fas fa-map-marker-alt mr-1"></i> 地點</div>
+                <div class="flex overflow-x-auto space-x-2 no-scrollbar flex-1 items-center py-1 pl-1" id="location-filters">
+                    <!-- 透過 JS 動態產生 -->
+                </div>
+                <button onclick="openInputModal('新增地點', '輸入新地點...', handleAddLocation)" class="ml-2 bg-white text-warmBrown border-2 border-warmBrown shadow-[2px_2px_0_rgba(92,64,51,1)] w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-transform active:translate-y-1 active:shadow-none hover:bg-pastelBlue"><i class="fas fa-plus font-bold"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 列表區塊 -->
+    <main class="flex-1 overflow-y-auto px-4 pb-20 pt-2" id="item-list">
+        <div id="loading-indicator" class="flex flex-col items-center justify-center h-full text-warmBrown">
+            <i class="fas fa-circle-notch fa-spin text-4xl mb-3 text-pastelOrange"></i>
+            <p class="font-bold">努力載入中...</p>
+        </div>
+        <div id="empty-state" class="hidden flex-col items-center justify-center h-full text-warmBrown opacity-80 mt-10">
+            <div class="icon-circle bg-pastelPink float-anim border-2 border-warmBrown shadow-[2px_2px_0_rgba(92,64,51,1)]">
+                <i class="fas fa-dog"></i>
+            </div>
+            <p class="font-bold text-lg mt-2">清單空空的捏</p>
+            <p class="text-sm mt-1 font-medium text-gray-500">點擊右下角按鈕新增吧！</p>
+        </div>
+    </main>
+
+    <!-- 修復：確保按鈕點擊時能正確呼叫 openAddModal -->
+    <button type="button" onclick="openAddModal()" class="absolute bottom-6 right-6 w-16 h-16 bg-pastelYellow border-4 border-warmBrown text-warmBrown rounded-full shadow-[4px_4px_0_rgba(92,64,51,1)] flex items-center justify-center text-2xl hover:bg-yellow-200 active:translate-y-1 active:shadow-[0_0_0_rgba(92,64,51,1)] transition-all z-40 float-anim cursor-pointer">
+        <i class="fas fa-pen text-xl"></i>
+    </button>
+
+    <div id="add-modal" class="fixed inset-0 bg-warmBrown/40 backdrop-blur-sm hidden z-50 flex flex-col justify-end transition-opacity">
+        <div class="bg-shinBg border-t-4 border-x-4 border-warmBrown rounded-t-[2.5rem] h-[88vh] flex flex-col transform transition-transform translate-y-full shadow-2xl" id="add-modal-content">
+            <div class="flex justify-between items-center p-5 border-b-4 border-warmBrown bg-pastelYellow rounded-t-[2.3rem]">
+                <button type="button" onclick="closeAddModal()" class="text-warmBrown text-xl font-bold w-8 h-8 flex items-center justify-center bg-white border-2 border-warmBrown rounded-full hover:bg-gray-100 transition-colors shadow-[2px_2px_0_rgba(92,64,51,1)] active:translate-y-1 active:shadow-none"><i class="fas fa-times"></i></button>
+                <h2 class="text-xl font-bold text-warmBrown tracking-wide" id="modal-title">記下想買的 🖍️</h2>
+                <button type="button" id="save-item-btn" onclick="saveItem()" class="text-warmBrown bg-pastelGreen px-4 py-1.5 rounded-full border-2 border-warmBrown font-bold shadow-[2px_2px_0_rgba(92,64,51,1)] active:translate-y-1 active:shadow-none transition-all hover:bg-green-200">儲存</button>
+            </div>
+            
+            <div class="overflow-y-auto p-6 space-y-6 flex-1 bg-white">
+                <div class="flex justify-center">
+                    <label for="item-photo" class="relative w-36 h-36 bg-pastelBlue/30 rounded-full border-4 border-warmBrown border-dashed flex flex-col items-center justify-center cursor-pointer overflow-hidden group hover:bg-pastelBlue/50 transition-colors">
+                        <img id="photo-preview" src="" class="absolute inset-0 w-full h-full object-cover hidden">
+                        <div id="photo-placeholder" class="text-warmBrown/60 flex flex-col items-center group-hover:scale-110 transition-transform">
+                            <i class="fas fa-camera text-3xl mb-2 text-pastelBlue drop-shadow-[1px_1px_0_rgba(92,64,51,0.5)]"></i>
+                            <span class="text-sm font-bold">拍張照吧</span>
+                        </div>
+                        <input type="file" id="item-photo" accept="image/*" class="hidden" onchange="handlePhotoUpload(event)">
+                    </label>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-bold text-warmBrown mb-2 ml-1">這個叫什麼 <span class="text-red-400">*</span></label>
+                    <input type="text" id="item-name" class="w-full bg-shinBg border-2 border-warmBrown rounded-2xl px-5 py-3 focus:outline-none focus:bg-white focus:border-4 focus:shadow-[4px_4px_0_rgba(92,64,51,0.2)] transition-all font-medium text-warmBrown placeholder-gray-300" placeholder="例如：好吃的巧克比">
+                </div>
+
+                <div class="flex space-x-4">
+                    <div class="flex-1">
+                        <label class="block text-sm font-bold text-warmBrown mb-2 ml-1">分類</label>
+                        <div class="relative">
+                            <select id="item-category" class="w-full bg-shinBg border-2 border-warmBrown rounded-2xl px-4 py-3 focus:outline-none focus:bg-white focus:border-4 transition-all font-medium text-warmBrown appearance-none">
+                            </select>
+                            <i class="fas fa-chevron-down absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-warmBrown/50"></i>
+                        </div>
+                    </div>
+                    <div class="flex-1">
+                        <label class="block text-sm font-bold text-warmBrown mb-2 ml-1">哪裡買</label>
+                        <div class="relative">
+                            <select id="item-location" class="w-full bg-shinBg border-2 border-warmBrown rounded-2xl px-4 py-3 focus:outline-none focus:bg-white focus:border-4 transition-all font-medium text-warmBrown appearance-none">
+                            </select>
+                            <i class="fas fa-chevron-down absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-warmBrown/50"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-bold text-warmBrown mb-2 ml-1">備註寫這裡 📝</label>
+                    <textarea id="item-desc" rows="3" class="w-full bg-shinBg border-2 border-warmBrown rounded-2xl px-5 py-3 focus:outline-none focus:bg-white focus:border-4 focus:shadow-[4px_4px_0_rgba(92,64,51,0.2)] transition-all font-medium text-warmBrown placeholder-gray-300" placeholder="要買幾個呢..."></textarea>
+                </div>
+
+                <div class="flex items-center justify-between bg-pastelPink/30 p-4 rounded-2xl border-2 border-warmBrown">
+                    <label class="text-warmBrown font-bold">買到了嗎？</label>
+                    <input type="checkbox" id="item-status" class="custom-checkbox">
+                </div>
+                
+                <input type="hidden" id="item-id">
+            </div>
+        </div>
+    </div>
+
+    <div id="text-input-modal" class="fixed inset-0 bg-warmBrown/40 backdrop-blur-sm hidden z-[60] flex items-center justify-center p-4 transition-opacity">
+        <div class="bg-white rounded-[2rem] w-full max-w-sm p-7 border-4 border-warmBrown shadow-[8px_8px_0_rgba(92,64,51,1)] transform scale-95 transition-transform" id="text-input-content">
+            <h3 class="text-xl font-bold mb-5 text-warmBrown text-center" id="text-input-title">標題</h3>
+            <input type="text" id="text-input-field" class="w-full bg-shinBg border-2 border-warmBrown rounded-xl px-5 py-3 focus:outline-none focus:border-4 focus:bg-white mb-6 font-medium text-center text-warmBrown" placeholder="...">
+            <div class="flex space-x-4">
+                <button type="button" onclick="closeInputModal()" class="flex-1 py-3 rounded-xl border-2 border-warmBrown bg-gray-100 text-warmBrown font-bold hover:bg-gray-200 transition-colors shadow-[2px_2px_0_rgba(92,64,51,1)] active:translate-y-1 active:shadow-none">取消</button>
+                <button type="button" onclick="confirmInputModal()" class="flex-1 py-3 rounded-xl border-2 border-warmBrown bg-pastelYellow text-warmBrown font-bold shadow-[2px_2px_0_rgba(92,64,51,1)] hover:bg-yellow-200 transition-colors active:translate-y-1 active:shadow-none">好！</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="msg-modal" class="fixed inset-0 bg-warmBrown/40 backdrop-blur-sm hidden z-[70] flex items-center justify-center p-4 transition-opacity">
+        <div class="bg-white rounded-[2rem] w-full max-w-sm p-7 border-4 border-warmBrown shadow-[8px_8px_0_rgba(92,64,51,1)] text-center transform scale-95 transition-transform" id="msg-content">
+            <div id="msg-icon-container" class="flex justify-center mb-4"></div>
+            <h3 class="text-2xl font-bold mb-2 text-warmBrown" id="msg-title">訊息</h3>
+            <p class="text-gray-500 mb-6 font-medium" id="msg-desc">說明</p>
+            <button type="button" onclick="closeMsgModal()" class="w-full py-3 rounded-xl bg-pastelBlue border-2 border-warmBrown text-warmBrown font-bold shadow-[4px_4px_0_rgba(92,64,51,1)] hover:bg-blue-200 active:translate-y-1 active:shadow-none transition-all" id="msg-btn">知道啦！</button>
+        </div>
+    </div>
+    
+    <div id="delete-modal" class="fixed inset-0 bg-warmBrown/40 backdrop-blur-sm hidden z-[70] flex items-center justify-center p-4 transition-opacity">
+        <div class="bg-white rounded-[2rem] w-full max-w-sm p-7 border-4 border-warmBrown shadow-[8px_8px_0_rgba(92,64,51,1)] text-center">
+            <div class="flex justify-center mb-4">
+                <div class="icon-circle bg-pastelBlue float-anim border-2 border-warmBrown shadow-[2px_2px_0_rgba(92,64,51,1)]">
+                    <i class="fas fa-sad-cry"></i>
+                </div>
+            </div>
+            <h3 class="text-2xl font-bold mb-2 text-warmBrown">真的不買了嗎？</h3>
+            <p class="text-gray-500 mb-6 font-medium">刪除後就找不回來囉！</p>
+            <div class="flex space-x-4">
+                <button type="button" onclick="closeDeleteModal()" class="flex-1 py-3 rounded-xl border-2 border-warmBrown bg-gray-100 text-warmBrown font-bold hover:bg-gray-200 transition-colors shadow-[2px_2px_0_rgba(92,64,51,1)] active:translate-y-1 active:shadow-none">捨不得</button>
+                <button type="button" id="confirm-delete-btn" class="flex-1 py-3 rounded-xl border-2 border-warmBrown bg-pastelPink text-warmBrown font-bold shadow-[2px_2px_0_rgba(92,64,51,1)] hover:bg-pink-200 transition-colors active:translate-y-1 active:shadow-none">刪除</button>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, addDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    const defaultFirebaseConfig = {
+        apiKey: "YOUR_API_KEY",
+        authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+        projectId: "YOUR_PROJECT_ID",
+        storageBucket: "YOUR_PROJECT_ID.appspot.com",
+        messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+        appId: "YOUR_APP_ID"
+    };
+
+    const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : defaultFirebaseConfig;
+    const currentAppId = typeof __app_id !== 'undefined' ? __app_id : 'japan-shopping-app';
+    
+    let app, db, auth;
+    try {
+        app = initializeApp(firebaseConfig);
+        db = getFirestore(app);
+        auth = getAuth(app);
+    } catch(e) {
+        console.error("Firebase 初始化失敗", e);
+    }
+
+    let state = {
+        userId: null,
+        items: [],
+        categories: ['美妝'], 
+        locations: [], 
+        filters: {
+            status: 'all', 
+            category: 'all',
+            location: 'all'
+        },
+        currentPhotoBase64: null,
+        inputModalCallback: null,
+        itemToDelete: null
+    };
+
+    async function initApp() {
+        try {
+            if (typeof __initial_auth_token !== 'undefined') {
+                await signInWithCustomToken(auth, __initial_auth_token);
+            } else {
+                await signInAnonymously(auth);
+            }
+            
+            state.userId = auth.currentUser.uid;
+            
+            listenToSettings();
+            listenToItems();
+
+        } catch (error) {
+            console.error("Authentication failed:", error);
+            showMsg("系統錯誤", "無法連線至伺服器同步資料。", "error");
+        }
+    }
+
+    function listenToSettings() {
+        if (!state.userId) return;
+        const settingsRef = doc(db, 'artifacts', currentAppId, 'users', state.userId, 'settings', 'preferences');
+        
+        onSnapshot(settingsRef, (docSnap) => {
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                if (data.categories) state.categories = data.categories;
+                if (data.locations) state.locations = data.locations;
+            } else {
+                saveSettings();
+            }
+            renderFilterTabs();
+            renderFormSelects();
+        }, (error) => {
+            console.error("Error listening to settings:", error);
+        });
+    }
+
+    async function saveSettings() {
+        if (!state.userId) return;
+        const settingsRef = doc(db, 'artifacts', currentAppId, 'users', state.userId, 'settings', 'preferences');
+        try {
+            await setDoc(settingsRef, {
+                categories: state.categories,
+                locations: state.locations
+            });
+        } catch(e) {
+            console.error("Error saving settings:", e);
+        }
+    }
+
+    function listenToItems() {
+        if (!state.userId) return;
+        const itemsRef = collection(db, 'artifacts', currentAppId, 'users', state.userId, 'items');
+        
+        onSnapshot(itemsRef, (snapshot) => {
+            const loadingIndicator = document.getElementById('loading-indicator');
+            if(loadingIndicator) loadingIndicator.classList.add('hidden');
+            
+            state.items = [];
+            snapshot.forEach((doc) => {
+                state.items.push({ id: doc.id, ...doc.data() });
+            });
+            state.items.sort((a, b) => b.createdAt - a.createdAt);
+            
+            renderItemList();
+        }, (error) => {
+            console.error("Error listening to items:", error);
+            const loadingIndicator = document.getElementById('loading-indicator');
+            if(loadingIndicator) loadingIndicator.classList.add('hidden');
+            showMsg("讀取失敗", "無法載入清單資料。", "error");
+        });
+    }
+
+    function renderFilterTabs() {
+        const catContainer = document.getElementById('category-filters');
+        if(!catContainer) return;
+        
+        catContainer.innerHTML = `<button data-cat="all" class="cat-btn px-4 py-1.5 rounded-full border-2 border-warmBrown text-sm font-bold whitespace-nowrap transition-all ${state.filters.category === 'all' ? 'bg-pastelOrange shadow-[2px_2px_0_rgba(92,64,51,1)] text-warmBrown' : 'bg-white text-gray-500 hover:bg-gray-50'}" style="min-width: fit-content;">全部</button>`;
+        
+        state.categories.forEach(cat => {
+            const isActive = state.filters.category === cat;
+            catContainer.innerHTML += `<button data-cat="${cat}" class="cat-btn px-4 py-1.5 rounded-full border-2 border-warmBrown text-sm font-bold whitespace-nowrap transition-all ${isActive ? 'bg-pastelOrange shadow-[2px_2px_0_rgba(92,64,51,1)] text-warmBrown' : 'bg-white text-gray-500 hover:bg-gray-50'}" style="min-width: fit-content;">${cat}</button>`;
+        });
+
+        const locContainer = document.getElementById('location-filters');
+        if(!locContainer) return;
+        
+        locContainer.innerHTML = `<button data-loc="all" class="loc-btn px-4 py-1.5 rounded-full border-2 border-warmBrown text-sm font-bold whitespace-nowrap transition-all ${state.filters.location === 'all' ? 'bg-pastelBlue shadow-[2px_2px_0_rgba(92,64,51,1)] text-warmBrown' : 'bg-white text-gray-500 hover:bg-gray-50'}" style="min-width: fit-content;">全部</button>`;
+        
+        state.locations.forEach(loc => {
+            const isActive = state.filters.location === loc;
+            locContainer.innerHTML += `<button data-loc="${loc}" class="loc-btn px-4 py-1.5 rounded-full border-2 border-warmBrown text-sm font-bold whitespace-nowrap transition-all ${isActive ? 'bg-pastelBlue shadow-[2px_2px_0_rgba(92,64,51,1)] text-warmBrown' : 'bg-white text-gray-500 hover:bg-gray-50'}" style="min-width: fit-content;">${loc}</button>`;
+        });
+
+        document.querySelectorAll('.cat-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                state.filters.category = e.target.dataset.cat;
+                renderFilterTabs();
+                renderItemList();
+            });
+        });
+
+        document.querySelectorAll('.loc-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                state.filters.location = e.target.dataset.loc;
+                renderFilterTabs();
+                renderItemList();
+            });
+        });
+    }
+
+    document.querySelectorAll('.status-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const status = e.target.dataset.status;
+            state.filters.status = status;
+            
+            document.querySelectorAll('.status-btn').forEach(b => {
+                b.classList.remove('bg-pastelYellow', 'text-warmBrown', 'border-warmBrown', 'shadow-[2px_2px_0_rgba(92,64,51,1)]');
+                b.classList.add('bg-transparent', 'text-gray-400', 'border-transparent');
+            });
+            e.target.classList.remove('bg-transparent', 'text-gray-400', 'border-transparent');
+            e.target.classList.add('bg-pastelYellow', 'text-warmBrown', 'border-warmBrown', 'shadow-[2px_2px_0_rgba(92,64,51,1)]');
+            
+            renderItemList();
+        });
+    });
+
+    function renderFormSelects() {
+        const catSelect = document.getElementById('item-category');
+        if(catSelect) {
+            catSelect.innerHTML = state.categories.map(cat => `<option value="${cat}">${cat}</option>`).join('');
+        }
+        
+        const locSelect = document.getElementById('item-location');
+        if(locSelect) {
+            if (state.locations.length === 0) {
+                locSelect.innerHTML = `<option value="">(請先新增地點)</option>`;
+            } else {
+                locSelect.innerHTML = state.locations.map(loc => `<option value="${loc}">${loc}</option>`).join('');
+            }
+        }
+    }
+
+    function renderItemList() {
+        const listContainer = document.getElementById('item-list');
+        const emptyState = document.getElementById('empty-state');
+        if(!listContainer || !emptyState) return;
+        
+        let filteredItems = state.items.filter(item => {
+            if (state.filters.status === 'purchased' && !item.purchased) return false;
+            if (state.filters.status === 'unpurchased' && item.purchased) return false;
+            if (state.filters.category !== 'all' && item.category !== state.filters.category) return false;
+            if (state.filters.location !== 'all' && item.location !== state.filters.location) return false;
+            return true;
+        });
+
+        Array.from(listContainer.children).forEach(child => {
+            if (child.id !== 'loading-indicator' && child.id !== 'empty-state') {
+                child.remove();
+            }
+        });
+
+        const loadingIndicator = document.getElementById('loading-indicator');
+        if (filteredItems.length === 0) {
+            if (loadingIndicator && !loadingIndicator.classList.contains('hidden')) return;
+            emptyState.classList.remove('hidden');
+            emptyState.classList.add('flex');
+        } else {
+            emptyState.classList.add('hidden');
+            emptyState.classList.remove('flex');
+            
+            filteredItems.forEach(item => {
+                const mapLink = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent((item.location || '') + ' 日本')}`;
+                const hasPhoto = !!item.photoUrl;
+                const photoSrc = item.photoUrl || '';
+                
+                const card = document.createElement('div');
+                card.className = `fade-in bg-white p-3.5 rounded-[1.5rem] mb-4 border-2 border-warmBrown flex gap-3 relative transition-transform hover:-translate-y-1 ${item.purchased ? 'bg-gray-50 opacity-70' : 'shadow-[4px_4px_0_rgba(92,64,51,0.15)]'}`;
+                
+                card.innerHTML = `
+                    <div class="w-24 h-24 shrink-0 rounded-2xl overflow-hidden bg-shinBg border-2 border-warmBrown cursor-pointer flex items-center justify-center shadow-[2px_2px_0_rgba(92,64,51,0.2)]" onclick="window.openEditModal('${item.id}')">
+                        ${hasPhoto 
+                            ? `<img src="${photoSrc}" class="w-full h-full object-cover ${item.purchased ? 'grayscale' : ''}" alt="item photo">`
+                            : `<i class="fas fa-gift text-3xl text-pastelOrange"></i>`
+                        }
+                    </div>
+                    <div class="flex-1 flex flex-col justify-between overflow-hidden py-1">
+                        <div>
+                            <div class="flex justify-between items-start mb-1 gap-2">
+                                <h3 class="font-bold text-warmBrown truncate cursor-pointer text-lg ${item.purchased ? 'line-through text-gray-400' : ''}" onclick="window.openEditModal('${item.id}')">${item.name}</h3>
+                                <button type="button" onclick="window.askDelete('${item.id}')" class="text-gray-300 hover:text-pastelPink p-1 -mt-1 -mr-1 transition-colors"><i class="fas fa-trash-alt"></i></button>
+                            </div>
+                            <div class="flex flex-wrap gap-1.5 mb-1.5">
+                                <span class="text-[10px] font-bold bg-pastelOrange text-warmBrown px-2.5 py-0.5 rounded-full border border-warmBrown"><i class="fas fa-tag mr-1 opacity-70"></i>${item.category}</span>
+                                ${item.location ? `<a href="${mapLink}" target="_blank" class="text-[10px] font-bold bg-pastelBlue text-warmBrown px-2.5 py-0.5 rounded-full border border-warmBrown hover:bg-blue-200 transition-colors"><i class="fas fa-map-marker-alt mr-1 opacity-70"></i>${item.location}</a>` : ''}
+                            </div>
+                            <p class="text-xs text-gray-400 line-clamp-1 mt-1 font-medium">${item.description || '沒有備註唷'}</p>
+                        </div>
+                        <div class="flex justify-end mt-2">
+                             <label class="flex items-center space-x-2 cursor-pointer bg-white px-3 py-1.5 rounded-full border-2 border-warmBrown transition-all ${item.purchased ? 'bg-gray-100 border-gray-300 text-gray-400' : 'shadow-[2px_2px_0_rgba(92,64,51,0.2)] text-warmBrown'}">
+                                <span class="text-xs font-bold">${item.purchased ? '已購買' : '還沒買'}</span>
+                                <input type="checkbox" class="custom-checkbox w-5 h-5" ${item.purchased ? 'checked' : ''} onchange="window.toggleStatus('${item.id}', this.checked)">
+                            </label>
+                        </div>
+                    </div>
+                `;
+                listContainer.appendChild(card);
+            });
+        }
+    }
+
+    // 將互動函式掛載至 window 確保全域可用
+    window.openAddModal = function() {
+        const modal = document.getElementById('add-modal');
+        const content = document.getElementById('add-modal-content');
+        if(!modal || !content) return;
+
+        document.getElementById('modal-title').innerText = '記下想買的 🖍️';
+        document.getElementById('item-id').value = '';
+        document.getElementById('item-name').value = '';
+        document.getElementById('item-desc').value = '';
+        document.getElementById('item-status').checked = false;
+        
+        state.currentPhotoBase64 = null;
+        const preview = document.getElementById('photo-preview');
+        const placeholder = document.getElementById('photo-placeholder');
+        if(preview && placeholder) {
+            preview.src = '';
+            preview.classList.add('hidden');
+            placeholder.classList.remove('hidden');
+        }
+
+        renderFormSelects();
+
+        modal.classList.remove('hidden');
+        void modal.offsetWidth;
+        content.classList.remove('translate-y-full');
+    }
+
+    window.closeAddModal = function() {
+        const modal = document.getElementById('add-modal');
+        const content = document.getElementById('add-modal-content');
+        if(!modal || !content) return;
+
+        content.classList.add('translate-y-full');
+        setTimeout(() => {
+            modal.classList.add('hidden');
+        }, 300);
+    }
+
+    window.openEditModal = function(id) {
+        const item = state.items.find(i => i.id === id);
+        if (!item) return;
+
+        const modal = document.getElementById('add-modal');
+        const content = document.getElementById('add-modal-content');
+        if(!modal || !content) return;
+
+        document.getElementById('modal-title').innerText = '修改商品 ✏️';
+        document.getElementById('item-id').value = item.id;
+        document.getElementById('item-name').value = item.name;
+        document.getElementById('item-desc').value = item.description || '';
+        document.getElementById('item-status').checked = item.purchased || false;
+
+        renderFormSelects();
+        document.getElementById('item-category').value = item.category;
+        document.getElementById('item-location').value = item.location || '';
+
+        state.currentPhotoBase64 = item.photoUrl || null;
+        const preview = document.getElementById('photo-preview');
+        const placeholder = document.getElementById('photo-placeholder');
+        if (item.photoUrl) {
+            preview.src = item.photoUrl;
+            preview.classList.remove('hidden');
+            placeholder.classList.add('hidden');
+        } else {
+            preview.src = '';
+            preview.classList.add('hidden');
+            placeholder.classList.remove('hidden');
+        }
+
+        modal.classList.remove('hidden');
+        void modal.offsetWidth;
+        content.classList.remove('translate-y-full');
+    }
+
+    window.saveItem = async function() {
+        const name = document.getElementById('item-name').value.trim();
+        if (!name) {
+            window.showMsg("缺少名稱", "請填寫商品名稱唷！", "warning");
+            return;
+        }
+
+        const category = document.getElementById('item-category').value;
+        const location = document.getElementById('item-location').value;
+        const description = document.getElementById('item-desc').value.trim();
+        const purchased = document.getElementById('item-status').checked;
+        const id = document.getElementById('item-id').value;
+
+        const itemData = {
+            name,
+            category,
+            location,
+            description,
+            purchased,
+            photoUrl: state.currentPhotoBase64 || '',
+            createdAt: Date.now()
+        };
+
+        try {
+            const itemsRef = collection(db, 'artifacts', currentAppId, 'users', state.userId, 'items');
+            if (id) {
+                const docRef = doc(db, 'artifacts', currentAppId, 'users', state.userId, 'items', id);
+                await updateDoc(docRef, itemData);
+            } else {
+                await addDoc(itemsRef, itemData);
+            }
+            window.closeAddModal();
+        } catch (e) {
+            console.error("Error saving item:", e);
+            window.showMsg("儲存失敗", "無法儲存商品資料。", "error");
+        }
+    }
+
+    window.toggleStatus = async function(id, purchased) {
+        try {
+            const docRef = doc(db, 'artifacts', currentAppId, 'users', state.userId, 'items', id);
+            await updateDoc(docRef, { purchased });
+        } catch(e) {
+            console.error("Error updating status:", e);
+        }
+    }
+
+    window.askDelete = function(id) {
+        state.itemToDelete = id;
+        const modal = document.getElementById('delete-modal');
+        if(modal) modal.classList.remove('hidden');
+    }
+
+    window.closeDeleteModal = function() {
+        state.itemToDelete = null;
+        const modal = document.getElementById('delete-modal');
+        if(modal) modal.classList.add('hidden');
+    }
+
+    document.getElementById('confirm-delete-btn').addEventListener('click', async () => {
+        if (!state.itemToDelete) return;
+        try {
+            const docRef = doc(db, 'artifacts', currentAppId, 'users', state.userId, 'items', state.itemToDelete);
+            await deleteDoc(docRef);
+            window.closeDeleteModal();
+        } catch(e) {
+            console.error("Error deleting item:", e);
+            window.showMsg("刪除失敗", "無法刪除該商品。", "error");
+        }
+    });
+
+    window.openInputModal = function(title, placeholder, callback) {
+        document.getElementById('text-input-title').innerText = title;
+        const field = document.getElementById('text-input-field');
+        field.placeholder = placeholder;
+        field.value = '';
+        state.inputModalCallback = callback;
+
+        const modal = document.getElementById('text-input-modal');
+        const content = document.getElementById('text-input-content');
+        if(!modal || !content) return;
+
+        modal.classList.remove('hidden');
+        void modal.offsetWidth;
+        content.classList.remove('scale-95');
+    }
+
+    window.closeInputModal = function() {
+        const modal = document.getElementById('text-input-modal');
+        const content = document.getElementById('text-input-content');
+        if(!modal || !content) return;
+
+        content.classList.add('scale-95');
+        setTimeout(() => {
+            modal.classList.add('hidden');
+        }, 200);
+    }
+
+    window.confirmInputModal = function() {
+        const val = document.getElementById('text-input-field').value.trim();
+        if (val && state.inputModalCallback) {
+            state.inputModalCallback(val);
+        }
+        window.closeInputModal();
+    }
+
+    window.handleAddCategory = function(cat) {
+        if (!state.categories.includes(cat)) {
+            state.categories.push(cat);
+            saveSettings();
+        }
+    }
+
+    window.handleAddLocation = function(loc) {
+        if (!state.locations.includes(loc)) {
+            state.locations.push(loc);
+            saveSettings();
+        }
+    }
+
+    window.handlePhotoUpload = function(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            // 簡單進行圖片壓縮處理以符合 Firestore 容量限制
+            const img = new Image();
+            img.onload = function() {
+                const canvas = document.createElement('canvas');
+                const MAX_WIDTH = 400;
+                const MAX_HEIGHT = 400;
+                let width = img.width;
+                let height = img.height;
+
+                if (width > height) {
+                    if (width > MAX_WIDTH) {
+                        height *= MAX_WIDTH / width;
+                        width = MAX_WIDTH;
+                    }
+                } else {
+                    if (height > MAX_HEIGHT) {
+                        width *= MAX_HEIGHT / height;
+                        height = MAX_HEIGHT;
+                    }
+                }
+
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+                
+                state.currentPhotoBase64 = canvas.toDataURL('image/jpeg', 0.7);
+                
+                const preview = document.getElementById('photo-preview');
+                const placeholder = document.getElementById('photo-placeholder');
+                preview.src = state.currentPhotoBase64;
+                preview.classList.remove('hidden');
+                placeholder.classList.add('hidden');
+            };
+            img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+    }
+
+    window.showMsg = function(title, desc, type="success") {
+        document.getElementById('msg-title').innerText = title;
+        document.getElementById('msg-desc').innerText = desc;
+        
+        const iconContainer = document.getElementById('msg-icon-container');
+        let iconHtml = '';
+        if(type === 'success') {
+            iconHtml = `<div class="icon-circle bg-pastelGreen float-anim border-2 border-warmBrown shadow-[2px_2px_0_rgba(92,64,51,1)]"><i class="fas fa-check"></i></div>`;
+        } else if (type === 'warning') {
+            iconHtml = `<div class="icon-circle bg-pastelYellow float-anim border-2 border-warmBrown shadow-[2px_2px_0_rgba(92,64,51,1)]"><i class="fas fa-exclamation"></i></div>`;
+        } else {
+            iconHtml = `<div class="icon-circle bg-pastelPink float-anim border-2 border-warmBrown shadow-[2px_2px_0_rgba(92,64,51,1)]"><i class="fas fa-times"></i></div>`;
+        }
+        iconContainer.innerHTML = iconHtml;
+
+        const modal = document.getElementById('msg-modal');
+        const content = document.getElementById('msg-content');
+        if(!modal || !content) return;
+
+        modal.classList.remove('hidden');
+        void modal.offsetWidth;
+        content.classList.remove('scale-95');
+    }
+
+    window.closeMsgModal = function() {
+        const modal = document.getElementById('msg-modal');
+        const content = document.getElementById('msg-content');
+        if(!modal || !content) return;
+
+        content.classList.add('scale-95');
+        setTimeout(() => {
+            modal.classList.add('hidden');
+        }, 200);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        initApp();
+    });
+</script>
+</body>
+</html>
