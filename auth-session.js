@@ -29,7 +29,9 @@ export function createAuthSessionController({ startSession, stopSession, resetSe
 }
 
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
-    import('./app-enhancements.js')
+    import('./drive-upload-rollback-fetch.js')
+        .then(({ installDriveUploadRollbackFetch }) => installDriveUploadRollbackFetch(window))
+        .then(() => import('./app-enhancements.js'))
         .then(({ initShoppingListEnhancements }) => initShoppingListEnhancements())
         .catch((error) => console.error('購物清單增強功能載入失敗:', error));
 }
