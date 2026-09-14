@@ -28,6 +28,25 @@ export function createAuthSessionController({ startSession, stopSession, resetSe
     };
 }
 
+export function applyCoreHomeShell(documentRef) {
+    if (!documentRef) return;
+
+    documentRef.querySelectorAll?.('header p')?.forEach((node) => {
+        if (node.textContent?.trim() === 'Shin-chan Style') node.remove?.();
+    });
+
+    const addButton = documentRef.getElementById?.('add-item-btn');
+    addButton?.classList?.add('fixed');
+    addButton?.classList?.remove('absolute');
+
+    const userPanel = documentRef.getElementById?.('user-panel');
+    userPanel?.classList?.add('absolute', 'top-4', 'right-4');
+    userPanel?.classList?.remove('relative', 'mt-4');
+
+    documentRef.getElementById?.('user-name')?.classList?.add('hidden');
+    documentRef.getElementById?.('sign-out-btn')?.classList?.add('hidden');
+}
+
 export function runEnhancementsIndependently(...tasks) {
     if (!tasks.length || tasks.some((task) => typeof task !== 'function')) {
         throw new TypeError('Enhancement tasks must be functions.');
@@ -37,6 +56,8 @@ export function runEnhancementsIndependently(...tasks) {
 }
 
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+    applyCoreHomeShell(document);
+
     void runEnhancementsIndependently(
         async () => {
             const { initHomeUiEnhancements } = await import('./home-ui-enhancements.js');
