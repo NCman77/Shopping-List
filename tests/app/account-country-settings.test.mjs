@@ -33,8 +33,9 @@ test('avatar settings expose country management, personalization and sign out wi
 test('adding a country does not write activeCountry or close the management screen as a selection action', async () => {
   const source = await readFile(new URL('../../src/client/app/account-settings.js', import.meta.url), 'utf8');
   const addIndex = source.indexOf('async function addCountry');
-  assert.ok(addIndex >= 0);
-  const slice = source.slice(addIndex, addIndex + 1600);
+  const nextFunctionIndex = source.indexOf('function subscribeUser', addIndex);
+  assert.ok(addIndex >= 0 && nextFunctionIndex > addIndex);
+  const slice = source.slice(addIndex, nextFunctionIndex);
   assert.match(slice, /countries:\s*nextCountries/);
   assert.doesNotMatch(slice, /activeCountry/);
   assert.doesNotMatch(slice, /selectCountry/);
