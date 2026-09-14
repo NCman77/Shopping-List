@@ -22,14 +22,17 @@ test('detail photo cards keep natural image proportions instead of forcing squar
   assert.match(mod.DETAIL_PHOTO_IMAGE_CLASS, /h-auto/);
 });
 
-test('detail photo renderers use the shared natural layout while homepage cards stay untouched', async () => {
+test('natural detail layout is scoped to the detail photo grid and homepage rendering stays unchanged', async () => {
+  const authSource = await readFile(new URL('../../src/client/app/auth-session.js', import.meta.url), 'utf8');
+  const layoutSource = await readFile(new URL('../../src/client/photos/photo-detail-layout.js', import.meta.url), 'utf8').catch(() => '');
   const appSource = await readFile(new URL('../../src/client/app/app-enhancements.js', import.meta.url), 'utf8');
-  const fallbackSource = await readFile(new URL('../../src/client/photos/photo-detail-fallback-enhancements.js', import.meta.url), 'utf8');
 
-  assert.match(appSource, /DETAIL_PHOTO_CARD_CLASS/);
-  assert.match(appSource, /DETAIL_PHOTO_IMAGE_CLASS/);
-  assert.match(fallbackSource, /DETAIL_PHOTO_IMAGE_CLASS/);
+  assert.match(authSource, /photo-detail-layout\.js/);
+  assert.match(authSource, /initPhotoDetailNaturalLayout/);
+  assert.match(layoutSource, /photo-preview-grid/);
+  assert.match(layoutSource, /classList\.remove\('aspect-square'\)/);
+  assert.match(layoutSource, /DETAIL_PHOTO_IMAGE_CLASS/);
 
-  // Homepage cover cards keep their existing square presentation.
+  // Homepage cover cards keep their existing square presentation in the base app.
   assert.match(appSource, /aspect-square/);
 });
