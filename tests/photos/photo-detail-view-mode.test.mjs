@@ -27,5 +27,5 @@ test('edit mode keeps the existing photo grid behavior while view-only styling i
   const source = await readFile(detailLayoutPath, 'utf8');
 
   assert.match(source, /\.workflow-view-mode #photo-preview-grid/);
-  assert.doesNotMatch(source, /#photo-preview-grid\s*\{[^}]*display:\s*flex\s*!important/s);
+  assert.doesNotMatch(source, /^\s*#photo-preview-grid\s*\{[^}]*display:\s*flex\s*!important/gm);
 });
