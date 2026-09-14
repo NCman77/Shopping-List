@@ -27,6 +27,32 @@ test('legacy migration plan is deterministic and ignores items already assigned 
   assert.deepEqual(kr.itemIds, ['kr-1']);
 });
 
+test('manual legacy selection remains active for the current session while startup defaults stay smart', async () => {
+  const contextModule = await import('../../src/client/app/trip-context.js');
+  assert.equal(typeof contextModule.resolveTripForReconcile, 'function');
+
+  const trips = [
+    { id: 'legacy-jp', title: '日本 · 既有清單', country: '日本', kind: 'legacy' },
+    { id: 'tokyo-2026', title: '2026/09/21東京', country: '日本', kind: 'trip', startDate: '2026-09-21', endDate: '2026-09-27' }
+  ];
+
+  const manual = contextModule.resolveTripForReconcile({
+    trips,
+    persistedTripId: 'legacy-jp',
+    sessionSelectedTripId: 'legacy-jp',
+    today: '2026-09-15'
+  });
+  assert.equal(manual?.id, 'legacy-jp');
+
+  const startup = contextModule.resolveTripForReconcile({
+    trips,
+    persistedTripId: 'legacy-jp',
+    sessionSelectedTripId: '',
+    today: '2026-09-15'
+  });
+  assert.equal(startup?.id, 'tokyo-2026');
+});
+
 test('trip context subscribes to trips, items, and preferences and migrates only missing tripId items', async () => {
   const source = await readFile(contextPath, 'utf8');
   assert.match(source, /collection\([^\n]*'trips'/);
