@@ -1,3 +1,13 @@
+export async function rollbackUploadedFiles(fileIds, deletePhoto, queueCleanup) {
+  for (const fileId of fileIds) {
+    try {
+      await deletePhoto(fileId);
+    } catch {
+      queueCleanup(fileId);
+    }
+  }
+}
+
 export async function uploadPhotosWithRollback({
   photos,
   concurrency = 2,
@@ -37,13 +47,6 @@ export async function uploadPhotosWithRollback({
 
   if (!failed) return results;
 
-  for (const fileId of uploadedFileIds) {
-    try {
-      await deletePhoto(fileId);
-    } catch {
-      queueCleanup(fileId);
-    }
-  }
-
+  await rollbackUploadedFiles(uploadedFileIds, deletePhoto, queueCleanup);
   throw failed;
 }
