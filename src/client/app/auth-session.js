@@ -74,9 +74,13 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
         async () => {
             const { initPhotoVisibilityEnhancements } = await import('./photo-visibility-enhancements.js');
             return initPhotoVisibilityEnhancements();
+        },
+        async () => {
+            const { initPhotoDetailPreviewEnhancements } = await import('../photos/photo-detail-preview-enhancements.js');
+            return initPhotoDetailPreviewEnhancements();
         }
     ).then((results) => {
-        const [homeUiResult, appResult, photoVisibilityResult] = results;
+        const [homeUiResult, appResult, photoVisibilityResult, detailPreviewResult] = results;
         if (homeUiResult.status === 'rejected') {
             console.error('首頁介面增強功能載入失敗:', homeUiResult.reason);
         }
@@ -85,6 +89,9 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
         }
         if (photoVisibilityResult.status === 'rejected') {
             console.error('照片顯示修復功能載入失敗:', photoVisibilityResult.reason);
+        }
+        if (detailPreviewResult.status === 'rejected') {
+            console.error('商品詳情照片功能載入失敗:', detailPreviewResult.reason);
         }
     });
 }
