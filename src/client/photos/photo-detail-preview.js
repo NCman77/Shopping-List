@@ -65,7 +65,7 @@ export function createDetailPreviewBackfillService({
         const blob = await downloadPhoto(photo.driveFileId);
         const preview = await createPreview(blob);
         if (!preview?.dataUrl) continue;
-        await updatePreview(photo.id, preview);
+        await updatePreview(photo.id, preview, photo);
         updated += 1;
       }
       return { updated };
