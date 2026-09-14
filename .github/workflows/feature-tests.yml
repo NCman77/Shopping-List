@@ -3,7 +3,7 @@ name: Feature tests
 on:
   push:
     branches:
-      - feature/drive-photos-websites
+      - 'feature/**'
   workflow_dispatch:
 
 jobs:
@@ -24,6 +24,10 @@ jobs:
           node --check drive-photo-service.js
           node --check photo-metadata.js
           node --check app-enhancements.js
+          node --check drive-upload-rollback-fetch.js
+          node --check photo-upload-transaction.js
+          if [ -f filter-management.js ]; then node --check filter-management.js; fi
+          if [ -f home-ui-enhancements.js ]; then node --check home-ui-enhancements.js; fi
       - name: Integration markers
         run: |
           grep -q "item-website" app-enhancements.js
