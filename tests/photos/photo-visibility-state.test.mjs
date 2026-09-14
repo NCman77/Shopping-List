@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { getPhotoVisibilityState, shouldBackfillPhotoThumbnail, shouldClearPersistentThumbnail } from './photo-visibility-state.js';
+import * as photoState from './photo-visibility-state.js';
+
+const { getPhotoVisibilityState, shouldBackfillPhotoThumbnail, shouldClearPersistentThumbnail } = photoState;
 
 test('matching persistent thumbnail keeps a product photo visible without a Drive token', () => {
   assert.deepEqual(getPhotoVisibilityState({
@@ -95,4 +97,49 @@ test('item with no photo remains an empty-photo state', () => {
     driveCoverId: '',
     hasDriveToken: false
   }).mode, 'empty');
+});
+
+test('new uploaded cover is persisted with its thumbnail immediately', () => {
+  assert.equal(typeof photoState.resolvePhotoPersistenceForSave, 'function');
+  assert.deepEqual(photoState.resolvePhotoPersistenceForSave({
+    existingItem: {},
+    existingActivePhotos: [],
+    uploadedPhotos: [{ id: 'new-photo', thumbnailDataUrl: 'data:image/webp;base64,newthumb' }]
+  }), {
+    coverPhotoId: 'new-photo',
+    photoUrl: 'data:image/webp;base64,newthumb',
+    photoThumbCoverId: 'new-photo'
+  });
+});
+
+test('unchanged cover keeps its existing persistent thumbnail', () => {
+  assert.equal(typeof photoState.resolvePhotoPersistenceForSave, 'function');
+  assert.deepEqual(photoState.resolvePhotoPersistenceForSave({
+    existingItem: {
+      photoUrl: 'data:image/webp;base64,existing',
+      photoThumbCoverId: 'photo-1'
+    },
+    existingActivePhotos: [{ id: 'photo-1' }],
+    uploadedPhotos: [{ id: 'new-photo', thumbnailDataUrl: 'data:image/webp;base64,newthumb' }]
+  }), {
+    coverPhotoId: 'photo-1',
+    photoUrl: 'data:image/webp;base64,existing',
+    photoThumbCoverId: 'photo-1'
+  });
+});
+
+test('changing to an existing Drive cover clears a stale tracked thumbnail for backfill', () => {
+  assert.equal(typeof photoState.resolvePhotoPersistenceForSave, 'function');
+  assert.deepEqual(photoState.resolvePhotoPersistenceForSave({
+    existingItem: {
+      photoUrl: 'data:image/webp;base64,old',
+      photoThumbCoverId: 'photo-1'
+    },
+    existingActivePhotos: [{ id: 'photo-2' }],
+    uploadedPhotos: []
+  }), {
+    coverPhotoId: 'photo-2',
+    photoUrl: '',
+    photoThumbCoverId: null
+  });
 });

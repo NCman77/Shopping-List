@@ -67,7 +67,9 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
             const { installDriveUploadRollbackFetch } = await import('./drive-upload-rollback-fetch.js');
             installDriveUploadRollbackFetch(window);
             const { initShoppingListEnhancements } = await import('./app-enhancements.js');
-            return initShoppingListEnhancements();
+            await initShoppingListEnhancements();
+            const { initPhotoThumbnailPersistence } = await import('../photos/photo-thumbnail-persistence.js');
+            return initPhotoThumbnailPersistence();
         },
         async () => {
             const { initPhotoVisibilityEnhancements } = await import('./photo-visibility-enhancements.js');

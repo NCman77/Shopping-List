@@ -2,6 +2,8 @@ import { normalizeWebsiteUrl, createGoogleMapsUrl } from './url-utils.js';
 import { compressImage, revokeCompressedImage } from './image-compression.js';
 import { createDrivePhotoService, DriveAuthorizationError } from './drive-photo-service.js';
 import { groupActivePhotosByItem } from './photo-metadata.js';
+import { createLightweightThumbnail } from '../photos/photo-thumbnail-persistence.js';
+import { resolvePhotoPersistenceForSave } from '../photos/photo-visibility-state.js';
 
 const APP_ID = 'japan-shopping-app';
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
@@ -474,6 +476,16 @@ export async function initShoppingListEnhancements() {
         });
       }
 
+      const uploadedForPersistence = newPhotoIds.map((photoId) => ({ id: photoId, thumbnailDataUrl: '' }));
+      if (!existingActive.length && uploaded[0] && uploadedForPersistence[0]) {
+        uploadedForPersistence[0].thumbnailDataUrl = await createLightweightThumbnail(uploaded[0].photo.blob);
+      }
+      const photoPersistence = resolvePhotoPersistenceForSave({
+        existingItem: existing || {},
+        existingActivePhotos: existingActive,
+        uploadedPhotos: uploadedForPersistence
+      });
+
       for (const photoId of state.removedPhotoIds) {
         const photoRef = doc(db, 'artifacts', APP_ID, 'users', user.uid, 'itemPhotos', photoId);
         batch.update(photoRef, { status: 'deleting' });
@@ -487,8 +499,9 @@ export async function initShoppingListEnhancements() {
         website,
         description: document.getElementById('item-desc').value.trim(),
         purchased: document.getElementById('item-status').checked,
-        photoUrl: existing?.photoUrl || '',
-        coverPhotoId: existingActive[0]?.id || newPhotoIds[0] || null,
+        photoUrl: photoPersistence.photoUrl,
+        photoThumbCoverId: photoPersistence.photoThumbCoverId,
+        coverPhotoId: photoPersistence.coverPhotoId,
         createdAt: existing?.createdAt || Date.now(),
         updatedAt: Date.now()
       };

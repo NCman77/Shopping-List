@@ -1,5 +1,5 @@
-import { compressImage, revokeCompressedImage } from './image-compression.js';
 import { groupActivePhotosByItem } from './photo-metadata.js';
+import { createLightweightThumbnail } from './photo-thumbnail-persistence.js';
 import { getPhotoVisibilityState, shouldBackfillPhotoThumbnail, shouldClearPersistentThumbnail } from './photo-visibility-state.js';
 
 const APP_ID = 'japan-shopping-app';
@@ -25,33 +25,6 @@ function getCardItemId(card) {
   const source = clickable?.getAttribute('onclick') || '';
   const match = source.match(/openEditModal\(['"]([^'"]+)['"]\)/);
   return match?.[1] || card.dataset.enhancedItemId || '';
-}
-
-function blobToDataUrl(blob) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ''));
-    reader.onerror = () => reject(reader.error || new Error('無法建立照片縮圖。'));
-    reader.readAsDataURL(blob);
-  });
-}
-
-async function createPersistentThumbnail(blob) {
-  let compressed = await compressImage(blob, { maxEdge: 480, quality: 0.72 });
-  try {
-    const dataUrl = await blobToDataUrl(compressed.blob);
-    if (dataUrl.length <= 300000) return dataUrl;
-  } finally {
-    revokeCompressedImage(compressed);
-  }
-
-  compressed = await compressImage(blob, { maxEdge: 320, quality: 0.58 });
-  try {
-    const dataUrl = await blobToDataUrl(compressed.blob);
-    return dataUrl.length <= 300000 ? dataUrl : '';
-  } finally {
-    revokeCompressedImage(compressed);
-  }
 }
 
 export async function initPhotoVisibilityEnhancements() {
@@ -171,7 +144,7 @@ export async function initPhotoVisibilityEnhancements() {
     if (!item || (item.photoUrl && item.photoThumbCoverId === coverId)) return;
     state.thumbnailWrites.add(itemId);
     try {
-      const thumbnail = await createPersistentThumbnail(blob);
+      const thumbnail = await createLightweightThumbnail(blob);
       if (!thumbnail) return;
       await updateDoc(doc(db, 'artifacts', APP_ID, 'users', state.userId, 'items', itemId), {
         photoUrl: thumbnail,
@@ -254,7 +227,7 @@ export async function initPhotoVisibilityEnhancements() {
         hasDriveToken: true
       })) {
         blob ||= await downloadDrivePhoto(cover.driveFileId);
-        void backfillThumbnail(itemId, driveCoverId, blob);
+        await backfillThumbnail(itemId, driveCoverId, blob);
       }
     } catch (error) {
       if (error?.message === 'authorization-required') renderAuthorizationRequired(card);
