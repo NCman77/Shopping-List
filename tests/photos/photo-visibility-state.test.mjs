@@ -54,11 +54,21 @@ test('stale thumbnail is not shown after the Drive cover changes', () => {
   }), true);
 });
 
-test('tracked thumbnail is cleared after all Drive photos are removed', () => {
+test('tracked thumbnail is not cleared while photo metadata is still loading', () => {
   assert.equal(shouldClearPersistentThumbnail({
     photoUrl: 'data:image/webp;base64,old',
     persistentCoverId: 'photo-1',
-    driveCoverId: ''
+    driveCoverId: '',
+    photoMetadataLoaded: false
+  }), false);
+});
+
+test('tracked thumbnail is cleared after loaded photo metadata confirms all Drive photos are removed', () => {
+  assert.equal(shouldClearPersistentThumbnail({
+    photoUrl: 'data:image/webp;base64,old',
+    persistentCoverId: 'photo-1',
+    driveCoverId: '',
+    photoMetadataLoaded: true
   }), true);
 
   assert.equal(getPhotoVisibilityState({

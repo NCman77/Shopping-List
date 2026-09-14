@@ -25,3 +25,10 @@ test('Drive photo recovery waits for thumbnail persistence before finishing the 
   assert.match(source, /await\s+backfillThumbnail\(itemId,\s*driveCoverId,\s*blob\)/);
   assert.doesNotMatch(source, /void\s+backfillThumbnail\(itemId,\s*driveCoverId,\s*blob\)/);
 });
+
+test('persistent thumbnails are never cleared before photo metadata finishes its first snapshot', async () => {
+  const source = await readFile(new URL('../../src/client/photos/photo-visibility-enhancements.js', import.meta.url), 'utf8');
+  assert.match(source, /photoMetadataLoaded/);
+  assert.match(source, /photoMetadataLoaded:\s*state\.photoMetadataLoaded/);
+  assert.match(source, /state\.photoMetadataLoaded\s*=\s*true/);
+});

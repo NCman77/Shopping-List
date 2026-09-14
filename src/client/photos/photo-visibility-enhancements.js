@@ -52,7 +52,8 @@ export async function initPhotoVisibilityEnhancements() {
     itemUnsub: null,
     photoUnsub: null,
     objectUrls: new Map(),
-    thumbnailWrites: new Set()
+    thumbnailWrites: new Set(),
+    photoMetadataLoaded: false
   };
 
   function clearObjectUrls() {
@@ -196,7 +197,8 @@ export async function initPhotoVisibilityEnhancements() {
       if (shouldClearPersistentThumbnail({
         photoUrl: item.photoUrl || '',
         persistentCoverId: item.photoThumbCoverId || '',
-        driveCoverId
+        driveCoverId,
+        photoMetadataLoaded: state.photoMetadataLoaded
       })) {
         void clearTrackedThumbnail(itemId);
       }
@@ -259,6 +261,7 @@ export async function initPhotoVisibilityEnhancements() {
     state.items = new Map();
     state.photosByItem = new Map();
     state.thumbnailWrites.clear();
+    state.photoMetadataLoaded = false;
     if (!user) return;
 
     state.itemUnsub = onSnapshot(collection(db, 'artifacts', APP_ID, 'users', user.uid, 'items'), (snapshot) => {
@@ -271,6 +274,7 @@ export async function initPhotoVisibilityEnhancements() {
       if (state.userId !== user.uid) return;
       const photos = snapshot.docs.map((photoDoc) => ({ id: photoDoc.id, ...photoDoc.data() }));
       state.photosByItem = groupActivePhotosByItem(photos);
+      state.photoMetadataLoaded = true;
       queueMicrotask(renderAll);
     }, (error) => console.error('Photo metadata listener failed:', error));
   }
