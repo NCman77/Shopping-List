@@ -44,3 +44,17 @@ test('findItemsUsingOption returns every item still using a location', async () 
     ['防曬', '鞋子']
   );
 });
+
+test('buildDeletionImpact lists every affected item and explains legacy text is retained', async () => {
+  const { buildDeletionImpact } = await loadModule();
+  const items = [
+    { id: '1', name: '防曬', category: '美妝', location: '新宿' },
+    { id: '2', name: '護髮', category: '美妝', location: '澀谷' },
+    { id: '3', name: '鞋子', category: '服飾', location: '新宿' }
+  ];
+  const impact = buildDeletionImpact(items, 'category', '美妝');
+  assert.deepEqual(impact.itemNames, ['防曬', '護髮']);
+  assert.equal(impact.usageCount, 2);
+  assert.match(impact.summary, /2 個商品/);
+  assert.match(impact.retainNote, /仍會保留「美妝」文字/);
+});
