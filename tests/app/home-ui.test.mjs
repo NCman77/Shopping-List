@@ -12,3 +12,9 @@ test('Drive app initialization also installs durable thumbnail persistence', asy
   assert.match(source, /photo-thumbnail-persistence\.js/);
   assert.match(source, /initPhotoThumbnailPersistence/);
 });
+
+test('Drive app initialization also installs persistent detail photo previews', async () => {
+  const source = await readFile(new URL('../../src/client/app/auth-session.js', import.meta.url), 'utf8');
+  assert.match(source, /photo-detail-preview-enhancements\.js/);
+  assert.match(source, /initPhotoDetailPreviewEnhancements/);
+});
