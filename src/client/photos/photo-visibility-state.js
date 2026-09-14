@@ -38,7 +38,13 @@ export function shouldBackfillPhotoThumbnail({
   return !String(photoUrl || '').trim() || String(persistentCoverId || '').trim() !== String(driveCoverId || '').trim();
 }
 
-export function shouldClearPersistentThumbnail({ photoUrl = '', persistentCoverId = '', driveCoverId = '' } = {}) {
+export function shouldClearPersistentThumbnail({
+  photoUrl = '',
+  persistentCoverId = '',
+  driveCoverId = '',
+  photoMetadataLoaded = true
+} = {}) {
+  if (!photoMetadataLoaded) return false;
   return Boolean(String(photoUrl || '').trim() && String(persistentCoverId || '').trim() && !String(driveCoverId || '').trim());
 }
 
