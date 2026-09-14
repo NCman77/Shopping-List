@@ -11,8 +11,9 @@ test('detail photo fallback is bootstrapped independently', async () => {
 test('detail fallback uses the existing homepage cover before showing a blank card', async () => {
   const source = await readFile(new URL('../../src/client/photos/photo-detail-fallback-enhancements.js', import.meta.url), 'utf8');
   assert.match(source, /resolveDetailPhotoDisplay/);
-  assert.match(source, /photoUrl/);
-  assert.match(source, /homepage-fallback/);
+  assert.match(source, /homepagePhotoUrl:\s*item\.photoUrl/);
+  assert.match(source, /if \(display\.src\)/);
+  assert.match(source, /setImage\(card, display\.src\)/);
   assert.match(source, /object-contain/);
 });
 
