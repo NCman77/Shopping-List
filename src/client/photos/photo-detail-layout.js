@@ -32,6 +32,9 @@ function installDetailViewStyles(documentRef) {
     .workflow-view-mode #photo-preview-grid > div {
       width: 100%;
       max-width: 100%;
+      aspect-ratio: auto !important;
+      height: auto !important;
+      min-height: 0 !important;
       border: 0 !important;
       border-radius: 0 !important;
       background: transparent !important;
@@ -67,6 +70,8 @@ export function normalizeDetailPhotoCard(card) {
   }
 
   card.classList.remove('min-h-20');
+  const placeholderIcon = card.querySelector?.('.fa-image');
+  placeholderIcon?.closest?.('div')?.remove?.();
   ['absolute', 'inset-0', 'w-full', 'h-full', 'object-cover'].forEach((token) => img.classList.remove(token));
   applyClassTokens(img, DETAIL_PHOTO_IMAGE_CLASS);
 }
