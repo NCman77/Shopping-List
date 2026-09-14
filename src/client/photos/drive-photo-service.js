@@ -56,6 +56,31 @@ export function createDrivePhotoService({ fetchImpl = fetch, sessionStorageImpl 
     return response;
   }
 
+  function normalizeAppProperties(value) {
+    const entries = Object.entries(value && typeof value === 'object' ? value : {});
+    return Object.fromEntries(entries
+      .map(([key, propertyValue]) => [String(key || '').trim(), String(propertyValue ?? '')])
+      .filter(([key]) => key));
+  }
+
+  async function uploadFile({ blob, fileName, appProperties = {} }) {
+    if (!(blob instanceof Blob)) throw new TypeError('檔案資料無效。');
+    const name = String(fileName || '').trim() || `file-${Date.now()}`;
+    const form = new FormData();
+    const metadata = {
+      name,
+      parents: ['appDataFolder'],
+      appProperties: normalizeAppProperties(appProperties)
+    };
+    form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+    form.append('file', blob, name);
+    const response = await checkedFetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,mimeType,size', {
+      method: 'POST',
+      body: form
+    });
+    return response.json();
+  }
+
   function getQueuedCleanup() {
     requireUser();
     try {
@@ -79,22 +104,13 @@ export function createDrivePhotoService({ fetchImpl = fetch, sessionStorageImpl 
     hasAccessToken() {
       return Boolean(userId() && sessionStorageImpl.getItem(tokenKey()));
     },
+    uploadFile,
     async uploadPhoto({ blob, fileName, itemId }) {
-      if (!(blob instanceof Blob)) throw new TypeError('照片資料無效。');
-      const name = String(fileName || '').trim() || `photo-${Date.now()}`;
-      const form = new FormData();
-      const metadata = {
-        name,
-        parents: ['appDataFolder'],
+      return uploadFile({
+        blob,
+        fileName,
         appProperties: { itemId: String(itemId || '') }
-      };
-      form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
-      form.append('file', blob, name);
-      const response = await checkedFetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,mimeType,size', {
-        method: 'POST',
-        body: form
       });
-      return response.json();
     },
     async downloadPhoto(fileId) {
       const id = assertFileId(fileId);
