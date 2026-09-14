@@ -27,8 +27,9 @@ test('existing enhanced item features remain wired', () => {
 });
 
 test('homepage management and isolated startup remain wired', () => {
-  assert.match(home, /管理分類/);
-  assert.match(home, /管理地點/);
+  assert.match(home, /category: '分類'/);
+  assert.match(home, /location: '地點'/);
+  assert.match(home, /`管理\$\{LABEL_BY_KIND\[kind\]\}`/);
   assert.match(home, /仍要刪除/);
   assert.match(auth, /applyCoreHomeShell/);
   assert.match(auth, /runEnhancementsIndependently/);
