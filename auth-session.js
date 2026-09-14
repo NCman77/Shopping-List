@@ -28,12 +28,36 @@ export function createAuthSessionController({ startSession, stopSession, resetSe
     };
 }
 
+export function runEnhancementsIndependently(homeUiTask, appEnhancementsTask) {
+    if (typeof homeUiTask !== 'function' || typeof appEnhancementsTask !== 'function') {
+        throw new TypeError('Enhancement tasks must be functions.');
+    }
+
+    return Promise.allSettled([
+        Promise.resolve().then(homeUiTask),
+        Promise.resolve().then(appEnhancementsTask)
+    ]);
+}
+
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
-    import('./drive-upload-rollback-fetch.js')
-        .then(({ installDriveUploadRollbackFetch }) => installDriveUploadRollbackFetch(window))
-        .then(() => import('./app-enhancements.js'))
-        .then(({ initShoppingListEnhancements }) => initShoppingListEnhancements())
-        .then(() => import('./home-ui-enhancements.js'))
-        .then(({ initHomeUiEnhancements }) => initHomeUiEnhancements())
-        .catch((error) => console.error('購物清單增強功能載入失敗:', error));
+    void runEnhancementsIndependently(
+        async () => {
+            const { initHomeUiEnhancements } = await import('./home-ui-enhancements.js');
+            return initHomeUiEnhancements();
+        },
+        async () => {
+            const { installDriveUploadRollbackFetch } = await import('./drive-upload-rollback-fetch.js');
+            installDriveUploadRollbackFetch(window);
+            const { initShoppingListEnhancements } = await import('./app-enhancements.js');
+            return initShoppingListEnhancements();
+        }
+    ).then((results) => {
+        const [homeUiResult, appResult] = results;
+        if (homeUiResult.status === 'rejected') {
+            console.error('首頁介面增強功能載入失敗:', homeUiResult.reason);
+        }
+        if (appResult.status === 'rejected') {
+            console.error('購物清單增強功能載入失敗:', appResult.reason);
+        }
+    });
 }
