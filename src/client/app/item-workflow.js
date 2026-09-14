@@ -14,6 +14,17 @@ export function statusWritePatch(status) {
   };
 }
 
+export function actionForShoppingStatus(item = {}) {
+  const status = resolveShoppingStatus(item);
+  if (status === 'wanted') {
+    return { label: '不想買', targetStatus: 'not_wanted', requiresConfirmation: true };
+  }
+  if (status === 'not_wanted') {
+    return { label: '恢復', targetStatus: 'wanted', requiresConfirmation: false };
+  }
+  return null;
+}
+
 export function filterByShoppingStatus(items = [], filter = 'all') {
   if (filter === 'all') return [...items];
   if (!VALID_STATUSES.has(filter)) return [...items];
@@ -44,10 +55,23 @@ export function paginateItems(items = [], page = 1, pageSize = 10) {
   };
 }
 
+export function detectHorizontalSwipe({ startX, startY, endX, endY, minDistance = 50 } = {}) {
+  const dx = Number(endX) - Number(startX);
+  const dy = Number(endY) - Number(startY);
+  if (!Number.isFinite(dx) || !Number.isFinite(dy)) return null;
+  if (Math.abs(dx) < minDistance || Math.abs(dx) <= Math.abs(dy)) return null;
+  return dx < 0 ? 'left' : 'right';
+}
+
 export function nextPageForSwipe({ direction, page, totalPages }) {
   const normalizedTotal = Math.max(1, Math.floor(Number(totalPages) || 1));
   const current = Math.min(normalizedTotal, Math.max(1, Math.floor(Number(page) || 1)));
   if (direction === 'left') return Math.max(1, current - 1);
   if (direction === 'right') return Math.min(normalizedTotal, current + 1);
   return current;
+}
+
+export function detailStateForOpen({ itemId } = {}) {
+  if (String(itemId || '').trim()) return { mode: 'view', canSave: false, canEdit: true };
+  return { mode: 'edit', canSave: true, canEdit: false };
 }
