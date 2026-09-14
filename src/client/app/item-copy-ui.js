@@ -228,9 +228,9 @@ export async function initItemCopyUi() {
           const blob = await drivePhotoService.downloadPhoto(photo.driveFileId);
           if (index === 0) firstThumbnail = await createLightweightThumbnail(blob);
           const driveFile = await drivePhotoService.uploadPhoto({
+            itemId: newItemId,
             blob,
-            fileName: clean(photo.fileName) || `copied-photo-${index + 1}.jpg`,
-            itemId: newItemId
+            fileName: clean(photo.fileName) || `copied-photo-${index + 1}.jpg`
           });
           uploadedDriveFileIds.push(driveFile.id);
           uploadedEntries.push({ photo, blob, driveFile, order: index });
