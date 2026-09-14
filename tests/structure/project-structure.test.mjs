@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -30,6 +30,16 @@ const legacyRootFiles = [
   'photo-visibility-enhancements.js', 'photo-visibility-state.js', 'url-utils.js'
 ];
 
+function collectJs(dir) {
+  const result = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = resolve(dir, entry.name);
+    if (entry.isDirectory()) result.push(...collectJs(full));
+    else if (entry.isFile() && entry.name.endsWith('.js')) result.push(full);
+  }
+  return result;
+}
+
 test('production modules live under src/client by domain', () => {
   for (const file of productionFiles) assert.equal(existsSync(p(file)), true, `missing ${file}`);
   for (const file of legacyRootFiles) assert.equal(existsSync(p(file)), false, `legacy root file remains: ${file}`);
@@ -56,15 +66,14 @@ test('Firebase CLI root config points to the organized rules file', () => {
   assert.equal(config.firestore.rules, 'firebase/firestore.rules');
 });
 
-test('every relative JavaScript import resolves to an existing file', () => {
+test('every local client JavaScript import resolves to an existing file', () => {
   const importPattern = /(?:from\s+|import\s*\()\s*['"](\.[^'"]+)['"]/g;
-  const files = [...productionFiles, 'auth-session.js'];
-  for (const file of files) {
-    const abs = p(file);
+  const files = [...collectJs(p('src/client')), p('auth-session.js')];
+  for (const abs of files) {
     const source = readFileSync(abs, 'utf8');
     for (const match of source.matchAll(importPattern)) {
       const target = resolve(dirname(abs), match[1]);
-      assert.equal(existsSync(target), true, `${file} imports missing ${match[1]}`);
+      assert.equal(existsSync(target), true, `${abs.slice(root.length + 1)} imports missing ${match[1]}`);
     }
   }
 });
