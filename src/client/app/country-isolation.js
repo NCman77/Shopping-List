@@ -1,10 +1,4 @@
-import {
-  DEFAULT_COUNTRY,
-  normalizeCountries,
-  readCachedActiveCountry,
-  resolveItemCountry,
-  writeCachedActiveCountry
-} from './travel-country.js';
+import { DEFAULT_COUNTRY, resolveItemCountry } from './travel-country.js';
 
 const APP_ID = 'japan-shopping-app';
 
@@ -18,7 +12,7 @@ function waitFor(predicate, timeout = 10000) {
         resolve(value);
       } else if (Date.now() - started > timeout) {
         clearInterval(timer);
-        reject(new Error('等待國家篩選初始化逾時。'));
+        reject(new Error('等待國家相容功能初始化逾時。'));
       }
     }, 40);
   });
@@ -62,24 +56,14 @@ export async function initCountryIsolation() {
   const app = appSdk.getApps()[0] || appSdk.getApp();
   const auth = authSdk.getAuth(app);
   const db = firestoreSdk.getFirestore(app);
-  const { collection, doc, onSnapshot } = firestoreSdk;
+  const { collection, onSnapshot } = firestoreSdk;
 
   const state = {
     userId: '',
-    activeCountry: DEFAULT_COUNTRY,
-    countries: [DEFAULT_COUNTRY],
     items: new Map(),
-    itemsLoaded: false,
-    settingsUnsub: null,
-    itemsUnsub: null
+    itemsUnsub: null,
+    scheduled: false
   };
-
-  function stopListeners() {
-    state.settingsUnsub?.();
-    state.itemsUnsub?.();
-    state.settingsUnsub = null;
-    state.itemsUnsub = null;
-  }
 
   function itemIdForCard(card) {
     const clickable = card.querySelector?.('[onclick*="openEditModal"]');
@@ -89,105 +73,44 @@ export async function initCountryIsolation() {
     });
   }
 
-  function applyCountryVisibility() {
-    const loading = document.getElementById('loading-indicator');
-    const empty = document.getElementById('empty-state');
-    let visibleProducts = 0;
-
+  function applyCountryAwareMaps() {
+    state.scheduled = false;
     for (const card of [...list.children]) {
-      if (card.id === 'loading-indicator' || card.id === 'empty-state') continue;
-      const itemId = itemIdForCard(card);
-      if (!itemId) continue;
-      const item = state.items.get(itemId);
-      const visible = shouldShowItemForCountry({
-        item,
-        activeCountry: state.activeCountry,
-        itemsLoaded: state.itemsLoaded
-      });
-      card.classList.toggle('country-filter-hidden', !visible);
-      card.style.display = visible ? '' : 'none';
-
-      if (item?.location) {
-        const mapAnchor = card.querySelector('a[href*="google.com/maps/search"]');
-        const countryAwareUrl = createCountryMapsSearchUrl(item.location, item);
-        if (mapAnchor && countryAwareUrl) mapAnchor.href = countryAwareUrl;
-      }
-
-      if (visible) visibleProducts += 1;
+      if (card.id) continue;
+      const item = state.items.get(itemIdForCard(card));
+      if (!item?.location) continue;
+      const mapAnchor = card.querySelector('a[href*="google.com/maps/search"]');
+      const countryAwareUrl = createCountryMapsSearchUrl(item.location, item);
+      if (mapAnchor && countryAwareUrl) mapAnchor.href = countryAwareUrl;
     }
-
-    if (!empty) return;
-    if (!state.itemsLoaded || (loading && !loading.classList.contains('hidden'))) {
-      empty.classList.add('hidden');
-      empty.classList.remove('flex');
-      return;
-    }
-    empty.classList.toggle('hidden', visibleProducts > 0);
-    empty.classList.toggle('flex', visibleProducts === 0);
   }
 
-  function resetCoreFilters() {
-    const categoryAll = document.querySelector('#category-filters [data-cat="all"]');
-    const locationAll = document.querySelector('#location-filters [data-loc="all"]');
-    categoryAll?.click();
-    locationAll?.click();
-  }
-
-  function setActiveCountry(country, { resetFilters = false } = {}) {
-    const normalized = String(country || '').trim() || DEFAULT_COUNTRY;
-    const changed = normalized !== state.activeCountry;
-    state.activeCountry = normalized;
-    window.shoppingListActiveCountry = normalized;
-    if (state.userId) writeCachedActiveCountry(window.localStorage, state.userId, normalized);
-    if (changed && resetFilters) resetCoreFilters();
-    queueMicrotask(applyCountryVisibility);
+  function scheduleMaps() {
+    if (state.scheduled) return;
+    state.scheduled = true;
+    queueMicrotask(applyCountryAwareMaps);
   }
 
   function subscribeUser(user) {
-    stopListeners();
+    state.itemsUnsub?.();
+    state.itemsUnsub = null;
     state.userId = user?.uid || '';
     state.items = new Map();
-    state.itemsLoaded = false;
-    state.countries = [DEFAULT_COUNTRY];
-    state.activeCountry = user?.uid
-      ? readCachedActiveCountry(window.localStorage, user.uid)
-      : DEFAULT_COUNTRY;
-    window.shoppingListActiveCountry = state.activeCountry;
-    applyCountryVisibility();
-    if (!user) return;
+    if (!user) return scheduleMaps();
 
-    const settingsRef = doc(db, 'artifacts', APP_ID, 'users', user.uid, 'settings', 'preferences');
     const itemsRef = collection(db, 'artifacts', APP_ID, 'users', user.uid, 'items');
-
-    state.settingsUnsub = onSnapshot(settingsRef, (snapshot) => {
-      if (state.userId !== user.uid) return;
-      const data = snapshot.exists() ? snapshot.data() : {};
-      state.countries = normalizeCountries(data.countries);
-      const fromSettings = String(data.activeCountry || '').trim();
-      const next = fromSettings || readCachedActiveCountry(window.localStorage, user.uid);
-      if (next && !state.countries.includes(next)) state.countries.unshift(next);
-      setActiveCountry(next || DEFAULT_COUNTRY, { resetFilters: true });
-    }, (error) => console.error('Country settings listener failed:', error));
-
     state.itemsUnsub = onSnapshot(itemsRef, (snapshot) => {
       if (state.userId !== user.uid) return;
       state.items = new Map(snapshot.docs.map((itemDoc) => [itemDoc.id, { id: itemDoc.id, ...itemDoc.data() }]));
-      state.itemsLoaded = true;
-      queueMicrotask(applyCountryVisibility);
-    }, (error) => {
-      console.error('Country item listener failed:', error);
-      state.itemsLoaded = false;
-      queueMicrotask(applyCountryVisibility);
-    });
+      scheduleMaps();
+    }, (error) => console.error('Country compatibility item listener failed:', error));
   }
 
-  const observer = new MutationObserver(() => queueMicrotask(applyCountryVisibility));
-  observer.observe(list, { childList: true });
-
-  window.addEventListener('shopping-list:active-country-changed', (event) => {
-    setActiveCountry(event?.detail?.country, { resetFilters: true });
-  });
+  const observer = new MutationObserver(scheduleMaps);
+  observer.observe(list, { childList: true, subtree: false });
+  window.addEventListener('shopping-list:active-country-changed', scheduleMaps);
+  window.addEventListener('shopping-list:active-trip-changed', scheduleMaps);
 
   authSdk.onAuthStateChanged(auth, subscribeUser);
-  applyCountryVisibility();
+  scheduleMaps();
 }
