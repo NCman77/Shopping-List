@@ -78,9 +78,13 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
         async () => {
             const { initPhotoDetailPreviewEnhancements } = await import('../photos/photo-detail-preview-enhancements.js');
             return initPhotoDetailPreviewEnhancements();
+        },
+        async () => {
+            const { initPhotoDetailFallbackEnhancements } = await import('../photos/photo-detail-fallback-enhancements.js');
+            return initPhotoDetailFallbackEnhancements();
         }
     ).then((results) => {
-        const [homeUiResult, appResult, photoVisibilityResult, detailPreviewResult] = results;
+        const [homeUiResult, appResult, photoVisibilityResult, detailPreviewResult, detailFallbackResult] = results;
         if (homeUiResult.status === 'rejected') {
             console.error('首頁介面增強功能載入失敗:', homeUiResult.reason);
         }
@@ -92,6 +96,9 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
         }
         if (detailPreviewResult.status === 'rejected') {
             console.error('商品詳情照片功能載入失敗:', detailPreviewResult.reason);
+        }
+        if (detailFallbackResult.status === 'rejected') {
+            console.error('商品詳情照片 fallback 載入失敗:', detailFallbackResult.reason);
         }
     });
 }
