@@ -55,13 +55,11 @@ async function decodeImage(file) {
   }
 }
 
-export async function compressImage(file, options = {}) {
-  const maxEdge = options.maxEdge ?? DEFAULTS.maxEdge;
-  const quality = options.quality ?? DEFAULTS.quality;
+async function encodeResizedImage(file, sizeResolver, quality) {
   let decoded;
   try {
     decoded = await decodeImage(file);
-    const size = calculateContainedSize(decoded.width, decoded.height, maxEdge);
+    const size = sizeResolver(decoded.width, decoded.height);
     const canvas = document.createElement('canvas');
     canvas.width = size.width;
     canvas.height = size.height;
@@ -90,6 +88,18 @@ export async function compressImage(file, options = {}) {
   } finally {
     decoded?.cleanup?.();
   }
+}
+
+export async function compressImage(file, options = {}) {
+  const maxEdge = options.maxEdge ?? DEFAULTS.maxEdge;
+  const quality = options.quality ?? DEFAULTS.quality;
+  return encodeResizedImage(file, (width, height) => calculateContainedSize(width, height, maxEdge), quality);
+}
+
+export async function compressImageToWidth(file, options = {}) {
+  const maxWidth = options.maxWidth ?? 1280;
+  const quality = options.quality ?? 0.74;
+  return encodeResizedImage(file, (width, height) => calculateWidthBoundSize(width, height, maxWidth), quality);
 }
 
 export function revokeCompressedImage(photo) {
