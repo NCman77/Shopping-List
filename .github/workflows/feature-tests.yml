@@ -19,18 +19,21 @@ jobs:
       - name: Run unit and regression tests
         run: find . -path './.git' -prune -o -name '*.test.mjs' -print0 | xargs -0 node --test
       - name: Syntax checks
-        run: find src/client -name '*.js' -print0 2>/dev/null | xargs -0 -r -n1 node --check || true
-      - name: Legacy syntax checks before migration completes
         run: |
-          for file in auth-session.js url-utils.js image-compression.js drive-photo-service.js photo-metadata.js app-enhancements.js drive-upload-rollback-fetch.js photo-upload-transaction.js filter-management.js home-ui-enhancements.js photo-visibility-enhancements.js photo-visibility-state.js; do
-            if [ -f "$file" ]; then node --check "$file"; fi
-          done
+          find src/client -name '*.js' -print0 | xargs -0 -r -n1 node --check
+          node --check auth-session.js
       - name: Integration markers
         run: |
-          APP_FILE="src/client/app/app-enhancements.js"; [ -f "$APP_FILE" ] || APP_FILE="app-enhancements.js"
-          DRIVE_FILE="src/client/photos/drive-photo-service.js"; [ -f "$DRIVE_FILE" ] || DRIVE_FILE="drive-photo-service.js"
+          APP_FILE="src/client/app/app-enhancements.js"
+          DRIVE_FILE="src/client/photos/drive-photo-service.js"
           grep -q "item-website" "$APP_FILE"
           grep -q "觀看介紹" "$APP_FILE"
           grep -q "drive.appdata" "$APP_FILE"
           grep -q "itemPhotos" "$APP_FILE"
           grep -q "appDataFolder" "$DRIVE_FILE"
+      - name: Firestore schema guard
+        run: |
+          grep -q 'match /artifacts/{appId}/users/{userId}/' firebase/firestore.rules
+          grep -q 'japan-shopping-app' src/client/app/app-enhancements.js
+          grep -q 'japan-shopping-app' src/client/photos/photo-visibility-enhancements.js
+          ! grep -q 'match /users/{userId}/' firebase/firestore.rules
