@@ -9,7 +9,7 @@ import {
   sortForHomepage,
   statusWritePatch
 } from './item-workflow.js';
-import { DEFAULT_COUNTRY, resolveItemCountry } from './travel-country.js';
+import { itemMatchesActiveTrip } from './travel-trip.js';
 
 const APP_ID = 'japan-shopping-app';
 const PAGE_SIZE = 10;
@@ -141,7 +141,6 @@ function ensureDetailEditUi() {
     header.insertBefore(edit, save);
   }
 
-  // The visible 「買到了嗎？」 editor is intentionally removed; status is homepage-only.
   const statusBlock = document.getElementById('item-status')?.closest('div.flex.items-center.justify-between');
   statusBlock?.classList.add('hidden');
   statusBlock?.setAttribute('aria-hidden', 'true');
@@ -248,18 +247,14 @@ export async function initItemWorkflowEnhancements() {
     }
   }
 
-  function currentCountry() {
-    return String(window.shoppingListActiveCountry || '').trim() || DEFAULT_COUNTRY;
-  }
-
   function eligibleCards() {
-    const country = currentCountry();
+    if (!window.shoppingListTripContextReady || !window.shoppingListActiveTrip?.id) return [];
     const result = [];
     for (const card of [...list.children]) {
       if (card.id) continue;
       const itemId = cardItemId(card);
       const item = state.items.get(itemId);
-      if (!item || resolveItemCountry(item) !== country) continue;
+      if (!item || !itemMatchesActiveTrip(item, window.shoppingListActiveTrip)) continue;
       const status = resolveShoppingStatus(item);
       if (state.filter !== 'all' && status !== state.filter) continue;
       result.push({ card, item });
@@ -347,10 +342,13 @@ export async function initItemWorkflowEnhancements() {
         empty.textContent = '這個分類目前沒有商品';
         list.appendChild(empty);
       }
-      const showEmpty = shouldShowWorkflowEmpty({ loaded: state.itemsLoaded, count: sortedItems.length });
+      const showEmpty = shouldShowWorkflowEmpty({
+        loaded: state.itemsLoaded && Boolean(window.shoppingListTripContextReady),
+        count: sortedItems.length
+      });
       empty.classList.toggle('hidden', !showEmpty);
 
-      pagination.classList.toggle('hidden', !state.itemsLoaded || state.totalPages <= 1);
+      pagination.classList.toggle('hidden', !state.itemsLoaded || !window.shoppingListTripContextReady || state.totalPages <= 1);
       pageLabel.textContent = `第 ${state.page} / ${state.totalPages} 頁`;
       prevButton.disabled = state.page <= 1;
       nextButton.disabled = state.page >= state.totalPages;
@@ -397,7 +395,13 @@ export async function initItemWorkflowEnhancements() {
   });
 
   window.addEventListener('shopping-list:active-country-changed', () => {
+    scheduleApply();
+  });
+
+  window.addEventListener('shopping-list:active-trip-changed', () => {
+    state.filter = 'all';
     state.page = 1;
+    document.querySelector('#status-filters [data-status="all"]')?.click();
     scheduleApply();
   });
 
