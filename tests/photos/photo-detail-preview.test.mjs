@@ -31,7 +31,7 @@ test('detail preview requests a 1280px width cap and preserves encoder output di
   });
 });
 
-test('legacy detail preview backfill downloads only photos missing a persistent preview', async () => {
+test('legacy detail preview backfill downloads only photos missing a persistent preview and preserves photo metadata', async () => {
   const mod = await loadModule();
   assert.equal(typeof mod.createDetailPreviewBackfillService, 'function');
 
@@ -40,18 +40,19 @@ test('legacy detail preview backfill downloads only photos missing a persistent 
   const service = mod.createDetailPreviewBackfillService({
     downloadPhoto: async (fileId) => { downloads.push(fileId); return new Blob([fileId]); },
     createPreview: async () => ({ dataUrl: 'data:image/webp;base64,detail', width: 1280, height: 960 }),
-    updatePreview: async (photoId, preview) => updates.push({ photoId, preview })
+    updatePreview: async (photoId, preview, photo) => updates.push({ photoId, preview, photo })
   });
 
   const result = await service.backfillPhotos([
-    { id: 'photo-1', driveFileId: 'drive-1', status: 'active', previewDataUrl: 'data:image/webp;base64,ready' },
-    { id: 'photo-2', driveFileId: 'drive-2', status: 'active' }
+    { id: 'photo-1', itemId: 'item-1', driveFileId: 'drive-1', status: 'active', previewDataUrl: 'data:image/webp;base64,ready' },
+    { id: 'photo-2', itemId: 'item-2', driveFileId: 'drive-2', status: 'active' }
   ]);
 
   assert.deepEqual(downloads, ['drive-2']);
   assert.equal(result.updated, 1);
   assert.deepEqual(updates, [{
     photoId: 'photo-2',
-    preview: { dataUrl: 'data:image/webp;base64,detail', width: 1280, height: 960 }
+    preview: { dataUrl: 'data:image/webp;base64,detail', width: 1280, height: 960 },
+    photo: { id: 'photo-2', itemId: 'item-2', driveFileId: 'drive-2', status: 'active' }
   }]);
 });
