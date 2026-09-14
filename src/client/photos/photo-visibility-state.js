@@ -41,3 +41,52 @@ export function shouldBackfillPhotoThumbnail({
 export function shouldClearPersistentThumbnail({ photoUrl = '', persistentCoverId = '', driveCoverId = '' } = {}) {
   return Boolean(String(photoUrl || '').trim() && String(persistentCoverId || '').trim() && !String(driveCoverId || '').trim());
 }
+
+export function resolvePhotoPersistenceForSave({
+  existingItem = {},
+  existingActivePhotos = [],
+  uploadedPhotos = []
+} = {}) {
+  const cover = existingActivePhotos[0] || uploadedPhotos[0] || null;
+  const currentPhotoUrl = String(existingItem?.photoUrl || '').trim();
+  const currentThumbCoverId = String(existingItem?.photoThumbCoverId || '').trim();
+
+  if (!cover?.id) {
+    if (currentThumbCoverId) {
+      return { coverPhotoId: null, photoUrl: '', photoThumbCoverId: null };
+    }
+    return {
+      coverPhotoId: null,
+      photoUrl: currentPhotoUrl,
+      photoThumbCoverId: currentThumbCoverId || null
+    };
+  }
+
+  const coverPhotoId = String(cover.id);
+  const readyThumbnail = String(cover.thumbnailDataUrl || '').trim();
+  if (readyThumbnail) {
+    return {
+      coverPhotoId,
+      photoUrl: readyThumbnail,
+      photoThumbCoverId: coverPhotoId
+    };
+  }
+
+  if (currentPhotoUrl && currentThumbCoverId === coverPhotoId) {
+    return {
+      coverPhotoId,
+      photoUrl: currentPhotoUrl,
+      photoThumbCoverId: coverPhotoId
+    };
+  }
+
+  if (currentThumbCoverId && currentThumbCoverId !== coverPhotoId) {
+    return { coverPhotoId, photoUrl: '', photoThumbCoverId: null };
+  }
+
+  return {
+    coverPhotoId,
+    photoUrl: currentPhotoUrl,
+    photoThumbCoverId: currentThumbCoverId || null
+  };
+}
