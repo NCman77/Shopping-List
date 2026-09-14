@@ -29,6 +29,28 @@ test('uploads multipart metadata into appDataFolder', async () => {
   assert.match(await calls[0].options.body.get('metadata').text(), /"parents":\["appDataFolder"\]/);
 });
 
+test('uploads generic app-data files with caller supplied app properties', async () => {
+  const calls = [];
+  const service = createDrivePhotoService({
+    fetchImpl: async (url, options) => {
+      calls.push({ url, options });
+      return new Response(JSON.stringify({ id: 'bg-1', name: 'background.mp4', mimeType: 'video/mp4' }), { status: 200 });
+    },
+    sessionStorageImpl: memoryStorage(),
+    getUserId: () => 'uid-1'
+  });
+  service.setAccessToken('token-1');
+  const result = await service.uploadFile({
+    blob: new Blob(['video'], { type: 'video/mp4' }),
+    fileName: 'background.mp4',
+    appProperties: { kind: 'background', owner: 'uid-1' }
+  });
+  assert.equal(result.id, 'bg-1');
+  const metadata = JSON.parse(await calls[0].options.body.get('metadata').text());
+  assert.deepEqual(metadata.parents, ['appDataFolder']);
+  assert.deepEqual(metadata.appProperties, { kind: 'background', owner: 'uid-1' });
+});
+
 test('turns 401 into an authorization error and clears the token', async () => {
   const service = createDrivePhotoService({
     fetchImpl: async () => new Response('', { status: 401 }),
