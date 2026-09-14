@@ -35,6 +35,11 @@ export function installGoogleDriveSignIn({
 
   button.dataset.driveAwareSignIn = 'true';
 
+  // Prefetch the Firebase modules during page initialization so the actual
+  // popup call stays as close as possible to the user's click gesture.
+  const sdkPromise = Promise.all([importAppSdk(), importAuthSdk()]);
+  sdkPromise.catch(() => {});
+
   const handler = async (event) => {
     event.preventDefault();
     event.stopImmediatePropagation();
@@ -44,22 +49,25 @@ export function installGoogleDriveSignIn({
     if (label) label.textContent = '登入中...';
 
     try {
-      const [appSdk, authSdk] = await Promise.all([importAppSdk(), importAuthSdk()]);
+      const [appSdk, authSdk] = await sdkPromise;
       const app = appSdk.getApps()[0] || appSdk.getApp();
       const auth = authSdk.getAuth(app);
       const provider = configureGoogleProviderForDrive(new authSdk.GoogleAuthProvider());
       const result = await authSdk.signInWithPopup(auth, provider);
       const token = storeDriveAccessTokenFromSignIn({
         result,
-        credentialFromResult: authSdk.GoogleAuthProvider.credentialFromResult,
+        credentialFromResult: (value) => authSdk.GoogleAuthProvider.credentialFromResult(value),
         sessionStorageImpl: windowRef.sessionStorage
       });
 
       if (token) {
         documentRef.getElementById('drive-connect-btn')?.classList.add('hidden');
-        windowRef.dispatchEvent?.(new CustomEvent('shopping-list:drive-token-ready', {
-          detail: { userId: result?.user?.uid || '' }
-        }));
+        const EventCtor = windowRef.CustomEvent || globalThis.CustomEvent;
+        if (typeof EventCtor === 'function') {
+          windowRef.dispatchEvent?.(new EventCtor('shopping-list:drive-token-ready', {
+            detail: { userId: result?.user?.uid || '' }
+          }));
+        }
       }
     } catch (error) {
       if (error?.code !== 'auth/popup-closed-by-user') {
