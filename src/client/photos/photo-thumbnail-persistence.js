@@ -2,7 +2,7 @@ import { compressImage, revokeCompressedImage } from './image-compression.js';
 import { resolvePhotoPersistenceForSave } from './photo-visibility-state.js';
 
 const APP_ID = 'japan-shopping-app';
-const MAX_THUMBNAIL_CHARS = 140000;
+const MAX_THUMBNAIL_CHARS = 80000;
 
 function sortActivePhotos(photos = []) {
   return photos
@@ -21,8 +21,8 @@ function blobToDataUrl(blob) {
 
 export async function createLightweightThumbnail(blob) {
   const attempts = [
-    { maxEdge: 320, quality: 0.64 },
-    { maxEdge: 240, quality: 0.52 }
+    { maxEdge: 256, quality: 0.60 },
+    { maxEdge: 192, quality: 0.48 }
   ];
 
   for (const options of attempts) {
