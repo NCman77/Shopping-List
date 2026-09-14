@@ -36,9 +36,8 @@ test('Google sign-in result stores the Drive access token for the signed-in user
   assert.deepEqual(writes, [['shopping-list:drive-token:user-1', 'drive-token']]);
 });
 
-test('index wires the same Google sign-in popup to Drive token persistence', async () => {
-  const source = await readFile(new URL('../../index.html', import.meta.url), 'utf8');
-  assert.match(source, /configureGoogleProviderForDrive/);
-  assert.match(source, /storeDriveAccessTokenFromSignIn/);
-  assert.match(source, /const\s+result\s*=\s*await\s+signInWithPopup\(auth,\s*googleProvider\)/);
+test('auth bootstrap installs the Drive-aware Google sign-in handler before normal app use', async () => {
+  const source = await readFile(new URL('../../src/client/app/auth-session.js', import.meta.url), 'utf8');
+  assert.match(source, /google-drive-signin\.js/);
+  assert.match(source, /installGoogleDriveSignIn/);
 });
