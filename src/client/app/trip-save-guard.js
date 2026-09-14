@@ -61,7 +61,7 @@ export async function initTripSaveGuard() {
   const app = appSdk.getApps()[0] || appSdk.getApp();
   const auth = authSdk.getAuth(app);
   const db = firestoreSdk.getFirestore(app);
-  const { doc, getDoc } = firestoreSdk;
+  const { deleteDoc, doc, getDoc, setDoc } = firestoreSdk;
   const originalSave = window.saveItem;
 
   window.saveItem = async function(...args) {
@@ -76,8 +76,8 @@ export async function initTripSaveGuard() {
     let existingItem = null;
 
     if (wasEditing) {
-      const itemRef = doc(db, 'artifacts', APP_ID, 'users', user.uid, 'items', itemId);
-      const snapshot = await getDoc(itemRef);
+      const existingRef = doc(db, 'artifacts', APP_ID, 'users', user.uid, 'items', itemId);
+      const snapshot = await getDoc(existingRef);
       existingItem = snapshot.exists() ? snapshot.data() : null;
       if (!existingItem) {
         notify('商品資料不存在', '找不到原本的商品資料，請重新整理後再試。', 'error');
@@ -105,16 +105,31 @@ export async function initTripSaveGuard() {
       return;
     }
 
-    window.shoppingListPendingMembership = membership;
+    const itemRef = doc(db, 'artifacts', APP_ID, 'users', user.uid, 'items', itemId);
+    let reservedNewItem = false;
     try {
+      if (generatedNewId) {
+        await setDoc(itemRef, membership, { merge: true });
+        reservedNewItem = true;
+      }
+
       const result = await originalSave.apply(this, args);
       const saveSucceeded = Boolean(modalContent?.classList?.contains('translate-y-full'));
-      if (!saveSucceeded && generatedNewId && idInput?.value === itemId) idInput.value = '';
-      return result;
-    } finally {
-      if (window.shoppingListPendingMembership === membership) {
-        window.shoppingListPendingMembership = null;
+      if (!saveSucceeded && reservedNewItem) {
+        try { await deleteDoc(itemRef); } catch (cleanupError) {
+          console.error('Failed to clean reserved item after unsuccessful save:', cleanupError);
+        }
+        if (idInput?.value === itemId) idInput.value = '';
       }
+      return result;
+    } catch (error) {
+      if (reservedNewItem) {
+        try { await deleteDoc(itemRef); } catch (cleanupError) {
+          console.error('Failed to clean reserved item after save error:', cleanupError);
+        }
+        if (idInput?.value === itemId) idInput.value = '';
+      }
+      throw error;
     }
   };
 }
