@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 
 async function loadModule() {
   try {
@@ -43,4 +44,10 @@ test('Drive connect bridge intercepts the legacy button handler and routes throu
   assert.deepEqual(calls, [true]);
   assert.equal(event.prevented, true);
   assert.equal(event.stopped, true);
+});
+
+test('auth bootstrap installs the Drive connect detail preview bridge', async () => {
+  const source = await readFile(new URL('../../src/client/app/auth-session.js', import.meta.url), 'utf8');
+  assert.match(source, /drive-connect-detail-preview-bridge\.js/);
+  assert.match(source, /initDriveConnectDetailPreviewBridge/);
 });
