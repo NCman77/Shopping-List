@@ -26,6 +26,12 @@ test('avatar settings stay in-page and expose country, personalization and sign 
   assert.doesNotMatch(source, /window\.open\(/);
 });
 
+test('account modal signs out directly instead of synthetic-clicking inside the avatar capture boundary', async () => {
+  const source = await readFile(new URL('../../src/client/app/account-settings.js', import.meta.url), 'utf8');
+  assert.match(source, /authSdk\.signOut\(auth\)/);
+  assert.doesNotMatch(source, /getElementById\('sign-out-btn'\)\?\.click/);
+});
+
 test('feature bootstrap loads country, account and background enhancements independently', async () => {
   const bootstrap = await readFile(new URL('../../src/client/app/feature-bootstrap.js', import.meta.url), 'utf8');
   const root = await readFile(new URL('../../auth-session.js', import.meta.url), 'utf8');
