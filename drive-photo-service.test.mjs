@@ -26,7 +26,7 @@ test('uploads multipart metadata into appDataFolder', async () => {
   assert.equal(result.id, 'drive-1');
   assert.match(calls[0].url, /upload\/drive\/v3\/files\?uploadType=multipart/);
   assert.equal(calls[0].options.headers.Authorization, 'Bearer token-1');
-  assert.match(await calls[0].options.body.text(), /"parents":\["appDataFolder"\]/);
+  assert.match(await calls[0].options.body.get('metadata').text(), /"parents":\["appDataFolder"\]/);
 });
 
 test('turns 401 into an authorization error and clears the token', async () => {
@@ -45,7 +45,7 @@ test('download and delete use Drive file endpoints', async () => {
   const service = createDrivePhotoService({
     fetchImpl: async (url, options = {}) => {
       calls.push({ url, options });
-      if ((options.method || 'GET') === 'DELETE') return new Response('', { status: 204 });
+      if ((options.method || 'GET') === 'DELETE') return new Response(null, { status: 204 });
       return new Response(new Blob(['x'], { type: 'image/webp' }), { status: 200 });
     },
     sessionStorageImpl: memoryStorage(),
@@ -62,7 +62,7 @@ test('keeps cleanup IDs per user and retries them', async () => {
   const deleted = [];
   const storage = memoryStorage();
   const service = createDrivePhotoService({
-    fetchImpl: async (url) => { deleted.push(url); return new Response('', { status: 204 }); },
+    fetchImpl: async (url) => { deleted.push(url); return new Response(null, { status: 204 }); },
     sessionStorageImpl: storage,
     getUserId: () => 'uid-1'
   });
