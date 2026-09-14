@@ -44,6 +44,18 @@ export function hasUnassignedItems(items = []) {
   return (Array.isArray(items) ? items : []).some((item) => item && !String(item.tripId || '').trim());
 }
 
+export function findEmptyLegacyTripIds(trips = [], items = []) {
+  const usedTripIds = new Set(
+    (Array.isArray(items) ? items : [])
+      .map((item) => String(item?.tripId || '').trim())
+      .filter(Boolean)
+  );
+  return (Array.isArray(trips) ? trips : [])
+    .map(normalizeTrip)
+    .filter((trip) => trip.id && trip.kind === 'legacy' && !usedTripIds.has(trip.id))
+    .map((trip) => trip.id);
+}
+
 export function resolveTripForReconcile({
   trips = [],
   persistedTripId = '',
@@ -89,6 +101,7 @@ export async function initTripContext() {
     activeTrip: null,
     sessionSelectedTripId: '',
     migrating: false,
+    cleaningLegacy: false,
     initialMigrationComplete: false,
     reconcileScheduled: false,
     unsubs: []
@@ -193,12 +206,36 @@ export async function initTripContext() {
     }
   }
 
+  async function cleanupEmptyLegacyTrips(trips, items) {
+    if (!state.userId || state.cleaningLegacy) return false;
+    const tripIds = findEmptyLegacyTripIds(trips, items);
+    if (!tripIds.length) return false;
+
+    state.cleaningLegacy = true;
+    window.shoppingListTripContextReady = false;
+    try {
+      const batch = writeBatch(db);
+      for (const tripId of tripIds) {
+        batch.delete(userRootDoc('trips', tripId));
+      }
+      await batch.commit();
+      if (tripIds.includes(state.sessionSelectedTripId)) state.sessionSelectedTripId = '';
+      return true;
+    } catch (error) {
+      console.error('Empty legacy trip cleanup failed:', error);
+      dispatch(window, 'shopping-list:trip-context-error', { stage: 'legacy-cleanup', error });
+      throw error;
+    } finally {
+      state.cleaningLegacy = false;
+    }
+  }
+
   function scheduleReconcile() {
     if (state.reconcileScheduled) return;
     state.reconcileScheduled = true;
     queueMicrotask(async () => {
       state.reconcileScheduled = false;
-      if (!state.userId || !state.loaded.trips || !state.loaded.items || !state.loaded.settings || state.migrating) return;
+      if (!state.userId || !state.loaded.trips || !state.loaded.items || !state.loaded.settings || state.migrating || state.cleaningLegacy) return;
 
       const items = [...state.items.values()];
       if (hasUnassignedItems(items)) {
@@ -215,6 +252,10 @@ export async function initTripContext() {
 
       state.initialMigrationComplete = true;
       const trips = publicTrips();
+      try {
+        if (await cleanupEmptyLegacyTrips(trips, items)) return;
+      } catch {}
+
       publishTrips();
       const persistedTripId = String(state.settings.activeTripId || '').trim()
         || readCachedActiveTripId(window.localStorage, state.userId);
@@ -258,6 +299,7 @@ export async function initTripContext() {
     state.activeTrip = null;
     state.sessionSelectedTripId = '';
     state.migrating = false;
+    state.cleaningLegacy = false;
     state.initialMigrationComplete = false;
     resetPublicState();
     if (!user) return;

@@ -53,6 +53,31 @@ test('manual legacy selection remains active for the current session while start
   assert.equal(startup?.id, 'tokyo-2026');
 });
 
+test('empty legacy trips are cleanup candidates only after their items are gone', async () => {
+  const contextModule = await import('../../src/client/app/trip-context.js');
+  assert.equal(typeof contextModule.findEmptyLegacyTripIds, 'function');
+
+  const trips = [
+    { id: 'legacy-jp', title: '日本 · 既有清單', country: '日本', kind: 'legacy' },
+    { id: 'legacy-kr', title: '韓國 · 既有清單', country: '韓國', kind: 'legacy' },
+    { id: 'tokyo-2026', title: '2026/09/21東京', country: '日本', kind: 'trip', startDate: '2026-09-21', endDate: '2026-09-27' }
+  ];
+  const items = [
+    { id: 'kr-1', tripId: 'legacy-kr' },
+    { id: 'tokyo-1', tripId: 'tokyo-2026' }
+  ];
+
+  assert.deepEqual(contextModule.findEmptyLegacyTripIds(trips, items), ['legacy-jp']);
+});
+
+test('reconcile deletes empty legacy trip documents and clears a stale manual selection', async () => {
+  const source = await readFile(contextPath, 'utf8');
+  assert.match(source, /findEmptyLegacyTripIds/);
+  assert.match(source, /batch\.delete\(userRootDoc\('trips',\s*tripId\)\)/);
+  assert.match(source, /sessionSelectedTripId\s*=\s*''/);
+  assert.match(source, /stage:\s*'legacy-cleanup'/);
+});
+
 test('trip context subscribes to trips, items, and preferences and migrates only missing tripId items', async () => {
   const source = await readFile(contextPath, 'utf8');
   assert.match(source, /collection\([^\n]*'trips'/);
