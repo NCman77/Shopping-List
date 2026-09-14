@@ -87,6 +87,18 @@ test('matching but oversized Firestore thumbnail is recompressed for faster list
   assert.equal(updates[0].patch.photoUrl, 'data:image/webp;base64,small');
 });
 
+test('thumbnail encoder failure returns an empty fallback instead of rejecting the item save', async () => {
+  const mod = await loadModule();
+  assert.equal(typeof mod.createLightweightThumbnail, 'function');
+
+  const thumbnail = await mod.createLightweightThumbnail(new Blob(['photo']), {
+    compress: async () => { throw new Error('encoder unavailable'); },
+    toDataUrl: async () => { throw new Error('must not run'); }
+  });
+
+  assert.equal(thumbnail, '');
+});
+
 test('removing the final tracked Drive photo clears its persistent thumbnail', async () => {
   const mod = await loadModule();
   assert.equal(typeof mod.createPhotoThumbnailPersistenceService, 'function');
