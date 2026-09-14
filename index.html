@@ -110,7 +110,32 @@
 
         <h1 class="text-3xl font-bold tracking-wide mb-2 relative z-10">購物清單 🛒</h1>
         <p class="text-xs font-bold tracking-widest uppercase bg-white text-warmBrown px-3 py-1 rounded-full border-2 border-warmBrown shadow-[2px_2px_0_rgba(92,64,51,1)]">Shin-chan Style</p>
+        <div id="user-panel" class="hidden items-center gap-2 mt-4 bg-white/90 border-2 border-warmBrown rounded-full py-1.5 pl-2 pr-1.5 shadow-[2px_2px_0_rgba(92,64,51,1)] relative z-10 max-w-full">
+            <img id="user-avatar" alt="Google 帳號頭像" class="hidden w-8 h-8 rounded-full border-2 border-warmBrown object-cover">
+            <div id="user-avatar-fallback" class="w-8 h-8 rounded-full border-2 border-warmBrown bg-pastelYellow flex items-center justify-center">
+                <i class="fas fa-user text-sm"></i>
+            </div>
+            <span id="user-name" class="text-xs font-bold truncate max-w-32"></span>
+            <button id="sign-out-btn" type="button" class="px-3 py-1.5 rounded-full bg-pastelBlue border-2 border-warmBrown text-xs font-bold hover:bg-blue-200 active:translate-y-0.5 transition-all">登出</button>
+        </div>
     </header>
+
+    <div id="auth-gate" class="absolute inset-0 z-[45] bg-shinBg flex items-center justify-center px-6">
+        <div id="auth-loading-panel" class="flex flex-col items-center text-warmBrown">
+            <i class="fas fa-circle-notch fa-spin text-4xl mb-3 text-pastelOrange"></i>
+            <p class="font-bold">正在確認登入狀態...</p>
+        </div>
+        <div id="signed-out-panel" class="hidden w-full max-w-sm bg-white border-4 border-warmBrown rounded-[2rem] p-8 text-center shadow-[8px_8px_0_rgba(92,64,51,1)]">
+            <div class="icon-circle mx-auto bg-pastelYellow float-anim border-2 border-warmBrown shadow-[2px_2px_0_rgba(92,64,51,1)]">
+                <i class="fas fa-shopping-basket"></i>
+            </div>
+            <h2 class="text-2xl font-bold text-warmBrown mt-3">帶著清單一起走！</h2>
+            <p class="text-sm text-gray-500 font-medium mt-2 mb-6">使用同一個 Google 帳號登入，手機和電腦就會自動同步。</p>
+            <button id="google-sign-in-btn" type="button" class="w-full py-3 rounded-xl bg-pastelPink border-2 border-warmBrown text-warmBrown font-bold shadow-[4px_4px_0_rgba(92,64,51,1)] hover:bg-pink-200 active:translate-y-1 active:shadow-none transition-all">
+                <i class="fab fa-google mr-2"></i><span id="google-sign-in-label">使用 Google 登入</span>
+            </button>
+        </div>
+    </div>
 
     <!-- 篩選器區塊 -->
     <div class="z-30 relative mt-4">
@@ -156,7 +181,7 @@
     </main>
 
     <!-- 修復：確保按鈕點擊時能正確呼叫 openAddModal -->
-    <button type="button" onclick="openAddModal()" class="absolute bottom-6 right-6 w-16 h-16 bg-pastelYellow border-4 border-warmBrown text-warmBrown rounded-full shadow-[4px_4px_0_rgba(92,64,51,1)] flex items-center justify-center text-2xl hover:bg-yellow-200 active:translate-y-1 active:shadow-[0_0_0_rgba(92,64,51,1)] transition-all z-40 float-anim cursor-pointer">
+    <button id="add-item-btn" type="button" onclick="openAddModal()" class="hidden absolute bottom-6 right-6 w-16 h-16 bg-pastelYellow border-4 border-warmBrown text-warmBrown rounded-full shadow-[4px_4px_0_rgba(92,64,51,1)] items-center justify-center text-2xl hover:bg-yellow-200 active:translate-y-1 active:shadow-[0_0_0_rgba(92,64,51,1)] transition-all z-40 float-anim cursor-pointer">
         <i class="fas fa-pen text-xl"></i>
     </button>
 
@@ -259,29 +284,34 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-    import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
     import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, addDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    import { createAuthSessionController } from "./auth-session.js";
 
-    const defaultFirebaseConfig = {
-        apiKey: "YOUR_API_KEY",
-        authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-        projectId: "YOUR_PROJECT_ID",
-        storageBucket: "YOUR_PROJECT_ID.appspot.com",
-        messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-        appId: "YOUR_APP_ID"
+    const firebaseConfig = {
+        apiKey: "AIzaSyA36R3soEZPpXwpTc1W9_XvFMglouvxzFw",
+        authDomain: "shopping-list-a6c1e.firebaseapp.com",
+        projectId: "shopping-list-a6c1e",
+        storageBucket: "shopping-list-a6c1e.firebasestorage.app",
+        messagingSenderId: "558220019643",
+        appId: "1:558220019643:web:29f2e3ba8ba10b1d8ba69e",
+        measurementId: "G-VV2SEQQS76"
     };
 
-    const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : defaultFirebaseConfig;
-    const currentAppId = typeof __app_id !== 'undefined' ? __app_id : 'japan-shopping-app';
+    const currentAppId = 'japan-shopping-app';
     
-    let app, db, auth;
+    let app, db, auth, googleProvider;
     try {
         app = initializeApp(firebaseConfig);
         db = getFirestore(app);
         auth = getAuth(app);
+        googleProvider = new GoogleAuthProvider();
     } catch(e) {
         console.error("Firebase 初始化失敗", e);
     }
+
+    let unsubscribeSettings = null;
+    let unsubscribeItems = null;
 
     let state = {
         userId: null,
@@ -298,30 +328,181 @@
         itemToDelete: null
     };
 
-    async function initApp() {
-        try {
-            if (typeof __initial_auth_token !== 'undefined') {
-                await signInWithCustomToken(auth, __initial_auth_token);
-            } else {
-                await signInAnonymously(auth);
-            }
-            
-            state.userId = auth.currentUser.uid;
-            
-            listenToSettings();
-            listenToItems();
+    function stopDataListeners() {
+        if (unsubscribeSettings) unsubscribeSettings();
+        if (unsubscribeItems) unsubscribeItems();
+        unsubscribeSettings = null;
+        unsubscribeItems = null;
+    }
 
+    function resetVisibleData() {
+        state.userId = null;
+        state.items = [];
+        state.categories = ['美妝'];
+        state.locations = [];
+        state.filters.status = 'all';
+        state.filters.category = 'all';
+        state.filters.location = 'all';
+
+        document.querySelectorAll('.status-btn').forEach((button) => {
+            const isAllButton = button.dataset.status === 'all';
+            button.classList.toggle('bg-pastelYellow', isAllButton);
+            button.classList.toggle('text-warmBrown', isAllButton);
+            button.classList.toggle('border-warmBrown', isAllButton);
+            button.classList.toggle('shadow-[2px_2px_0_rgba(92,64,51,1)]', isAllButton);
+            button.classList.toggle('bg-transparent', !isAllButton);
+            button.classList.toggle('text-gray-400', !isAllButton);
+            button.classList.toggle('border-transparent', !isAllButton);
+        });
+
+        const loadingIndicator = document.getElementById('loading-indicator');
+        if (loadingIndicator) loadingIndicator.classList.add('hidden');
+        renderFilterTabs();
+        renderFormSelects();
+        renderItemList();
+    }
+
+    function resetTransientUi() {
+        state.currentPhotoBase64 = null;
+        state.inputModalCallback = null;
+        state.itemToDelete = null;
+
+        document.getElementById('add-modal').classList.add('hidden');
+        document.getElementById('add-modal-content').classList.add('translate-y-full');
+        document.getElementById('text-input-modal').classList.add('hidden');
+        document.getElementById('text-input-content').classList.add('scale-95');
+        document.getElementById('delete-modal').classList.add('hidden');
+        document.getElementById('msg-modal').classList.add('hidden');
+        document.getElementById('msg-content').classList.add('scale-95');
+
+        document.getElementById('item-id').value = '';
+        document.getElementById('item-name').value = '';
+        document.getElementById('item-desc').value = '';
+        document.getElementById('item-status').checked = false;
+        document.getElementById('text-input-field').value = '';
+
+        const preview = document.getElementById('photo-preview');
+        preview.removeAttribute('src');
+        preview.classList.add('hidden');
+        document.getElementById('photo-placeholder').classList.remove('hidden');
+    }
+
+    function resetSessionUi() {
+        stopDataListeners();
+        resetTransientUi();
+        resetVisibleData();
+        document.getElementById('auth-gate').classList.remove('hidden');
+        document.getElementById('auth-loading-panel').classList.add('hidden');
+        document.getElementById('signed-out-panel').classList.remove('hidden');
+        document.getElementById('user-panel').classList.add('hidden');
+        document.getElementById('user-panel').classList.remove('flex');
+        document.getElementById('add-item-btn').classList.add('hidden');
+        document.getElementById('add-item-btn').classList.remove('flex');
+    }
+
+    function revealAuthenticatedApp(userId) {
+        if (state.userId !== userId) return;
+        document.getElementById('auth-gate').classList.add('hidden');
+        document.getElementById('add-item-btn').classList.remove('hidden');
+        document.getElementById('add-item-btn').classList.add('flex');
+    }
+
+    function startAuthenticatedSession(user) {
+        state.userId = user.uid;
+        state.items = [];
+        state.categories = ['美妝'];
+        state.locations = [];
+
+        document.getElementById('auth-gate').classList.remove('hidden');
+        document.getElementById('auth-loading-panel').classList.remove('hidden');
+        document.getElementById('signed-out-panel').classList.add('hidden');
+
+        const displayName = user.displayName || user.email || '已登入';
+        document.getElementById('user-name').textContent = displayName;
+
+        const avatar = document.getElementById('user-avatar');
+        const avatarFallback = document.getElementById('user-avatar-fallback');
+        if (user.photoURL) {
+            avatar.src = user.photoURL;
+            avatar.classList.remove('hidden');
+            avatarFallback.classList.add('hidden');
+        } else {
+            avatar.removeAttribute('src');
+            avatar.classList.add('hidden');
+            avatarFallback.classList.remove('hidden');
+        }
+
+        document.getElementById('user-panel').classList.remove('hidden');
+        document.getElementById('user-panel').classList.add('flex');
+
+        const loadingIndicator = document.getElementById('loading-indicator');
+        if (loadingIndicator) loadingIndicator.classList.remove('hidden');
+        renderFilterTabs();
+        renderFormSelects();
+        listenToSettings(user.uid);
+        listenToItems(user.uid);
+    }
+
+    function rejectAnonymousSession() {
+        signOut(auth).catch((error) => {
+            console.error("無法清除舊的匿名登入:", error);
+        });
+    }
+
+    const authSessionController = createAuthSessionController({
+        startSession: startAuthenticatedSession,
+        stopSession: stopDataListeners,
+        resetSession: resetSessionUi,
+        rejectAnonymous: rejectAnonymousSession
+    });
+
+    async function handleGoogleSignIn() {
+        const button = document.getElementById('google-sign-in-btn');
+        const label = document.getElementById('google-sign-in-label');
+        button.disabled = true;
+        label.textContent = '登入中...';
+
+        try {
+            await signInWithPopup(auth, googleProvider);
         } catch (error) {
-            console.error("Authentication failed:", error);
-            showMsg("系統錯誤", "無法連線至伺服器同步資料。", "error");
+            if (error.code !== 'auth/popup-closed-by-user') {
+                console.error("Google 登入失敗:", error);
+                showMsg("登入失敗", "無法使用 Google 登入，請稍後再試。", "error");
+            }
+        } finally {
+            button.disabled = false;
+            label.textContent = '使用 Google 登入';
         }
     }
 
-    function listenToSettings() {
-        if (!state.userId) return;
-        const settingsRef = doc(db, 'artifacts', currentAppId, 'users', state.userId, 'settings', 'preferences');
+    async function handleSignOut() {
+        try {
+            await signOut(auth);
+        } catch (error) {
+            console.error("登出失敗:", error);
+            showMsg("登出失敗", "無法登出，請稍後再試。", "error");
+        }
+    }
+
+    function initApp() {
+        if (!auth || !googleProvider) {
+            document.getElementById('auth-loading-panel').classList.add('hidden');
+            document.getElementById('signed-out-panel').classList.remove('hidden');
+            showMsg("系統錯誤", "Firebase 初始化失敗，請確認設定。", "error");
+            return;
+        }
+
+        document.getElementById('google-sign-in-btn').addEventListener('click', handleGoogleSignIn);
+        document.getElementById('sign-out-btn').addEventListener('click', handleSignOut);
+        onAuthStateChanged(auth, (user) => authSessionController.handleAuthState(user));
+    }
+
+    function listenToSettings(sessionUserId) {
+        if (!sessionUserId) return;
+        const settingsRef = doc(db, 'artifacts', currentAppId, 'users', sessionUserId, 'settings', 'preferences');
         
-        onSnapshot(settingsRef, (docSnap) => {
+        unsubscribeSettings = onSnapshot(settingsRef, (docSnap) => {
+            if (state.userId !== sessionUserId) return;
             if (docSnap.exists()) {
                 const data = docSnap.data();
                 if (data.categories) state.categories = data.categories;
@@ -332,13 +513,15 @@
             renderFilterTabs();
             renderFormSelects();
         }, (error) => {
+            if (state.userId !== sessionUserId) return;
             console.error("Error listening to settings:", error);
         });
     }
 
     async function saveSettings() {
-        if (!state.userId) return;
-        const settingsRef = doc(db, 'artifacts', currentAppId, 'users', state.userId, 'settings', 'preferences');
+        const userId = state.userId;
+        if (!userId) return;
+        const settingsRef = doc(db, 'artifacts', currentAppId, 'users', userId, 'settings', 'preferences');
         try {
             await setDoc(settingsRef, {
                 categories: state.categories,
@@ -349,11 +532,12 @@
         }
     }
 
-    function listenToItems() {
-        if (!state.userId) return;
-        const itemsRef = collection(db, 'artifacts', currentAppId, 'users', state.userId, 'items');
+    function listenToItems(sessionUserId) {
+        if (!sessionUserId) return;
+        const itemsRef = collection(db, 'artifacts', currentAppId, 'users', sessionUserId, 'items');
         
-        onSnapshot(itemsRef, (snapshot) => {
+        unsubscribeItems = onSnapshot(itemsRef, (snapshot) => {
+            if (state.userId !== sessionUserId) return;
             const loadingIndicator = document.getElementById('loading-indicator');
             if(loadingIndicator) loadingIndicator.classList.add('hidden');
             
@@ -364,10 +548,13 @@
             state.items.sort((a, b) => b.createdAt - a.createdAt);
             
             renderItemList();
+            revealAuthenticatedApp(sessionUserId);
         }, (error) => {
+            if (state.userId !== sessionUserId) return;
             console.error("Error listening to items:", error);
             const loadingIndicator = document.getElementById('loading-indicator');
             if(loadingIndicator) loadingIndicator.classList.add('hidden');
+            revealAuthenticatedApp(sessionUserId);
             showMsg("讀取失敗", "無法載入清單資料。", "error");
         });
     }
@@ -586,6 +773,9 @@
     }
 
     window.saveItem = async function() {
+        const userId = state.userId;
+        if (!userId) return;
+
         const name = document.getElementById('item-name').value.trim();
         if (!name) {
             window.showMsg("缺少名稱", "請填寫商品名稱唷！", "warning");
@@ -609,9 +799,9 @@
         };
 
         try {
-            const itemsRef = collection(db, 'artifacts', currentAppId, 'users', state.userId, 'items');
+            const itemsRef = collection(db, 'artifacts', currentAppId, 'users', userId, 'items');
             if (id) {
-                const docRef = doc(db, 'artifacts', currentAppId, 'users', state.userId, 'items', id);
+                const docRef = doc(db, 'artifacts', currentAppId, 'users', userId, 'items', id);
                 await updateDoc(docRef, itemData);
             } else {
                 await addDoc(itemsRef, itemData);
@@ -624,8 +814,11 @@
     }
 
     window.toggleStatus = async function(id, purchased) {
+        const userId = state.userId;
+        if (!userId) return;
+
         try {
-            const docRef = doc(db, 'artifacts', currentAppId, 'users', state.userId, 'items', id);
+            const docRef = doc(db, 'artifacts', currentAppId, 'users', userId, 'items', id);
             await updateDoc(docRef, { purchased });
         } catch(e) {
             console.error("Error updating status:", e);
@@ -645,9 +838,10 @@
     }
 
     document.getElementById('confirm-delete-btn').addEventListener('click', async () => {
-        if (!state.itemToDelete) return;
+        const userId = state.userId;
+        if (!userId || !state.itemToDelete) return;
         try {
-            const docRef = doc(db, 'artifacts', currentAppId, 'users', state.userId, 'items', state.itemToDelete);
+            const docRef = doc(db, 'artifacts', currentAppId, 'users', userId, 'items', state.itemToDelete);
             await deleteDoc(docRef);
             window.closeDeleteModal();
         } catch(e) {
