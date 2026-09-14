@@ -1,6 +1,6 @@
 import { compressImage, revokeCompressedImage } from './image-compression.js';
 import { groupActivePhotosByItem } from './photo-metadata.js';
-import { getPhotoVisibilityState, shouldBackfillPhotoThumbnail } from './photo-visibility-state.js';
+import { getPhotoVisibilityState, shouldBackfillPhotoThumbnail, shouldClearPersistentThumbnail } from './photo-visibility-state.js';
 
 const APP_ID = 'japan-shopping-app';
 
@@ -39,7 +39,7 @@ function blobToDataUrl(blob) {
 async function createPersistentThumbnail(blob) {
   let compressed = await compressImage(blob, { maxEdge: 480, quality: 0.72 });
   try {
-    let dataUrl = await blobToDataUrl(compressed.blob);
+    const dataUrl = await blobToDataUrl(compressed.blob);
     if (dataUrl.length <= 300000) return dataUrl;
   } finally {
     revokeCompressedImage(compressed);
@@ -79,7 +79,7 @@ export async function initPhotoVisibilityEnhancements() {
     itemUnsub: null,
     photoUnsub: null,
     objectUrls: new Map(),
-    backfilling: new Set()
+    thumbnailWrites: new Set()
   };
 
   function clearObjectUrls() {
@@ -119,13 +119,20 @@ export async function initPhotoVisibilityEnhancements() {
     img.src = src;
   }
 
+  function renderEmptyPhoto(card) {
+    const box = photoBoxForCard(card);
+    if (!box) return;
+    box.innerHTML = '<i class="fas fa-gift text-3xl text-pastelOrange"></i>';
+  }
+
   function renderAuthorizationRequired(card) {
     const box = photoBoxForCard(card);
-    if (!box || box.querySelector('img')) return;
+    if (!box) return;
+    if (box.querySelector('.drive-photo-auth-required')) return;
     box.innerHTML = '';
     const button = document.createElement('button');
     button.type = 'button';
-    button.className = 'w-full h-full px-2 flex flex-col items-center justify-center text-[10px] font-bold text-warmBrown bg-pastelBlue/40 leading-tight';
+    button.className = 'drive-photo-auth-required w-full h-full px-2 flex flex-col items-center justify-center text-[10px] font-bold text-warmBrown bg-pastelBlue/40 leading-tight';
     button.innerHTML = '<i class="fab fa-google-drive text-xl mb-1"></i><span>照片仍在 Drive</span><span class="mt-1 underline">點此顯示</span>';
     button.addEventListener('click', async (event) => {
       event.preventDefault();
@@ -158,19 +165,39 @@ export async function initPhotoVisibilityEnhancements() {
     return response.blob();
   }
 
-  async function backfillThumbnail(itemId, blob) {
-    if (!state.userId || state.backfilling.has(itemId)) return;
+  async function backfillThumbnail(itemId, coverId, blob) {
+    if (!state.userId || state.thumbnailWrites.has(itemId)) return;
     const item = state.items.get(itemId);
-    if (!item || item.photoUrl) return;
-    state.backfilling.add(itemId);
+    if (!item || (item.photoUrl && item.photoThumbCoverId === coverId)) return;
+    state.thumbnailWrites.add(itemId);
     try {
       const thumbnail = await createPersistentThumbnail(blob);
       if (!thumbnail) return;
-      await updateDoc(doc(db, 'artifacts', APP_ID, 'users', state.userId, 'items', itemId), { photoUrl: thumbnail });
+      await updateDoc(doc(db, 'artifacts', APP_ID, 'users', state.userId, 'items', itemId), {
+        photoUrl: thumbnail,
+        photoThumbCoverId: coverId
+      });
     } catch (error) {
       console.warn('Photo thumbnail backfill failed:', error);
     } finally {
-      state.backfilling.delete(itemId);
+      state.thumbnailWrites.delete(itemId);
+    }
+  }
+
+  async function clearTrackedThumbnail(itemId) {
+    if (!state.userId || state.thumbnailWrites.has(itemId)) return;
+    const item = state.items.get(itemId);
+    if (!item?.photoThumbCoverId) return;
+    state.thumbnailWrites.add(itemId);
+    try {
+      await updateDoc(doc(db, 'artifacts', APP_ID, 'users', state.userId, 'items', itemId), {
+        photoUrl: '',
+        photoThumbCoverId: null
+      });
+    } catch (error) {
+      console.warn('Photo thumbnail clear failed:', error);
+    } finally {
+      state.thumbnailWrites.delete(itemId);
     }
   }
 
@@ -178,9 +205,11 @@ export async function initPhotoVisibilityEnhancements() {
     const item = state.items.get(itemId);
     if (!item) return;
     const cover = state.photosByItem.get(itemId)?.[0] || null;
+    const driveCoverId = cover?.id || '';
     const visibility = getPhotoVisibilityState({
       photoUrl: item.photoUrl || '',
-      hasDrivePhoto: Boolean(cover),
+      persistentCoverId: item.photoThumbCoverId || '',
+      driveCoverId,
       hasDriveToken: Boolean(getDriveToken())
     });
 
@@ -188,7 +217,19 @@ export async function initPhotoVisibilityEnhancements() {
       setCardImage(card, visibility.src);
       return;
     }
-    if (visibility.mode === 'empty') return;
+
+    if (visibility.mode === 'empty') {
+      renderEmptyPhoto(card);
+      if (shouldClearPersistentThumbnail({
+        photoUrl: item.photoUrl || '',
+        persistentCoverId: item.photoThumbCoverId || '',
+        driveCoverId
+      })) {
+        void clearTrackedThumbnail(itemId);
+      }
+      return;
+    }
+
     if (visibility.mode === 'authorization-required') {
       renderAuthorizationRequired(card);
       return;
@@ -206,9 +247,14 @@ export async function initPhotoVisibilityEnhancements() {
       }
       if (!card.isConnected) return;
       setCardImage(card, url);
-      if (shouldBackfillPhotoThumbnail({ photoUrl: item.photoUrl || '', hasDrivePhoto: true, hasDriveToken: true })) {
+      if (shouldBackfillPhotoThumbnail({
+        photoUrl: item.photoUrl || '',
+        persistentCoverId: item.photoThumbCoverId || '',
+        driveCoverId,
+        hasDriveToken: true
+      })) {
         blob ||= await downloadDrivePhoto(cover.driveFileId);
-        void backfillThumbnail(itemId, blob);
+        void backfillThumbnail(itemId, driveCoverId, blob);
       }
     } catch (error) {
       if (error?.message === 'authorization-required') renderAuthorizationRequired(card);
@@ -239,6 +285,7 @@ export async function initPhotoVisibilityEnhancements() {
     state.userId = user?.uid || null;
     state.items = new Map();
     state.photosByItem = new Map();
+    state.thumbnailWrites.clear();
     if (!user) return;
 
     state.itemUnsub = onSnapshot(collection(db, 'artifacts', APP_ID, 'users', user.uid, 'items'), (snapshot) => {
