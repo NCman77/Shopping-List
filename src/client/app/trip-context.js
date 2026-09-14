@@ -4,7 +4,6 @@ import {
   normalizeTrip,
   readCachedActiveTripId,
   resolveActiveTrip,
-  tripDisplayTitle,
   writeCachedActiveTripId
 } from './travel-trip.js';
 import { writeCachedActiveCountry } from './travel-country.js';
@@ -72,6 +71,7 @@ export async function initTripContext() {
     loaded: { trips: false, items: false, settings: false },
     activeTrip: null,
     migrating: false,
+    initialMigrationComplete: false,
     reconcileScheduled: false,
     unsubs: []
   };
@@ -90,14 +90,6 @@ export async function initTripContext() {
 
   function userRootDoc(...parts) {
     return doc(db, 'artifacts', APP_ID, 'users', state.userId, ...parts);
-  }
-
-  function tripsCollection() {
-    return collection(db, 'artifacts', APP_ID, 'users', state.userId, 'trips');
-  }
-
-  function itemsCollection() {
-    return collection(db, 'artifacts', APP_ID, 'users', state.userId, 'items');
   }
 
   function settingsRef() {
@@ -143,10 +135,13 @@ export async function initTripContext() {
   }
 
   async function migrateLegacyItems() {
-    if (!state.userId || state.migrating) return;
+    if (!state.userId || state.migrating || state.initialMigrationComplete) return;
     const items = [...state.items.values()];
     const plan = buildLegacyMigrationPlan(items);
-    if (!plan.length) return;
+    if (!plan.length) {
+      state.initialMigrationComplete = true;
+      return;
+    }
 
     state.migrating = true;
     window.shoppingListTripContextReady = false;
@@ -190,10 +185,17 @@ export async function initTripContext() {
       const items = [...state.items.values()];
       if (hasUnassignedItems(items)) {
         window.shoppingListTripContextReady = false;
-        try { await migrateLegacyItems(); } catch {}
+        if (!state.initialMigrationComplete) {
+          try { await migrateLegacyItems(); } catch {}
+        } else {
+          const error = new Error('偵測到沒有旅程歸屬的商品，已停止顯示以避免跨旅程資料混用。');
+          console.error('Unassigned item detected after trip context initialization:', error);
+          dispatch(window, 'shopping-list:trip-context-error', { stage: 'unassigned-item', error });
+        }
         return;
       }
 
+      state.initialMigrationComplete = true;
       const trips = publicTrips();
       publishTrips();
       const persistedTripId = String(state.settings.activeTripId || '').trim()
@@ -232,6 +234,7 @@ export async function initTripContext() {
     state.loaded = { trips: false, items: false, settings: false };
     state.activeTrip = null;
     state.migrating = false;
+    state.initialMigrationComplete = false;
     resetPublicState();
     if (!user) return;
 
