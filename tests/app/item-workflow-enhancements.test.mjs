@@ -49,6 +49,13 @@ test('workflow enhancement contains not-wanted confirmation pagination gestures 
   assert.match(source, /shopping-list:active-country-changed/);
 });
 
+test('restore action handles Firestore rejection and workflow owns the filtered empty state', async () => {
+  const source = await readFile(enhancementPath, 'utf8');
+  assert.match(source, /writeStatus\(id, action\.targetStatus\)\.catch\(\(\) => \{\}\)/);
+  assert.match(source, /getElementById\(['"]empty-state['"]\)/);
+  assert.match(source, /itemsLoaded/);
+});
+
 test('feature bootstrap loads item workflow independently', async () => {
   const source = await readFile(bootstrapPath, 'utf8');
   assert.match(source, /item-workflow-enhancements\.js/);
