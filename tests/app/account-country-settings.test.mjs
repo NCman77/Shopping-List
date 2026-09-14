@@ -9,21 +9,37 @@ test('country isolation resolves item ids from enhanced or legacy cards', () => 
   assert.equal(resolveCardItemId({ dataset: {}, onclickSource: '' }), '');
 });
 
-test('country isolation treats legacy items as Japan', () => {
+test('country compatibility helper still resolves legacy country defaults', () => {
   assert.equal(itemMatchesActiveCountry({ name: 'legacy' }, '日本'), true);
   assert.equal(itemMatchesActiveCountry({ country: '韓國' }, '日本'), false);
   assert.equal(itemMatchesActiveCountry({ country: '韓國' }, '韓國'), true);
 });
 
-test('avatar settings stay in-page and expose country, personalization and sign out', async () => {
+test('avatar settings expose country management, personalization and sign out without independently switching active country', async () => {
   const source = await readFile(new URL('../../src/client/app/account-settings.js', import.meta.url), 'utf8');
   assert.match(source, /旅遊國家/);
+  assert.match(source, /國家管理/);
   assert.match(source, /個人化/);
   assert.match(source, /登出/);
   assert.match(source, /account-country-input/);
-  assert.match(source, /shopping-list:active-country-changed/);
+  assert.match(source, /\{ countries: nextCountries \}/);
   assert.match(source, /\{ merge: true \}/);
+  assert.doesNotMatch(source, /dispatchCountryChanged/);
+  assert.doesNotMatch(source, /shopping-list:active-country-changed/);
+  assert.doesNotMatch(source, /writeCachedActiveCountry/);
   assert.doesNotMatch(source, /window\.open\(/);
+});
+
+test('adding a country does not write activeCountry or close the management screen as a selection action', async () => {
+  const source = await readFile(new URL('../../src/client/app/account-settings.js', import.meta.url), 'utf8');
+  const addIndex = source.indexOf('async function addCountry');
+  const nextFunctionIndex = source.indexOf('function subscribeUser', addIndex);
+  assert.ok(addIndex >= 0 && nextFunctionIndex > addIndex);
+  const slice = source.slice(addIndex, nextFunctionIndex);
+  assert.match(slice, /countries:\s*nextCountries/);
+  assert.doesNotMatch(slice, /activeCountry/);
+  assert.doesNotMatch(slice, /selectCountry/);
+  assert.doesNotMatch(slice, /closeModal\(\)/);
 });
 
 test('account modal signs out directly instead of synthetic-clicking inside the avatar capture boundary', async () => {
