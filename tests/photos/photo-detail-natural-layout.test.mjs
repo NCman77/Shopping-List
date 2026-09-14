@@ -20,19 +20,19 @@ function fakeClassList(initial = []) {
   };
 }
 
-test('detail photo cards keep natural image proportions instead of forcing squares', async () => {
+test('detail view CSS defines natural image proportions without changing edit-mode classes', async () => {
   const mod = await loadModule();
+  const source = await readFile(new URL('../../src/client/photos/photo-detail-layout.js', import.meta.url), 'utf8');
+
   assert.equal(typeof mod.DETAIL_PHOTO_CARD_CLASS, 'string');
   assert.equal(typeof mod.DETAIL_PHOTO_IMAGE_CLASS, 'string');
-
-  assert.doesNotMatch(mod.DETAIL_PHOTO_CARD_CLASS, /aspect-square/);
-  assert.doesNotMatch(mod.DETAIL_PHOTO_IMAGE_CLASS, /object-cover/);
-  assert.doesNotMatch(mod.DETAIL_PHOTO_IMAGE_CLASS, /w-full\s+h-full/);
-  assert.match(mod.DETAIL_PHOTO_IMAGE_CLASS, /max-w-full/);
-  assert.match(mod.DETAIL_PHOTO_IMAGE_CLASS, /h-auto/);
+  assert.match(source, /\.workflow-view-mode #photo-preview-grid img/);
+  assert.match(source, /height:\s*auto\s*!important/);
+  assert.match(source, /object-fit:\s*contain\s*!important/);
+  assert.doesNotMatch(source, /classList\.remove\(['"]aspect-square['"]\)/);
 });
 
-test('308x375 style detail images are taken out of square cover layout', async () => {
+test('normalization only records image readiness and does not rewrite square/crop classes', async () => {
   const mod = await loadModule();
   assert.equal(typeof mod.normalizeDetailPhotoCard, 'function');
 
@@ -41,32 +41,31 @@ test('308x375 style detail images are taken out of square cover layout', async (
   const image = { classList: imageClasses };
   const card = {
     classList: cardClasses,
+    dataset: {},
     querySelector(selector) { return selector === 'img' ? image : null; }
   };
 
   mod.normalizeDetailPhotoCard(card);
 
-  assert.equal(cardClasses.contains('aspect-square'), false);
-  assert.equal(imageClasses.contains('absolute'), false);
-  assert.equal(imageClasses.contains('w-full'), false);
-  assert.equal(imageClasses.contains('h-full'), false);
-  assert.equal(imageClasses.contains('object-cover'), false);
-  assert.equal(imageClasses.contains('max-w-full'), true);
-  assert.equal(imageClasses.contains('h-auto'), true);
-  assert.equal(imageClasses.contains('object-contain'), true);
+  assert.equal(card.dataset.detailImageReady, 'true');
+  assert.equal(cardClasses.contains('aspect-square'), true);
+  assert.equal(imageClasses.contains('absolute'), true);
+  assert.equal(imageClasses.contains('w-full'), true);
+  assert.equal(imageClasses.contains('h-full'), true);
+  assert.equal(imageClasses.contains('object-cover'), true);
 });
 
-test('natural detail layout is scoped to the detail photo grid and homepage rendering stays unchanged', async () => {
+test('natural-ratio behavior remains scoped to the detail modal and homepage rendering stays unchanged', async () => {
   const authSource = await readFile(new URL('../../src/client/app/auth-session.js', import.meta.url), 'utf8');
-  const layoutSource = await readFile(new URL('../../src/client/photos/photo-detail-layout.js', import.meta.url), 'utf8').catch(() => '');
+  const layoutSource = await readFile(new URL('../../src/client/photos/photo-detail-layout.js', import.meta.url), 'utf8');
   const appSource = await readFile(new URL('../../src/client/app/app-enhancements.js', import.meta.url), 'utf8');
 
   assert.match(authSource, /photo-detail-layout\.js/);
   assert.match(authSource, /initPhotoDetailNaturalLayout/);
+  assert.match(layoutSource, /workflow-view-mode/);
   assert.match(layoutSource, /photo-preview-grid/);
-  assert.match(layoutSource, /classList\.remove\('aspect-square'\)/);
-  assert.match(layoutSource, /DETAIL_PHOTO_IMAGE_CLASS/);
+  assert.match(layoutSource, /waitForPhotoGrid/);
 
-  // Homepage cover cards keep their existing square presentation in the base app.
+  // Homepage and edit-mode photo cards keep the base app's square presentation.
   assert.match(appSource, /aspect-square/);
 });
