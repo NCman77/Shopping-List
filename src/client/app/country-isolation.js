@@ -36,6 +36,11 @@ export function itemMatchesActiveCountry(item, activeCountry) {
   return resolveItemCountry(item) === country;
 }
 
+export function shouldShowItemForCountry({ item, activeCountry, itemsLoaded } = {}) {
+  if (!itemsLoaded || !item) return false;
+  return itemMatchesActiveCountry(item, activeCountry);
+}
+
 export function createCountryMapsSearchUrl(location, item) {
   const place = String(location || '').trim();
   if (!place) return '';
@@ -64,6 +69,7 @@ export async function initCountryIsolation() {
     activeCountry: DEFAULT_COUNTRY,
     countries: [DEFAULT_COUNTRY],
     items: new Map(),
+    itemsLoaded: false,
     settingsUnsub: null,
     itemsUnsub: null
   };
@@ -93,7 +99,11 @@ export async function initCountryIsolation() {
       const itemId = itemIdForCard(card);
       if (!itemId) continue;
       const item = state.items.get(itemId);
-      const visible = !item || itemMatchesActiveCountry(item, state.activeCountry);
+      const visible = shouldShowItemForCountry({
+        item,
+        activeCountry: state.activeCountry,
+        itemsLoaded: state.itemsLoaded
+      });
       card.classList.toggle('country-filter-hidden', !visible);
       card.style.display = visible ? '' : 'none';
 
@@ -106,7 +116,12 @@ export async function initCountryIsolation() {
       if (visible) visibleProducts += 1;
     }
 
-    if (!empty || (loading && !loading.classList.contains('hidden'))) return;
+    if (!empty) return;
+    if (!state.itemsLoaded || (loading && !loading.classList.contains('hidden'))) {
+      empty.classList.add('hidden');
+      empty.classList.remove('flex');
+      return;
+    }
     empty.classList.toggle('hidden', visibleProducts > 0);
     empty.classList.toggle('flex', visibleProducts === 0);
   }
@@ -132,6 +147,7 @@ export async function initCountryIsolation() {
     stopListeners();
     state.userId = user?.uid || '';
     state.items = new Map();
+    state.itemsLoaded = false;
     state.countries = [DEFAULT_COUNTRY];
     state.activeCountry = user?.uid
       ? readCachedActiveCountry(window.localStorage, user.uid)
@@ -156,8 +172,13 @@ export async function initCountryIsolation() {
     state.itemsUnsub = onSnapshot(itemsRef, (snapshot) => {
       if (state.userId !== user.uid) return;
       state.items = new Map(snapshot.docs.map((itemDoc) => [itemDoc.id, { id: itemDoc.id, ...itemDoc.data() }]));
+      state.itemsLoaded = true;
       queueMicrotask(applyCountryVisibility);
-    }, (error) => console.error('Country item listener failed:', error));
+    }, (error) => {
+      console.error('Country item listener failed:', error);
+      state.itemsLoaded = false;
+      queueMicrotask(applyCountryVisibility);
+    });
   }
 
   const observer = new MutationObserver(() => queueMicrotask(applyCountryVisibility));
