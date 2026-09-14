@@ -10,6 +10,16 @@ async function loadModule() {
   }
 }
 
+function fakeClassList(initial = []) {
+  const values = new Set(initial);
+  return {
+    add(...tokens) { tokens.forEach((token) => values.add(token)); },
+    remove(...tokens) { tokens.forEach((token) => values.delete(token)); },
+    contains(token) { return values.has(token); },
+    values
+  };
+}
+
 test('detail photo cards keep natural image proportions instead of forcing squares', async () => {
   const mod = await loadModule();
   assert.equal(typeof mod.DETAIL_PHOTO_CARD_CLASS, 'string');
@@ -20,6 +30,30 @@ test('detail photo cards keep natural image proportions instead of forcing squar
   assert.doesNotMatch(mod.DETAIL_PHOTO_IMAGE_CLASS, /w-full\s+h-full/);
   assert.match(mod.DETAIL_PHOTO_IMAGE_CLASS, /max-w-full/);
   assert.match(mod.DETAIL_PHOTO_IMAGE_CLASS, /h-auto/);
+});
+
+test('308x375 style detail images are taken out of square cover layout', async () => {
+  const mod = await loadModule();
+  assert.equal(typeof mod.normalizeDetailPhotoCard, 'function');
+
+  const imageClasses = fakeClassList(['absolute', 'inset-0', 'w-full', 'h-full', 'object-cover']);
+  const cardClasses = fakeClassList(['relative', 'aspect-square', 'rounded-xl']);
+  const image = { classList: imageClasses };
+  const card = {
+    classList: cardClasses,
+    querySelector(selector) { return selector === 'img' ? image : null; }
+  };
+
+  mod.normalizeDetailPhotoCard(card);
+
+  assert.equal(cardClasses.contains('aspect-square'), false);
+  assert.equal(imageClasses.contains('absolute'), false);
+  assert.equal(imageClasses.contains('w-full'), false);
+  assert.equal(imageClasses.contains('h-full'), false);
+  assert.equal(imageClasses.contains('object-cover'), false);
+  assert.equal(imageClasses.contains('max-w-full'), true);
+  assert.equal(imageClasses.contains('h-auto'), true);
+  assert.equal(imageClasses.contains('object-contain'), true);
 });
 
 test('natural detail layout is scoped to the detail photo grid and homepage rendering stays unchanged', async () => {
