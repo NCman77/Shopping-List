@@ -19,19 +19,26 @@ function blobToDataUrl(blob) {
   });
 }
 
-export async function createLightweightThumbnail(blob) {
+export async function createLightweightThumbnail(blob, {
+  compress = compressImage,
+  toDataUrl = blobToDataUrl,
+  revoke = revokeCompressedImage
+} = {}) {
   const attempts = [
     { maxEdge: 256, quality: 0.60 },
     { maxEdge: 192, quality: 0.48 }
   ];
 
   for (const options of attempts) {
-    const compressed = await compressImage(blob, options);
+    let compressed = null;
     try {
-      const dataUrl = await blobToDataUrl(compressed.blob);
+      compressed = await compress(blob, options);
+      const dataUrl = await toDataUrl(compressed.blob);
       if (dataUrl && dataUrl.length <= MAX_THUMBNAIL_CHARS) return dataUrl;
+    } catch {
+      // Thumbnail generation is an optimization. Never block item/photo persistence.
     } finally {
-      revokeCompressedImage(compressed);
+      if (compressed) revoke(compressed);
     }
   }
   return '';
