@@ -76,6 +76,10 @@ export function shouldReorderIds(currentIds = [], desiredIds = []) {
   return currentIds.some((id, index) => id !== desiredIds[index]);
 }
 
+export function shouldShowWorkflowEmpty({ loaded = false, count = 0 } = {}) {
+  return Boolean(loaded) && Math.max(0, Number(count) || 0) === 0;
+}
+
 export function detailStateForOpen({ itemId } = {}) {
   if (String(itemId || '').trim()) return { mode: 'view', canSave: false, canEdit: true };
   return { mode: 'edit', canSave: true, canEdit: false };
