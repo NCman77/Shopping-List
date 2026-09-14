@@ -1,0 +1,33 @@
+name: Feature tests
+
+on:
+  push:
+    branches:
+      - feature/drive-photos-websites
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run unit tests
+        run: node --test *.test.mjs
+      - name: Syntax checks
+        run: |
+          node --check auth-session.js
+          node --check url-utils.js
+          node --check image-compression.js
+          node --check drive-photo-service.js
+          node --check photo-metadata.js
+          node --check app-enhancements.js
+      - name: Integration markers
+        run: |
+          grep -q "item-website" app-enhancements.js
+          grep -q "觀看介紹" app-enhancements.js
+          grep -q "drive.appdata" app-enhancements.js
+          grep -q "itemPhotos" app-enhancements.js
+          grep -q "appDataFolder" drive-photo-service.js
