@@ -43,8 +43,7 @@ export function createDrivePhotoService({ fetchImpl = fetch, sessionStorageImpl 
 
   async function checkedFetch(url, options = {}) {
     const token = requireToken();
-    const headers = new Headers(options.headers || {});
-    headers.set('Authorization', `Bearer ${token}`);
+    const headers = { ...(options.headers || {}), Authorization: `Bearer ${token}` };
     const response = await fetchImpl(url, { ...options, headers });
     if (response.status === 401 || response.status === 403) {
       sessionStorageImpl.removeItem(tokenKey());
