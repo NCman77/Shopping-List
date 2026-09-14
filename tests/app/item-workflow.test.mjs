@@ -7,7 +7,8 @@ import {
   sortForHomepage,
   paginateItems,
   nextPageForSwipe,
-  shouldReorderIds
+  shouldReorderIds,
+  shouldShowWorkflowEmpty
 } from '../../src/client/app/item-workflow.js';
 
 test('legacy purchased items resolve without migration', () => {
@@ -79,4 +80,10 @@ test('card DOM order is only changed when candidate order actually differs', () 
   assert.equal(shouldReorderIds(['a', 'b', 'c'], ['a', 'b', 'c']), false);
   assert.equal(shouldReorderIds(['a', 'c', 'b'], ['a', 'b', 'c']), true);
   assert.equal(shouldReorderIds(['a', 'b'], ['a', 'b', 'c']), true);
+});
+
+test('filtered empty state only appears after item data has loaded', () => {
+  assert.equal(shouldShowWorkflowEmpty({ loaded: false, count: 0 }), false);
+  assert.equal(shouldShowWorkflowEmpty({ loaded: true, count: 1 }), false);
+  assert.equal(shouldShowWorkflowEmpty({ loaded: true, count: 0 }), true);
 });
