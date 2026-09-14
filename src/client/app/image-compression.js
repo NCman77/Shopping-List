@@ -1,1 +1,7 @@
-export * from '../photos/image-compression.js';
+export {
+  calculateContainedSize,
+  calculateWidthBoundSize,
+  compressImageToWidth,
+  compressImageToWidth as compressImage,
+  revokeCompressedImage
+} from '../photos/image-compression.js';
