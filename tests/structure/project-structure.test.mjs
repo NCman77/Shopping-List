@@ -24,7 +24,7 @@ const productionFiles = [
 ];
 
 const legacyRootFiles = [
-  'app-enhancements.js', 'auth-session.js', 'home-ui-enhancements.js',
+  'app-enhancements.js', 'home-ui-enhancements.js',
   'filter-management.js', 'drive-photo-service.js', 'drive-upload-rollback-fetch.js',
   'image-compression.js', 'photo-metadata.js', 'photo-upload-transaction.js',
   'photo-visibility-enhancements.js', 'photo-visibility-state.js', 'url-utils.js'
@@ -35,10 +35,12 @@ test('production modules live under src/client by domain', () => {
   for (const file of legacyRootFiles) assert.equal(existsSync(p(file)), false, `legacy root file remains: ${file}`);
 });
 
-test('index loads the new app bootstrap entry', () => {
+test('root bootstrap is only a compatibility entrypoint into src/client', () => {
   const html = readFileSync(p('index.html'), 'utf8');
-  assert.match(html, /src\/client\/app\/auth-session\.js/);
-  assert.doesNotMatch(html, /src=["']\.\/auth-session\.js["']/);
+  const bootstrap = readFileSync(p('auth-session.js'), 'utf8');
+  assert.match(html, /\.\/auth-session\.js/);
+  assert.match(bootstrap, /src\/client\/app\/auth-session\.js/);
+  assert.doesNotMatch(bootstrap, /firebasejs|drive\.googleapis|itemPhotos/);
 });
 
 test('Firestore schema stays on the existing artifacts path', () => {
@@ -49,9 +51,15 @@ test('Firestore schema stays on the existing artifacts path', () => {
   assert.doesNotMatch(rules, /match \/users\/\{userId\}/);
 });
 
+test('Firebase CLI root config points to the organized rules file', () => {
+  const config = JSON.parse(readFileSync(p('firebase.json'), 'utf8'));
+  assert.equal(config.firestore.rules, 'firebase/firestore.rules');
+});
+
 test('every relative JavaScript import resolves to an existing file', () => {
   const importPattern = /(?:from\s+|import\s*\()\s*['"](\.[^'"]+)['"]/g;
-  for (const file of productionFiles) {
+  const files = [...productionFiles, 'auth-session.js'];
+  for (const file of files) {
     const abs = p(file);
     const source = readFileSync(abs, 'utf8');
     for (const match of source.matchAll(importPattern)) {
