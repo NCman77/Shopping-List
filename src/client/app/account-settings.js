@@ -282,9 +282,14 @@ export async function initAccountSettings() {
     const EventCtor = window.CustomEvent || globalThis.CustomEvent;
     if (typeof EventCtor === 'function') window.dispatchEvent(new EventCtor('shopping-list:open-personalization'));
   });
-  document.getElementById('account-settings-signout').addEventListener('click', () => {
+  document.getElementById('account-settings-signout').addEventListener('click', async () => {
     closeModal();
-    document.getElementById('sign-out-btn')?.click();
+    try {
+      await authSdk.signOut(auth);
+    } catch (error) {
+      console.error('Account settings sign out failed:', error);
+      notify('登出失敗', '無法登出，請稍後再試。');
+    }
   });
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && !modal.classList.contains('hidden')) closeModal();
