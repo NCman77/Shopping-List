@@ -6,7 +6,8 @@ import {
   filterByShoppingStatus,
   sortForHomepage,
   paginateItems,
-  nextPageForSwipe
+  nextPageForSwipe,
+  shouldReorderIds
 } from '../../src/client/app/item-workflow.js';
 
 test('legacy purchased items resolve without migration', () => {
@@ -72,4 +73,10 @@ test('approved swipe mapping is left previous and right next without wrapping', 
   assert.equal(nextPageForSwipe({ direction: 'right', page: 2, totalPages: 4 }), 3);
   assert.equal(nextPageForSwipe({ direction: 'left', page: 1, totalPages: 4 }), 1);
   assert.equal(nextPageForSwipe({ direction: 'right', page: 4, totalPages: 4 }), 4);
+});
+
+test('card DOM order is only changed when candidate order actually differs', () => {
+  assert.equal(shouldReorderIds(['a', 'b', 'c'], ['a', 'b', 'c']), false);
+  assert.equal(shouldReorderIds(['a', 'c', 'b'], ['a', 'b', 'c']), true);
+  assert.equal(shouldReorderIds(['a', 'b'], ['a', 'b', 'c']), true);
 });
