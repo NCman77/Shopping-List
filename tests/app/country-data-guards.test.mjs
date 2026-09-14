@@ -25,7 +25,7 @@ test('settings merge guard replaces destructive add handlers with Firestore merg
   assert.match(source, /addOption\('locations'/);
 });
 
-test('country save guard assigns an id before enhanced save and merges country after successful save', async () => {
+test('legacy country save guard remains test-covered for backward compatibility', async () => {
   const source = await readFile(new URL('../../src/client/app/country-save-guard.js', import.meta.url), 'utf8');
   assert.match(source, /item-id/);
   assert.match(source, /randomUUID/);
@@ -44,8 +44,9 @@ test('failed validation clears a generated id and edited item country is resolve
   assert.ok(saveIndex >= 0 && snapshotIndex > saveIndex && countryIndex > snapshotIndex);
 });
 
-test('feature bootstrap loads both data guards independently', async () => {
+test('feature bootstrap loads settings merge guard and authoritative trip save guard', async () => {
   const source = await readFile(new URL('../../src/client/app/feature-bootstrap.js', import.meta.url), 'utf8');
   assert.match(source, /settings-merge-guard\.js/);
-  assert.match(source, /country-save-guard\.js/);
+  assert.match(source, /trip-save-guard\.js/);
+  assert.doesNotMatch(source, /initCountrySaveGuard/);
 });
