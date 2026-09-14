@@ -44,6 +44,23 @@ export function hasUnassignedItems(items = []) {
   return (Array.isArray(items) ? items : []).some((item) => item && !String(item.tripId || '').trim());
 }
 
+export function resolveTripForReconcile({
+  trips = [],
+  persistedTripId = '',
+  sessionSelectedTripId = '',
+  today
+} = {}) {
+  const normalizedTrips = (Array.isArray(trips) ? trips : [])
+    .map(normalizeTrip)
+    .filter((trip) => trip.id);
+  const manualId = String(sessionSelectedTripId || '').trim();
+  if (manualId) {
+    const manualTrip = normalizedTrips.find((trip) => trip.id === manualId);
+    if (manualTrip) return manualTrip;
+  }
+  return resolveActiveTrip({ trips: normalizedTrips, persistedTripId, today });
+}
+
 export async function initTripContext() {
   if (typeof window === 'undefined' || typeof document === 'undefined') return;
   if (window.__shoppingListTripContextInitialized) return;
@@ -70,6 +87,7 @@ export async function initTripContext() {
     settings: {},
     loaded: { trips: false, items: false, settings: false },
     activeTrip: null,
+    sessionSelectedTripId: '',
     migrating: false,
     initialMigrationComplete: false,
     reconcileScheduled: false,
@@ -200,7 +218,11 @@ export async function initTripContext() {
       publishTrips();
       const persistedTripId = String(state.settings.activeTripId || '').trim()
         || readCachedActiveTripId(window.localStorage, state.userId);
-      const selected = resolveActiveTrip({ trips, persistedTripId });
+      const selected = resolveTripForReconcile({
+        trips,
+        persistedTripId,
+        sessionSelectedTripId: state.sessionSelectedTripId
+      });
       const shouldPersist = Boolean(selected && state.settings.activeTripId !== selected.id);
       try {
         await activateTrip(selected, { persist: shouldPersist });
@@ -221,6 +243,7 @@ export async function initTripContext() {
     if (!state.userId) throw new Error('尚未登入。');
     const selected = state.trips.get(String(tripId || '').trim());
     if (!selected) throw new Error('找不到這趟旅程。');
+    state.sessionSelectedTripId = selected.id;
     await activateTrip(selected, { persist: true });
     return normalizeTrip(selected);
   };
@@ -233,6 +256,7 @@ export async function initTripContext() {
     state.settings = {};
     state.loaded = { trips: false, items: false, settings: false };
     state.activeTrip = null;
+    state.sessionSelectedTripId = '';
     state.migrating = false;
     state.initialMigrationComplete = false;
     resetPublicState();
