@@ -70,6 +70,14 @@ test('empty legacy trips are cleanup candidates only after their items are gone'
   assert.deepEqual(contextModule.findEmptyLegacyTripIds(trips, items), ['legacy-jp']);
 });
 
+test('reconcile deletes empty legacy trip documents and clears a stale manual selection', async () => {
+  const source = await readFile(contextPath, 'utf8');
+  assert.match(source, /findEmptyLegacyTripIds/);
+  assert.match(source, /batch\.delete\(userRootDoc\('trips',\s*tripId\)\)/);
+  assert.match(source, /sessionSelectedTripId\s*=\s*''/);
+  assert.match(source, /stage:\s*'legacy-cleanup'/);
+});
+
 test('trip context subscribes to trips, items, and preferences and migrates only missing tripId items', async () => {
   const source = await readFile(contextPath, 'utf8');
   assert.match(source, /collection\([^\n]*'trips'/);
