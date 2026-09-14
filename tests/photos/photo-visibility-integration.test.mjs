@@ -15,5 +15,7 @@ test('photo visibility recovery offers authorization instead of silently showing
   assert.match(source, /connectGoogleDrive/);
   assert.match(source, /updateDoc/);
   assert.match(source, /photoUrl/);
-  assert.match(source, /compressImage/);
+  assert.match(source, /createLightweightThumbnail/);
+  assert.doesNotMatch(source, /maxEdge:\s*480/);
+  assert.doesNotMatch(source, /300000/);
 });
