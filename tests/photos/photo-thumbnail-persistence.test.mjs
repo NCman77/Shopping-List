@@ -62,6 +62,31 @@ test('matching Firestore thumbnail avoids a Drive download entirely', async () =
   assert.equal(updates, 0);
 });
 
+test('matching but oversized Firestore thumbnail is recompressed for faster list loading', async () => {
+  const mod = await loadModule();
+  assert.equal(typeof mod.createPhotoThumbnailPersistenceService, 'function');
+
+  const updates = [];
+  let downloads = 0;
+  const service = mod.createPhotoThumbnailPersistenceService({
+    getItem: async () => ({
+      id: 'item-1',
+      photoUrl: `data:image/webp;base64,${'x'.repeat(90000)}`,
+      photoThumbCoverId: 'photo-1'
+    }),
+    listPhotosForItem: async () => [{ id: 'photo-1', driveFileId: 'drive-1', order: 0, status: 'active' }],
+    downloadPhoto: async () => { downloads += 1; return new Blob(['photo']); },
+    createThumbnail: async () => 'data:image/webp;base64,small',
+    updateItem: async (itemId, patch) => updates.push({ itemId, patch })
+  });
+
+  const result = await service.backfillItem('item-1');
+
+  assert.equal(result.status, 'updated');
+  assert.equal(downloads, 1);
+  assert.equal(updates[0].patch.photoUrl, 'data:image/webp;base64,small');
+});
+
 test('removing the final tracked Drive photo clears its persistent thumbnail', async () => {
   const mod = await loadModule();
   assert.equal(typeof mod.createPhotoThumbnailPersistenceService, 'function');
