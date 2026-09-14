@@ -4,7 +4,6 @@ import { readFile } from 'node:fs/promises';
 import { resolveTripMembershipForSave } from '../../src/client/app/trip-save-guard.js';
 
 const guardPath = new URL('../../src/client/app/trip-save-guard.js', import.meta.url);
-const appPath = new URL('../../src/client/app/app-enhancements.js', import.meta.url);
 const bootstrapPath = new URL('../../src/client/app/feature-bootstrap.js', import.meta.url);
 
 test('new item membership comes from active trip', () => {
@@ -28,24 +27,17 @@ test('existing unassigned item does not get silently moved to active trip', () =
   }), { tripId: '', country: '日本' });
 });
 
-test('trip save guard blocks new save without resolved active trip and injects membership before the original save', async () => {
+test('trip save guard blocks new save without active trip and reserves membership before original save', async () => {
   const source = await readFile(guardPath, 'utf8');
   assert.match(source, /shoppingListTripContextReady/);
   assert.match(source, /shoppingListActiveTrip/);
   assert.match(source, /請先新增或選擇一趟旅程/);
-  assert.match(source, /shoppingListPendingMembership/);
+  assert.match(source, /await setDoc\(itemRef, membership, \{ merge: true \}\)/);
   assert.match(source, /await originalSave/);
-  assert.match(source, /generatedNewId/);
-});
-
-test('base item save writes pending trip membership in the same Firestore batch as the item', async () => {
-  const source = await readFile(appPath, 'utf8');
-  assert.match(source, /shoppingListPendingMembership/);
-  assert.match(source, /tripId:\s*pendingMembership\.tripId/);
-  assert.match(source, /country:\s*pendingMembership\.country/);
-  const dataIndex = source.indexOf('const itemData =');
-  const batchIndex = source.indexOf('batch.set(itemRef, itemData');
-  assert.ok(dataIndex >= 0 && batchIndex > dataIndex);
+  assert.match(source, /deleteDoc\(itemRef\)/);
+  const reserveIndex = source.indexOf('await setDoc(itemRef, membership');
+  const saveIndex = source.indexOf('await originalSave');
+  assert.ok(reserveIndex >= 0 && saveIndex > reserveIndex);
 });
 
 test('bootstrap uses trip save guard instead of competing country save guard', async () => {
