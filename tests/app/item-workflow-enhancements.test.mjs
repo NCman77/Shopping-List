@@ -45,7 +45,8 @@ test('workflow enhancement contains not-wanted confirmation pagination gestures 
   assert.match(source, /touchstart/);
   assert.match(source, /touchend/);
   assert.match(source, /編輯/);
-  assert.match(source, /買到了嗎/);
+  assert.match(source, /getElementById\('item-status'\)/);
+  assert.match(source, /setAttribute\('aria-hidden',\s*'true'\)/);
   assert.match(source, /shopping-list:active-country-changed/);
 });
 
