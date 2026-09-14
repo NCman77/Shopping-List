@@ -11,6 +11,23 @@ function blobToDataUrl(blob) {
   });
 }
 
+export function resolveDetailPhotoDisplay({
+  previewDataUrl = '',
+  homepagePhotoUrl = '',
+  isCover = false,
+  hasDriveToken = false
+} = {}) {
+  const preview = String(previewDataUrl || '').trim();
+  if (preview) return { mode: 'persistent-preview', src: preview };
+
+  if (hasDriveToken) return { mode: 'drive-backfill', src: '' };
+
+  const homepage = String(homepagePhotoUrl || '').trim();
+  if (isCover && homepage) return { mode: 'homepage-fallback', src: homepage };
+
+  return { mode: 'authorization-required', src: '' };
+}
+
 export async function createDetailPhotoPreview(blob, {
   compress = compressImageToWidth,
   toDataUrl = blobToDataUrl,
