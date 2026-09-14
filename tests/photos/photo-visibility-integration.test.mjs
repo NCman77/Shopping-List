@@ -19,3 +19,9 @@ test('photo visibility recovery offers authorization instead of silently showing
   assert.doesNotMatch(source, /maxEdge:\s*480/);
   assert.doesNotMatch(source, /300000/);
 });
+
+test('Drive photo recovery waits for thumbnail persistence before finishing the render', async () => {
+  const source = await readFile(new URL('../../src/client/photos/photo-visibility-enhancements.js', import.meta.url), 'utf8');
+  assert.match(source, /await\s+backfillThumbnail\(itemId,\s*driveCoverId,\s*blob\)/);
+  assert.doesNotMatch(source, /void\s+backfillThumbnail\(itemId,\s*driveCoverId,\s*blob\)/);
+});
