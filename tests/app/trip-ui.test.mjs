@@ -47,6 +47,13 @@ test('homepage exposes an always-visible active trip selector and empty onboardi
   assert.match(source, /既有清單/);
 });
 
+test('first-trip onboarding makes the trip form modal visible', async () => {
+  const source = await readFile(sourcePath, 'utf8');
+  const openFormBody = source.match(/function openForm\(trip\) \{([\s\S]*?)\n  \}\n\n  async function saveTrip/)?.[1] || '';
+  assert.match(openFormBody, /modal\.classList\.remove\('hidden'\)/);
+  assert.match(openFormBody, /modal\.classList\.add\('flex'\)/);
+});
+
 test('avatar account menu receives a travel records entry', async () => {
   const source = await readFile(sourcePath, 'utf8');
   assert.match(source, /account-open-trips/);
