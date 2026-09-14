@@ -4,6 +4,7 @@ import {
   nextPageForSwipe,
   paginateItems,
   resolveShoppingStatus,
+  shouldReorderIds,
   sortForHomepage,
   statusWritePatch
 } from './item-workflow.js';
@@ -308,10 +309,14 @@ export async function initItemWorkflowEnhancements() {
         ? sortForHomepage(candidates.map(({ item }) => item))
         : [...candidates.map(({ item }) => item)].sort((a, b) => Number(b?.createdAt || 0) - Number(a?.createdAt || 0));
       const cardById = new Map(candidates.map(({ card, item }) => [item.id, card]));
+      const currentIds = candidates.map(({ item }) => item.id);
+      const desiredIds = sortedItems.map((item) => item.id);
 
-      for (const item of sortedItems) {
-        const card = cardById.get(item.id);
-        if (card) list.appendChild(card);
+      if (shouldReorderIds(currentIds, desiredIds)) {
+        for (const item of sortedItems) {
+          const card = cardById.get(item.id);
+          if (card) list.appendChild(card);
+        }
       }
 
       const pageData = paginateItems(sortedItems, state.page, PAGE_SIZE);
