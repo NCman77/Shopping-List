@@ -337,6 +337,8 @@ export async function initTripUi() {
     countrySelect.disabled = !countryEditable;
     document.getElementById('trip-country-lock-note').classList.toggle('hidden', countryEditable);
     setView('form');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
   }
 
   async function saveTrip() {
