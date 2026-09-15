@@ -2,6 +2,8 @@ import { createGoogleMapsUrl } from '../utils/url-utils.js';
 import { normalizeMapsApiKeys, resolveMapsPlacesEnabled } from '../location/places-usage-policy.js';
 
 const APP_ID = 'japan-shopping-app';
+let runtimeGuardInstalled = false;
+let runtimeSettingsHandler = null;
 
 function clean(value) {
   return String(value ?? '').trim();
@@ -28,6 +30,26 @@ function notify(title, message, type = 'warning') {
   else console[type === 'error' ? 'error' : 'log'](`${title}: ${message}`);
 }
 
+function redactRuntimeKeys(generation = 0) {
+  if (typeof window === 'undefined') return;
+  window.shoppingListMapsPlacesEnabled = false;
+  window.shoppingListMapsApiKeys = { primary: '', backup: '', generation: Number(generation) || 0 };
+  window.shoppingListMapsBrowserApiKey = '';
+}
+
+export function installMapsSettingsRuntimeGuard() {
+  if (typeof window === 'undefined' || runtimeGuardInstalled) return;
+  runtimeGuardInstalled = true;
+  redactRuntimeKeys(Number(window.shoppingListMapsApiKeys?.generation) || 0);
+  window.addEventListener('shopping-list:maps-settings-changed', (event) => {
+    if (typeof runtimeSettingsHandler === 'function') {
+      runtimeSettingsHandler(event);
+      return;
+    }
+    redactRuntimeKeys(Number(event?.detail?.generation) || 0);
+  }, { capture: true });
+}
+
 function ensureModeToggle() {
   if (document.getElementById('account-maps-mode-panel')) return;
   const content = document.querySelector('#account-maps-view > .p-4.space-y-4');
@@ -47,53 +69,20 @@ export async function initMapsModeEnhancements() {
   if (typeof window === 'undefined' || typeof document === 'undefined') return;
   if (window.__shoppingListMapsModeEnhancementsInitialized) return;
   window.__shoppingListMapsModeEnhancementsInitialized = true;
-
-  await waitFor(() => document.getElementById('account-maps-view'));
-  ensureModeToggle();
-
-  const [appSdk, authSdk, firestoreSdk] = await Promise.all([
-    import('https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js'),
-    import('https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js'),
-    import('https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js')
-  ]);
-  const app = appSdk.getApps()[0] || appSdk.getApp();
-  const auth = authSdk.getAuth(app);
-  const db = firestoreSdk.getFirestore(app);
-  const { collection, doc, onSnapshot, setDoc } = firestoreSdk;
-  const toggle = document.getElementById('account-maps-places-enabled');
-  const description = document.getElementById('account-maps-mode-description');
+  installMapsSettingsRuntimeGuard();
 
   const state = {
     userId: '',
     mapsPlacesEnabled: false,
     mapsApiKeys: { primary: '', backup: '' },
-    generation: 0,
+    generation: Number(window.shoppingListMapsApiKeys?.generation) || 0,
     settingsUnsub: null,
     itemsUnsub: null,
     items: new Map(),
     suggestionsObserver: null
   };
-
-  function settingsRef(userId = state.userId) {
-    return userId ? doc(db, 'artifacts', APP_ID, 'users', userId, 'settings', 'preferences') : null;
-  }
-
-  function publishRuntime() {
-    window.shoppingListMapsPlacesEnabled = Boolean(state.mapsPlacesEnabled);
-    const generation = Number(state.generation) || Number(window.shoppingListMapsApiKeys?.generation) || 0;
-    if (state.mapsPlacesEnabled) {
-      window.shoppingListMapsApiKeys = {
-        primary: state.mapsApiKeys.primary,
-        backup: state.mapsApiKeys.backup,
-        generation
-      };
-      window.shoppingListMapsBrowserApiKey = state.mapsApiKeys.primary;
-    } else {
-      window.shoppingListMapsApiKeys = { primary: '', backup: '', generation };
-      window.shoppingListMapsBrowserApiKey = '';
-    }
-    renderMode();
-  }
+  let toggle = null;
+  let description = null;
 
   function renderMode() {
     if (toggle) toggle.checked = Boolean(state.mapsPlacesEnabled);
@@ -110,10 +99,57 @@ export async function initMapsModeEnhancements() {
     else status.textContent = 'Google Maps / Places · 已開啟 · 主要 Key 已設定';
   }
 
+  function publishRuntime() {
+    window.shoppingListMapsPlacesEnabled = Boolean(state.mapsPlacesEnabled);
+    const generation = Number(state.generation) || 0;
+    if (state.mapsPlacesEnabled) {
+      window.shoppingListMapsApiKeys = {
+        primary: state.mapsApiKeys.primary,
+        backup: state.mapsApiKeys.backup,
+        generation
+      };
+      window.shoppingListMapsBrowserApiKey = state.mapsApiKeys.primary;
+    } else {
+      redactRuntimeKeys(generation);
+    }
+    renderMode();
+  }
+
+  runtimeSettingsHandler = (event) => {
+    const detailKeys = event?.detail?.mapsApiKeys || {};
+    state.mapsApiKeys = {
+      primary: clean(detailKeys.primary),
+      backup: clean(detailKeys.backup)
+    };
+    state.generation = Number(event?.detail?.generation) || state.generation;
+    if (!state.mapsPlacesEnabled) redactRuntimeKeys(state.generation);
+    queueMicrotask(renderMode);
+  };
+
+  const [appSdk, authSdk, firestoreSdk] = await Promise.all([
+    import('https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js'),
+    import('https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js'),
+    import('https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js'),
+    waitFor(() => document.getElementById('account-maps-view')).then(() => {
+      ensureModeToggle();
+      toggle = document.getElementById('account-maps-places-enabled');
+      description = document.getElementById('account-maps-mode-description');
+      renderMode();
+    })
+  ]);
+  const app = appSdk.getApps()[0] || appSdk.getApp();
+  const auth = authSdk.getAuth(app);
+  const db = firestoreSdk.getFirestore(app);
+  const { collection, doc, onSnapshot, setDoc } = firestoreSdk;
+
+  function settingsRef(userId = state.userId) {
+    return userId ? doc(db, 'artifacts', APP_ID, 'users', userId, 'settings', 'preferences') : null;
+  }
+
   function hidePlacesSuggestionsWhenDisabled() {
     if (state.mapsPlacesEnabled) return;
     const box = document.getElementById('store-suggestions');
-    if (!box) return;
+    if (!box || box.classList.contains('hidden')) return;
     box.classList.add('hidden');
   }
 
@@ -218,20 +254,6 @@ export async function initMapsModeEnhancements() {
   document.addEventListener('click', handleDistanceClick, true);
   document.addEventListener('focusin', observeSuggestionBox, true);
   document.addEventListener('input', hidePlacesSuggestionsWhenDisabled);
-
-  window.addEventListener('shopping-list:maps-settings-changed', (event) => {
-    const detailKeys = event?.detail?.mapsApiKeys || {};
-    state.mapsApiKeys = {
-      primary: clean(detailKeys.primary || state.mapsApiKeys.primary),
-      backup: clean(detailKeys.backup || state.mapsApiKeys.backup)
-    };
-    state.generation = Number(event?.detail?.generation) || state.generation;
-    if (!state.mapsPlacesEnabled) {
-      window.shoppingListMapsApiKeys = { primary: '', backup: '', generation: state.generation };
-      window.shoppingListMapsBrowserApiKey = '';
-      queueMicrotask(renderMode);
-    }
-  }, { capture: true });
 
   authSdk.onAuthStateChanged(auth, subscribeUser);
   observeSuggestionBox();
