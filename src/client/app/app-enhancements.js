@@ -5,6 +5,12 @@ import { groupActivePhotosByItem } from './photo-metadata.js';
 import { createLightweightThumbnail } from '../photos/photo-thumbnail-persistence.js';
 import { resolvePhotoPersistenceForSave } from '../photos/photo-visibility-state.js';
 import { resolveItemLocations } from '../pricing/location-selection.js';
+import {
+  captureRegisteredItemSaveExtensions,
+  createItemSaveOperation,
+  createItemSaveResult,
+  isItemSaveOperationCurrent
+} from './item-save-operation.js';
 
 const APP_ID = 'japan-shopping-app';
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
@@ -87,7 +93,8 @@ export async function initShoppingListEnhancements() {
     itemUnsub: null,
     photoUnsub: null,
     driveObjectUrls: new Map(),
-    pendingDeleteId: ''
+    pendingDeleteId: '',
+    modalGeneration: 0
   };
 
   const drivePhotoService = createDrivePhotoService({
@@ -96,6 +103,10 @@ export async function initShoppingListEnhancements() {
     getUserId: () => state.userId
   });
   let driveConnectPromise = null;
+  let activeSaveOperation = null;
+  let activeSaveButton = null;
+  let activeSaveButtonLabel = '';
+  const capturingSaveOperation = Symbol('capturing-save-operation');
 
   function revokeDriveUrls() {
     for (const url of state.driveObjectUrls.values()) URL.revokeObjectURL(url);
@@ -414,8 +425,64 @@ export async function initShoppingListEnhancements() {
   ensurePhotoUi();
   document.getElementById('item-photo')?.addEventListener('change', handlePhotoSelection);
 
+  function releaseActiveSaveClaim(expectedOwner) {
+    if (activeSaveOperation !== expectedOwner) return;
+    activeSaveOperation = null;
+    if (activeSaveButton) {
+      activeSaveButton.disabled = false;
+      activeSaveButton.textContent = activeSaveButtonLabel;
+    }
+    activeSaveButton = null;
+    activeSaveButtonLabel = '';
+  }
+
+  window.beginShoppingListSaveOperation = function() {
+    if (activeSaveOperation) return null;
+
+    const saveButton = document.getElementById('save-item-btn');
+    activeSaveOperation = capturingSaveOperation;
+    activeSaveButton = saveButton;
+    activeSaveButtonLabel = saveButton?.textContent || '';
+    if (saveButton) saveButton.disabled = true;
+
+    try {
+      const fields = {};
+      document.querySelectorAll('#add-modal input, #add-modal select, #add-modal textarea').forEach((field) => {
+        if (!field.id) return;
+        fields[field.id] = field.type === 'checkbox' ? Boolean(field.checked) : field.value;
+      });
+
+      const userId = String(auth.currentUser?.uid || '');
+      const existingItemId = String(fields['item-id'] || '').trim();
+      const itemId = existingItemId || (userId
+        ? doc(collection(db, 'artifacts', APP_ID, 'users', userId, 'items')).id
+        : (window.crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`));
+      const operation = createItemSaveOperation({
+        operationId: window.crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`,
+        userId,
+        itemId,
+        isNew: !existingItemId,
+        modalGeneration: state.modalGeneration,
+        fields,
+        pendingPhotos: state.pendingPhotos,
+        removedPhotoIds: state.removedPhotoIds,
+        extensions: captureRegisteredItemSaveExtensions()
+      });
+      activeSaveOperation = operation;
+      return operation;
+    } catch (error) {
+      releaseActiveSaveClaim(capturingSaveOperation);
+      throw error;
+    }
+  };
+
+  window.releaseShoppingListSaveOperation = function(operation) {
+    releaseActiveSaveClaim(operation);
+  };
+
   const originalOpenAdd = window.openAddModal;
   window.openAddModal = function(...args) {
+    state.modalGeneration += 1;
     state.currentEditingId = '';
     resetPendingPhotos();
     const result = originalOpenAdd.apply(this, args);
@@ -429,6 +496,7 @@ export async function initShoppingListEnhancements() {
 
   const originalOpenEdit = window.openEditModal;
   window.openEditModal = function(id, ...args) {
+    state.modalGeneration += 1;
     state.currentEditingId = id;
     resetPendingPhotos();
     state.currentEditingId = id;
@@ -444,58 +512,89 @@ export async function initShoppingListEnhancements() {
 
   const originalClose = window.closeAddModal;
   window.closeAddModal = function(...args) {
+    state.modalGeneration += 1;
     resetPendingPhotos();
     state.currentEditingId = '';
     return originalClose.apply(this, args);
   };
 
-  window.saveItem = async function() {
-    const user = auth.currentUser;
-    if (!user) return;
-    const saveButton = document.getElementById('save-item-btn');
-    const name = document.getElementById('item-name').value.trim();
-    if (!name) return showMessage('缺少名稱', '請填寫商品名稱唷！', 'warning');
+  window.saveItem = async function(existingOperation) {
+    const operation = existingOperation?.operationId
+      ? existingOperation
+      : window.beginShoppingListSaveOperation();
+    if (!operation) return null;
 
-    let website = '';
+    const currentOperationState = () => ({
+      userId: String(auth.currentUser?.uid || ''),
+      modalGeneration: state.modalGeneration
+    });
+    const publishResult = (succeeded, reason = '') => {
+      const result = createItemSaveResult(operation, succeeded, reason);
+      window.shoppingListLastItemSave = result;
+      return result;
+    };
+
     try {
-      website = normalizeWebsiteUrl(document.getElementById('item-website').value);
-    } catch (error) {
-      return showMessage('網址格式錯誤', error.message, 'warning');
-    }
+      if (!operation.userId) return publishResult(false, 'authentication-required');
 
-    const failedPending = state.pendingPhotos.filter((photo) => photo.error);
-    if (failedPending.length) return showMessage('照片尚未完成', '請先移除處理失敗的照片再儲存。', 'warning');
+      const name = String(operation.fields['item-name'] || '').trim();
+      if (!name) {
+        showMessage('缺少名稱', '請填寫商品名稱唷！', 'warning');
+        return publishResult(false, 'item-name-required');
+      }
 
-    const itemsRef = collection(db, 'artifacts', APP_ID, 'users', user.uid, 'items');
-    const id = document.getElementById('item-id').value || doc(itemsRef).id;
-    const itemRef = doc(db, 'artifacts', APP_ID, 'users', user.uid, 'items', id);
-    const existingSnapshot = await getDoc(itemRef);
-    const existing = existingSnapshot.exists() ? existingSnapshot.data() : null;
-    const pending = state.pendingPhotos.filter((photo) => !photo.error);
+      let website = '';
+      try {
+        website = normalizeWebsiteUrl(operation.fields['item-website']);
+      } catch (error) {
+        showMessage('網址格式錯誤', error.message, 'warning');
+        return publishResult(false, error.message);
+      }
 
-    saveButton.disabled = true;
-    const originalLabel = saveButton.textContent;
-    try {
-      if (pending.length || state.removedPhotoIds.size) await ensureDriveAccess();
-      if (pending.length) document.getElementById('photo-upload-status').textContent = `正在上傳 0/${pending.length}…`;
+      const failedPending = operation.pendingPhotos.filter((photo) => photo.error);
+      if (failedPending.length) {
+        showMessage('照片尚未完成', '請先移除處理失敗的照片再儲存。', 'warning');
+        return publishResult(false, 'pending-photo-error');
+      }
+
+      const itemRef = doc(db, 'artifacts', APP_ID, 'users', operation.userId, 'items', operation.itemId);
+      const existingSnapshot = await getDoc(itemRef);
+      const existing = existingSnapshot.exists() ? existingSnapshot.data() : null;
+      const pending = operation.pendingPhotos.filter((photo) => !photo.error);
+      const removedPhotoIds = new Set(operation.removedPhotoIds);
+
+      if (pending.length || operation.removedPhotoIds.length) await ensureDriveAccess();
+      if (pending.length && isItemSaveOperationCurrent(operation, currentOperationState())) {
+        document.getElementById('photo-upload-status').textContent = `正在上傳 0/${pending.length}…`;
+      }
 
       let completed = 0;
       const uploaded = await mapWithConcurrency(pending, 2, async (photo, index) => {
         const fileName = safeFileName(photo.originalName, photo.mimeType);
-        const driveFile = await drivePhotoService.uploadPhoto({ blob: photo.blob, fileName, itemId: id });
+        const driveFile = await drivePhotoService.uploadPhoto({
+          blob: photo.blob,
+          fileName,
+          itemId: operation.itemId
+        });
         completed += 1;
-        document.getElementById('photo-upload-status').textContent = `正在上傳 ${completed}/${pending.length}…`;
-        return { photo, driveFile, order: activePhotosForItem(id).filter((p) => !state.removedPhotoIds.has(p.id)).length + index };
+        if (isItemSaveOperationCurrent(operation, currentOperationState())) {
+          document.getElementById('photo-upload-status').textContent = `正在上傳 ${completed}/${pending.length}…`;
+        }
+        return {
+          photo,
+          driveFile,
+          order: activePhotosForItem(operation.itemId).filter((entry) => !removedPhotoIds.has(entry.id)).length + index
+        };
       });
 
       const batch = writeBatch(db);
-      const existingActive = activePhotosForItem(id).filter((p) => !state.removedPhotoIds.has(p.id));
+      const existingActive = activePhotosForItem(operation.itemId).filter((photo) => !removedPhotoIds.has(photo.id));
       const newPhotoIds = [];
       for (const entry of uploaded) {
-        const photoRef = doc(collection(db, 'artifacts', APP_ID, 'users', user.uid, 'itemPhotos'));
+        const photoRef = doc(collection(db, 'artifacts', APP_ID, 'users', operation.userId, 'itemPhotos'));
         newPhotoIds.push(photoRef.id);
         batch.set(photoRef, {
-          itemId: id,
+          itemId: operation.itemId,
           driveFileId: entry.driveFile.id,
           fileName: entry.driveFile.name || safeFileName(entry.photo.originalName, entry.photo.mimeType),
           mimeType: entry.photo.mimeType,
@@ -518,19 +617,19 @@ export async function initShoppingListEnhancements() {
         uploadedPhotos: uploadedForPersistence
       });
 
-      for (const photoId of state.removedPhotoIds) {
-        const photoRef = doc(db, 'artifacts', APP_ID, 'users', user.uid, 'itemPhotos', photoId);
+      for (const photoId of operation.removedPhotoIds) {
+        const photoRef = doc(db, 'artifacts', APP_ID, 'users', operation.userId, 'itemPhotos', photoId);
         batch.update(photoRef, { status: 'deleting' });
       }
 
       const itemData = {
         name,
-        category: document.getElementById('item-category').value,
-        location: document.getElementById('item-location').value,
-        address: document.getElementById('item-address').value.trim(),
+        category: String(operation.fields['item-category'] || ''),
+        location: String(operation.fields['item-location'] || ''),
+        address: String(operation.fields['item-address'] || '').trim(),
         website,
-        description: document.getElementById('item-desc').value.trim(),
-        purchased: document.getElementById('item-status').checked,
+        description: String(operation.fields['item-desc'] || '').trim(),
+        purchased: Boolean(operation.fields['item-status']),
         photoUrl: photoPersistence.photoUrl,
         photoThumbCoverId: photoPersistence.photoThumbCoverId,
         coverPhotoId: photoPersistence.coverPhotoId,
@@ -538,35 +637,40 @@ export async function initShoppingListEnhancements() {
         updatedAt: Date.now()
       };
       batch.set(itemRef, itemData, { merge: true });
+      if (auth.currentUser?.uid !== operation.userId) throw new Error('item-save-operation-stale');
       await batch.commit();
 
-      for (const photoId of state.removedPhotoIds) {
-        const photo = state.photoDocs.find((p) => p.id === photoId);
+      for (const photoId of operation.removedPhotoIds) {
+        const photo = state.photoDocs.find((entry) => entry.id === photoId);
         if (!photo) continue;
         try {
           await drivePhotoService.deletePhoto(photo.driveFileId);
-          await deleteDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'itemPhotos', photoId));
+          await deleteDoc(doc(db, 'artifacts', APP_ID, 'users', operation.userId, 'itemPhotos', photoId));
         } catch (error) {
           if (!(error instanceof DriveAuthorizationError)) drivePhotoService.queueCleanup(photo.driveFileId);
         }
       }
 
-      state.pendingPhotos.forEach(revokeCompressedImage);
-      state.pendingPhotos = [];
-      state.removedPhotoIds.clear();
-      document.getElementById('photo-upload-status').textContent = '';
-      window.closeAddModal();
+      const result = publishResult(true);
+      if (isItemSaveOperationCurrent(operation, currentOperationState())) {
+        const uploadStatus = document.getElementById('photo-upload-status');
+        if (uploadStatus) uploadStatus.textContent = '';
+        window.closeAddModal();
+      }
+      return result;
     } catch (error) {
       console.error('Enhanced save failed:', error);
-      if (error instanceof DriveAuthorizationError) {
-        document.getElementById('drive-connect-btn')?.classList.remove('hidden');
-        showMessage('需要 Google Drive 授權', '請先按「連結 Google Drive」後再重試。', 'warning');
-      } else {
-        showMessage('儲存失敗', error.message || '無法儲存商品資料。');
+      if (isItemSaveOperationCurrent(operation, currentOperationState())) {
+        if (error instanceof DriveAuthorizationError) {
+          document.getElementById('drive-connect-btn')?.classList.remove('hidden');
+          showMessage('需要 Google Drive 授權', '請先按「連結 Google Drive」後再重試。', 'warning');
+        } else {
+          showMessage('儲存失敗', error.message || '無法儲存商品資料。');
+        }
       }
+      return publishResult(false, error.message);
     } finally {
-      saveButton.disabled = false;
-      saveButton.textContent = originalLabel;
+      window.releaseShoppingListSaveOperation(operation);
     }
   };
 
