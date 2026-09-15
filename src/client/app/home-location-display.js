@@ -17,7 +17,7 @@ function moveLocationActions(card) {
   if (!metaRow) return;
   metaRow.classList.add('home-item-meta-row');
 
-  legacyLink?.remove();
+  if (legacyLink) legacyLink.remove();
   for (const button of buttons) {
     button.classList.add('home-location-map-action', 'bg-pastelBlue');
     button.classList.remove('bg-pastelYellow');
