@@ -10,7 +10,7 @@ import {
   statusWritePatch
 } from './item-workflow.js';
 import { itemMatchesActiveTrip } from './travel-trip.js';
-import { formatDistance, sortItemsByStatusAndDistance } from '../location/distance.js';
+import { formatDistance, sortItemsByStatusAndDistanceMap } from '../location/distance.js';
 
 const APP_ID = 'japan-shopping-app';
 const PAGE_SIZE = 10;
@@ -329,8 +329,8 @@ export async function initItemWorkflowEnhancements() {
       const candidates = eligibleCards();
       const candidateItems = candidates.map(({ item }) => item);
       const nearbyState = window.shoppingListNearbySort;
-      const sortedItems = nearbyState?.enabled && nearbyState?.origin
-        ? sortItemsByStatusAndDistance(candidateItems, nearbyState.origin)
+      const sortedItems = nearbyState?.enabled
+        ? sortItemsByStatusAndDistanceMap(candidateItems, nearbyState?.distancesByItemId)
         : state.filter === 'all'
           ? sortForHomepage(candidateItems)
           : [...candidateItems].sort((a, b) => Number(b?.createdAt || 0) - Number(a?.createdAt || 0));
