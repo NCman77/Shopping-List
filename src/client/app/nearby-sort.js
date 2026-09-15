@@ -1,6 +1,7 @@
 import { getCurrentPosition, watchPosition, clearPositionWatch } from '../location/browser-location.js';
 import { distanceForItem, movedBeyondThreshold } from '../location/distance.js';
-import { loadPlacesLibrary } from '../location/google-places-loader.js';
+import { loadPlacesLibraryWithFailover } from '../location/google-places-loader.js';
+import { isCoordinateCacheFresh } from '../location/places-usage-policy.js';
 import { resolveAddressPlace } from '../location/store-places.js';
 import { itemMatchesActiveTrip } from './travel-trip.js';
 
@@ -30,6 +31,17 @@ function waitFor(predicate, timeout = 12000) {
 function notify(title, message, type = 'warning') {
   if (typeof window.showMsg === 'function') window.showMsg(title, message, type);
   else console[type === 'error' ? 'error' : 'warn'](`${title}: ${message}`);
+}
+
+export function freshStoreCoordinate(item = {}, now = Date.now()) {
+  if (!isCoordinateCacheFresh(item?.storeResolvedAt, now)) return null;
+  if (item?.storeLat === null || item?.storeLat === undefined || item?.storeLat === '') return null;
+  if (item?.storeLng === null || item?.storeLng === undefined || item?.storeLng === '') return null;
+  const lat = Number(item.storeLat);
+  const lng = Number(item.storeLng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+  return { lat, lng };
 }
 
 export function nearbySortStateChanged(previous, next) {
@@ -94,15 +106,17 @@ export async function initNearbySort() {
     return state.userId ? doc(db, 'artifacts', APP_ID, 'users', state.userId, 'settings', 'preferences') : null;
   }
 
-  function itemRef(itemId) {
-    return doc(db, 'artifacts', APP_ID, 'users', state.userId, 'items', itemId);
+  function itemRef(itemId, userId = state.userId) {
+    return doc(db, 'artifacts', APP_ID, 'users', userId, 'items', itemId);
   }
 
   function distancesForOrigin() {
     const distances = {};
     if (!state.origin) return distances;
     for (const [itemId, item] of state.items) {
-      const distance = distanceForItem(item, state.origin);
+      const coordinate = freshStoreCoordinate(item);
+      if (!coordinate) continue;
+      const distance = distanceForItem({ ...item, storeLat: coordinate.lat, storeLng: coordinate.lng }, state.origin);
       if (Number.isFinite(distance)) distances[itemId] = distance;
     }
     return distances;
@@ -236,22 +250,27 @@ export async function initNearbySort() {
   async function backfillMissingStoreCoordinates() {
     if (!state.enabled || !state.userId || state.resolving) return;
     const trip = window.shoppingListActiveTrip;
-    const apiKey = clean(window.shoppingListMapsBrowserApiKey);
-    if (!trip?.id || !apiKey) return;
+    const userId = state.userId;
+    const tripId = clean(trip?.id);
+    const runtimeKeys = window.shoppingListMapsApiKeys || {};
+    const primaryKey = clean(runtimeKeys.primary || window.shoppingListMapsBrowserApiKey);
+    const backupKey = clean(runtimeKeys.backup);
+    if (!tripId || !primaryKey) return;
 
     const candidates = [...state.items.values()].filter((item) => (
       itemMatchesActiveTrip(item, trip)
       && clean(item.address)
-      && !(Number.isFinite(Number(item.storeLat)) && Number.isFinite(Number(item.storeLng)))
+      && !freshStoreCoordinate(item)
       && !state.attemptedResolution.has(`${item.id}:${clean(item.address)}`)
     ));
     if (!candidates.length) return;
 
     state.resolving = true;
     try {
-      const library = await loadPlacesLibrary({ apiKey });
+      const { library } = await loadPlacesLibraryWithFailover({ primaryKey, backupKey });
+      if (state.userId !== userId || !state.enabled || clean(window.shoppingListActiveTrip?.id) !== tripId) return;
       for (const item of candidates) {
-        if (!state.enabled || !state.userId) break;
+        if (state.userId !== userId || !state.enabled || clean(window.shoppingListActiveTrip?.id) !== tripId) break;
         const attemptKey = `${item.id}:${clean(item.address)}`;
         state.attemptedResolution.add(attemptKey);
         try {
@@ -260,8 +279,8 @@ export async function initNearbySort() {
             country: item.country || trip.country,
             placesLibrary: library
           });
-          if (!place) continue;
-          await updateDoc(itemRef(item.id), {
+          if (!place || state.userId !== userId || clean(window.shoppingListActiveTrip?.id) !== tripId) continue;
+          await updateDoc(itemRef(item.id, userId), {
             storePlaceId: place.placeId,
             storeDisplayName: place.displayName,
             storeAddress: place.address,
@@ -337,7 +356,11 @@ export async function initNearbySort() {
     publish();
     void backfillMissingStoreCoordinates();
   });
-  window.addEventListener('shopping-list:maps-settings-changed', () => void backfillMissingStoreCoordinates());
+  window.addEventListener('shopping-list:maps-settings-changed', () => {
+    state.attemptedResolution.clear();
+    publish();
+    void backfillMissingStoreCoordinates();
+  });
 
   await waitFor(() => document.getElementById('item-list'));
   ensureControl();
