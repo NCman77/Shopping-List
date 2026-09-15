@@ -55,7 +55,7 @@ test('live calculator is wired to pure calculator country rules and active trip 
 
 test('FX conversion stays on demand while attribution is outside the comparison modal and retained in account settings', async () => {
   const text = await source();
-  const modalSource = text.match(/function ensureComparisonModal\(\)[\s\S]*?function inputValue/)?.[0] || '';
+  const modalSource = text.match(/function ensureComparisonModal\(\)[\s\S]*?return modal;\n}/)?.[0] || '';
   assert.match(text, /fetchRateToTwd/);
   assert.match(text, /convertToTwd/);
   assert.match(text, /stale-cache/);
