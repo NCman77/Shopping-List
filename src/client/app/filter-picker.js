@@ -1,0 +1,226 @@
+function clean(value) {
+  return String(value ?? '').trim();
+}
+
+export function filterOptionsByQuery(options = [], query = '') {
+  const needle = clean(query).toLocaleLowerCase();
+  const values = Array.isArray(options) ? options : [];
+  if (!needle) return [...values];
+  return values.filter((option) => clean(option?.label).toLocaleLowerCase().includes(needle));
+}
+
+const FILTERS = {
+  category: {
+    rootId: 'category-filters',
+    selector: '.cat-btn',
+    dataKey: 'cat',
+    dataAttr: 'data-cat',
+    title: '選擇分類'
+  },
+  location: {
+    rootId: 'location-filters',
+    selector: '.loc-btn',
+    dataKey: 'loc',
+    dataAttr: 'data-loc',
+    title: '選擇地點'
+  }
+};
+
+function waitFor(predicate, timeout = 12000) {
+  return new Promise((resolve, reject) => {
+    const started = Date.now();
+    const timer = setInterval(() => {
+      const value = predicate();
+      if (value) {
+        clearInterval(timer);
+        resolve(value);
+      } else if (Date.now() - started > timeout) {
+        clearInterval(timer);
+        reject(new Error('等待完整篩選選單初始化逾時。'));
+      }
+    }, 40);
+  });
+}
+
+export async function initFilterPicker() {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return;
+  if (window.__shoppingListFilterPickerInitialized) return;
+  window.__shoppingListFilterPickerInitialized = true;
+
+  const [categoryRoot, locationRoot] = await Promise.all([
+    waitFor(() => document.getElementById('category-filters')),
+    waitFor(() => document.getElementById('location-filters'))
+  ]);
+
+  const state = {
+    activeType: '',
+    query: '',
+    selected: { category: 'all', location: 'all' },
+    scheduled: false
+  };
+
+  function ensureModal() {
+    if (document.getElementById('filter-picker-modal')) return;
+    const modal = document.createElement('div');
+    modal.id = 'filter-picker-modal';
+    modal.className = 'fixed inset-0 z-[125] hidden bg-warmBrown/45 backdrop-blur-sm px-4 items-end sm:items-center justify-center';
+    modal.innerHTML = `
+      <div class="w-full max-w-md max-h-[82vh] bg-white border-4 border-warmBrown rounded-t-[2rem] sm:rounded-[2rem] shadow-[8px_8px_0_rgba(92,64,51,0.25)] overflow-hidden">
+        <div class="px-5 py-4 bg-pastelYellow border-b-4 border-warmBrown flex items-center justify-between gap-3">
+          <div><h3 id="filter-picker-title" class="font-bold text-warmBrown text-lg">全部選項</h3><p class="text-[11px] text-warmBrown/60">一次查看目前旅程可用的選項</p></div>
+          <button id="filter-picker-close" type="button" class="w-9 h-9 shrink-0 rounded-full bg-white border-2 border-warmBrown text-warmBrown"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="p-4 bg-shinBg border-b-2 border-warmBrown/20">
+          <div class="relative">
+            <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-warmBrown/40"></i>
+            <input id="filter-picker-search" type="search" autocomplete="off" class="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white border-2 border-warmBrown text-warmBrown font-medium outline-none" placeholder="搜尋選項">
+          </div>
+        </div>
+        <div id="filter-picker-options" class="p-4 grid grid-cols-2 gap-2 max-h-[55vh] overflow-y-auto"></div>
+      </div>`;
+    document.body.appendChild(modal);
+    modal.querySelector('#filter-picker-close')?.addEventListener('click', closeModal);
+    modal.addEventListener('click', (event) => { if (event.target === modal) closeModal(); });
+    modal.querySelector('#filter-picker-search')?.addEventListener('input', (event) => {
+      state.query = event.target.value;
+      renderOptions();
+    });
+  }
+
+  function closeModal() {
+    const modal = document.getElementById('filter-picker-modal');
+    modal?.classList.add('hidden');
+    modal?.classList.remove('flex');
+    state.activeType = '';
+    state.query = '';
+    const search = document.getElementById('filter-picker-search');
+    if (search) search.value = '';
+  }
+
+  function collectOptions(type) {
+    const config = FILTERS[type];
+    if (!config) return [];
+    const root = document.getElementById(config.rootId);
+    if (!root) return [];
+    return [...root.querySelectorAll(config.selector)]
+      .filter((button) => !button.classList.contains('hidden'))
+      .map((sourceButton) => ({
+        value: clean(sourceButton.dataset?.[config.dataKey]),
+        label: clean(sourceButton.textContent) || clean(sourceButton.dataset?.[config.dataKey]),
+        sourceButton
+      }))
+      .filter((option) => option.value && option.label);
+  }
+
+  function renderOptions() {
+    const container = document.getElementById('filter-picker-options');
+    if (!container || !state.activeType) return;
+    const options = filterOptionsByQuery(collectOptions(state.activeType), state.query);
+    container.replaceChildren();
+
+    if (!options.length) {
+      const empty = document.createElement('div');
+      empty.className = 'col-span-2 py-8 text-center text-sm font-bold text-gray-400';
+      empty.textContent = '找不到符合的選項';
+      container.appendChild(empty);
+      return;
+    }
+
+    for (const option of options) {
+      const selected = state.selected[state.activeType] === option.value;
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = `px-4 py-3 rounded-2xl border-2 border-warmBrown text-left font-bold text-warmBrown transition-all ${selected ? 'bg-pastelYellow shadow-[2px_2px_0_rgba(92,64,51,.25)]' : 'bg-white hover:bg-shinBg'}`;
+      button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+      button.textContent = option.label;
+      button.addEventListener('click', () => {
+        const sourceButton = option.sourceButton;
+        if (!sourceButton?.isConnected || sourceButton.classList.contains('hidden')) {
+          renderOptions();
+          return;
+        }
+        state.selected[state.activeType] = option.value;
+        sourceButton.click();
+        closeModal();
+      });
+      container.appendChild(button);
+    }
+  }
+
+  function openModal(type) {
+    const config = FILTERS[type];
+    if (!config) return;
+    ensureModal();
+    state.activeType = type;
+    state.query = '';
+    const modal = document.getElementById('filter-picker-modal');
+    const title = document.getElementById('filter-picker-title');
+    const search = document.getElementById('filter-picker-search');
+    if (title) title.textContent = config.title;
+    if (search) search.value = '';
+    renderOptions();
+    modal?.classList.remove('hidden');
+    modal?.classList.add('flex');
+    setTimeout(() => search?.focus(), 60);
+  }
+
+  function makeOpenButton(type) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'filter-picker-open shrink-0 px-3 py-1.5 rounded-full bg-white border-2 border-warmBrown text-warmBrown text-xs font-bold shadow-[2px_2px_0_rgba(92,64,51,.15)]';
+    button.dataset.filterPicker = type;
+    button.innerHTML = '全部選項 <i class="fas fa-chevron-down ml-1 text-[9px]"></i>';
+    button.addEventListener('click', () => openModal(type));
+    return button;
+  }
+
+  function ensureOpenButtons() {
+    state.scheduled = false;
+    for (const [type, config] of Object.entries(FILTERS)) {
+      const root = document.getElementById(config.rootId);
+      if (!root || root.querySelector(`.filter-picker-open[data-filter-picker="${type}"]`)) continue;
+      root.appendChild(makeOpenButton(type));
+    }
+    if (state.activeType) renderOptions();
+  }
+
+  function scheduleEnsure() {
+    if (state.scheduled) return;
+    state.scheduled = true;
+    queueMicrotask(ensureOpenButtons);
+  }
+
+  document.addEventListener('click', (event) => {
+    const category = event.target.closest?.('#category-filters .cat-btn');
+    if (category && !category.classList.contains('hidden')) {
+      state.selected.category = clean(category.getAttribute('data-cat') || category.dataset.cat) || 'all';
+      return;
+    }
+    const location = event.target.closest?.('#location-filters .loc-btn');
+    if (location && !location.classList.contains('hidden')) {
+      state.selected.location = clean(location.getAttribute('data-loc') || location.dataset.loc) || 'all';
+    }
+  });
+
+  window.addEventListener('shopping-list:active-trip-changed', () => {
+    state.selected.category = 'all';
+    state.selected.location = 'all';
+    closeModal();
+    scheduleEnsure();
+  });
+  window.addEventListener('shopping-list:trips-changed', () => {
+    closeModal();
+    scheduleEnsure();
+  });
+
+  const observer = new MutationObserver(scheduleEnsure);
+  observer.observe(categoryRoot, { childList: true, subtree: false, attributes: true, attributeFilter: ['class'] });
+  observer.observe(locationRoot, { childList: true, subtree: false, attributes: true, attributeFilter: ['class'] });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && !document.getElementById('filter-picker-modal')?.classList.contains('hidden')) closeModal();
+  });
+
+  ensureModal();
+  ensureOpenButtons();
+}
