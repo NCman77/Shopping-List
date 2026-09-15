@@ -1,4 +1,5 @@
 import { DEFAULT_COUNTRY, normalizeCountries } from './travel-country.js';
+import { normalizeMapsApiKeys } from '../location/places-usage-policy.js';
 
 const APP_ID = 'japan-shopping-app';
 
@@ -16,6 +17,10 @@ function waitFor(predicate, timeout = 10000) {
       }
     }, 40);
   });
+}
+
+function clean(value) {
+  return String(value ?? '').trim();
 }
 
 function notify(title, message, type = 'error') {
@@ -52,8 +57,8 @@ function ensureModal() {
             <i class="fas fa-chevron-right text-xs"></i>
           </button>
           <button id="account-open-maps" type="button" class="account-setting-row w-full flex items-center gap-3 text-left p-4 rounded-2xl bg-pastelGreen/60 border-2 border-warmBrown text-warmBrown">
-            <span class="w-10 h-10 shrink-0 rounded-full bg-white border-2 border-warmBrown flex items-center justify-center"><i class="fas fa-map-location-dot"></i></span>
-            <span class="flex-1 min-w-0"><span class="block font-bold">Google Maps / Places</span><span id="account-maps-status" class="block text-xs opacity-60 mt-0.5 truncate">分店搜尋與附近排序設定</span></span>
+            <span class="w-10 h-10 shrink-0 rounded-full bg-white border-2 border-warmBrown flex items-center justify-center"><i class="fas fa-code"></i></span>
+            <span class="flex-1 min-w-0"><span class="block font-bold">API 設定</span><span id="account-maps-status" class="block text-xs opacity-60 mt-0.5 truncate">Google Maps / Places · 尚未設定</span></span>
             <i class="fas fa-chevron-right text-xs"></i>
           </button>
           <button id="account-open-personalization" type="button" class="account-setting-row w-full flex items-center gap-3 text-left p-4 rounded-2xl bg-pastelBlue/60 border-2 border-warmBrown text-warmBrown">
@@ -80,20 +85,36 @@ function ensureModal() {
         <div id="account-maps-view" class="hidden bg-white max-h-[68vh] overflow-y-auto">
           <div class="sticky top-0 z-10 px-4 py-3 bg-shinBg border-b-2 border-warmBrown/20 flex items-center gap-3">
             <button id="account-maps-back" type="button" class="w-9 h-9 rounded-full bg-white border-2 border-warmBrown text-warmBrown"><i class="fas fa-chevron-left"></i></button>
-            <div><h3 class="font-bold text-warmBrown">Google Maps / Places</h3><p class="text-[11px] text-gray-500">分店搜尋與附近距離功能</p></div>
+            <div><h3 class="font-bold text-warmBrown">API 設定</h3><p class="text-[11px] text-gray-500">Google Maps / Places</p></div>
           </div>
           <div class="p-4 space-y-4">
             <div>
-              <label for="account-maps-api-key" class="block text-xs font-bold text-warmBrown mb-2">Google Maps Browser API Key</label>
-              <input id="account-maps-api-key" type="password" autocomplete="off" spellcheck="false" class="w-full px-4 py-2.5 rounded-xl bg-shinBg border-2 border-warmBrown text-warmBrown font-medium outline-none" placeholder="貼上受限制的 Browser API Key">
+              <label for="account-maps-primary-key" class="block text-xs font-bold text-warmBrown mb-2">主要 Browser API Key</label>
+              <div class="flex gap-2">
+                <input id="account-maps-primary-key" type="password" autocomplete="off" spellcheck="false" class="flex-1 min-w-0 px-4 py-2.5 rounded-xl bg-shinBg border-2 border-warmBrown text-warmBrown font-medium outline-none" placeholder="貼上主要 Browser API Key">
+                <button id="account-maps-test-primary" type="button" class="px-3 py-2.5 rounded-xl bg-pastelBlue border-2 border-warmBrown text-warmBrown text-xs font-bold">測試</button>
+              </div>
+            </div>
+            <div>
+              <label for="account-maps-backup-key" class="block text-xs font-bold text-warmBrown mb-2">備用 Browser API Key <span class="font-medium text-gray-400">（選填）</span></label>
+              <div class="flex gap-2">
+                <input id="account-maps-backup-key" type="password" autocomplete="off" spellcheck="false" class="flex-1 min-w-0 px-4 py-2.5 rounded-xl bg-shinBg border-2 border-warmBrown text-warmBrown font-medium outline-none" placeholder="憑證失效時的備援 Key">
+                <button id="account-maps-test-backup" type="button" class="px-3 py-2.5 rounded-xl bg-pastelBlue border-2 border-warmBrown text-warmBrown text-xs font-bold">測試</button>
+              </div>
+              <p class="text-[10px] text-gray-500 mt-1">備用 Key 只用於主要 Key 撤銷／失效等憑證故障；配額或計費問題不會自動切換。</p>
             </div>
             <div class="rounded-2xl bg-pastelYellow/40 border-2 border-warmBrown/20 p-3 text-[11px] leading-relaxed text-warmBrown">
-              <p class="font-bold mb-1">公開網頁的 Browser Key 必須限制使用來源</p>
-              <p>請在 Google Cloud 設定 <b>HTTP referrer</b> 限制，只允許你的 GitHub Pages / Vercel 網域，並將 API restriction 限制為 <b>Maps JavaScript API</b> 與 <b>Places API (New)</b>。Key 會在瀏覽器執行時可見，因此網域與 API 限制是必要保護。</p>
+              <p class="font-bold mb-1">Browser Key 會在瀏覽器執行時可見，請務必限制來源</p>
+              <p>在 Google Cloud Console 對每把 Key 設定 <b>HTTP referrer</b>，只允許你的 GitHub Pages / Vercel 網域；API restriction 只允許 <b>Maps JavaScript API</b> 與 <b>Places API (New)</b>。</p>
+              <p class="mt-2"><b>不要</b>在這裡貼 Service Account／服務帳戶或任何伺服器管理憑證。</p>
+            </div>
+            <div class="rounded-2xl bg-pastelBlue/30 border-2 border-warmBrown/20 p-3 text-[11px] leading-relaxed text-warmBrown">
+              <p class="font-bold mb-1">用量保護：請在 Google Cloud Console 設定 quota／配額</p>
+              <p>Budget alert 只負責通知；真正要避免超額請求，請另外設定 API quota。網站不會保存 Cloud IAM 管理憑證，也不會用備用 Key 繞過 quota。</p>
             </div>
             <div class="flex gap-2">
-              <button id="account-maps-save" type="button" class="flex-1 px-4 py-2.5 rounded-xl bg-pastelGreen border-2 border-warmBrown text-warmBrown font-bold">儲存</button>
-              <button id="account-maps-remove" type="button" class="px-4 py-2.5 rounded-xl bg-white border-2 border-warmBrown text-warmBrown font-bold">移除</button>
+              <button id="account-maps-save" type="button" class="flex-1 px-4 py-2.5 rounded-xl bg-pastelGreen border-2 border-warmBrown text-warmBrown font-bold">儲存設定</button>
+              <button id="account-maps-remove-backup" type="button" class="px-4 py-2.5 rounded-xl bg-white border-2 border-warmBrown text-warmBrown font-bold">移除備用</button>
             </div>
           </div>
         </div>
@@ -126,12 +147,14 @@ export async function initAccountSettings() {
   const mapsView = document.getElementById('account-maps-view');
   const countryList = document.getElementById('account-country-list');
   const countryInput = document.getElementById('account-country-input');
-  const mapsInput = document.getElementById('account-maps-api-key');
+  const mapsPrimaryInput = document.getElementById('account-maps-primary-key');
+  const mapsBackupInput = document.getElementById('account-maps-backup-key');
   const state = {
     userId: '',
     countries: [DEFAULT_COUNTRY],
     activeCountry: DEFAULT_COUNTRY,
-    mapsBrowserApiKey: '',
+    mapsApiKeys: { primary: '', backup: '' },
+    mapsKeyGeneration: 0,
     settingsUnsub: null
   };
 
@@ -140,15 +163,46 @@ export async function initAccountSettings() {
   }
 
   function dispatchMapsSettings() {
-    window.shoppingListMapsBrowserApiKey = state.mapsBrowserApiKey;
+    window.shoppingListMapsApiKeys = {
+      primary: state.mapsApiKeys.primary,
+      backup: state.mapsApiKeys.backup,
+      generation: state.mapsKeyGeneration
+    };
+    window.shoppingListMapsBrowserApiKey = state.mapsApiKeys.primary;
     const EventCtor = window.CustomEvent || globalThis.CustomEvent;
     if (typeof EventCtor === 'function') {
       window.dispatchEvent(new EventCtor('shopping-list:maps-settings-changed', {
-        detail: { mapsBrowserApiKey: state.mapsBrowserApiKey }
+        detail: { mapsApiKeys: { ...state.mapsApiKeys }, generation: state.mapsKeyGeneration }
       }));
     }
     const status = document.getElementById('account-maps-status');
-    if (status) status.textContent = state.mapsBrowserApiKey ? '已設定 · 分店搜尋可使用' : '尚未設定 · 原購物功能不受影響';
+    if (!status) return;
+    if (!state.mapsApiKeys.primary) status.textContent = 'Google Maps / Places · 尚未設定';
+    else if (state.mapsApiKeys.backup) status.textContent = 'Google Maps / Places · 主要 + 備用已設定';
+    else status.textContent = 'Google Maps / Places · 主要 Key 已設定';
+  }
+
+  function applyMapsApiKeys(nextKeys = {}) {
+    const normalized = {
+      primary: clean(nextKeys.primary),
+      backup: clean(nextKeys.backup)
+    };
+    const changed = normalized.primary !== state.mapsApiKeys.primary || normalized.backup !== state.mapsApiKeys.backup;
+    state.mapsApiKeys = normalized;
+    if (changed) state.mapsKeyGeneration += 1;
+    mapsPrimaryInput.value = normalized.primary;
+    mapsBackupInput.value = normalized.backup;
+    dispatchMapsSettings();
+  }
+
+  function clearMapsRuntime() {
+    state.mapsApiKeys = { primary: '', backup: '' };
+    state.mapsKeyGeneration += 1;
+    window.shoppingListMapsApiKeys = { primary: '', backup: '', generation: state.mapsKeyGeneration };
+    window.shoppingListMapsBrowserApiKey = '';
+    mapsPrimaryInput.value = '';
+    mapsBackupInput.value = '';
+    dispatchMapsSettings();
   }
 
   function showRootView() {
@@ -167,8 +221,9 @@ export async function initAccountSettings() {
     rootView.classList.add('hidden');
     countryView.classList.add('hidden');
     mapsView.classList.remove('hidden');
-    mapsInput.value = state.mapsBrowserApiKey;
-    setTimeout(() => mapsInput?.focus(), 80);
+    mapsPrimaryInput.value = state.mapsApiKeys.primary;
+    mapsBackupInput.value = state.mapsApiKeys.backup;
+    setTimeout(() => mapsPrimaryInput?.focus(), 80);
   }
   function openModal() { showRootView(); modal.classList.remove('hidden'); modal.classList.add('flex'); }
   function closeModal() { modal.classList.add('hidden'); modal.classList.remove('flex'); }
@@ -206,18 +261,35 @@ export async function initAccountSettings() {
     }
   }
 
-  async function saveMapsKey(nextKey = String(mapsInput?.value || '').trim()) {
-    if (!state.userId) return notify('尚未登入', '請先登入後再儲存 Maps 設定。', 'warning');
+  async function saveMapsKeys() {
+    if (!state.userId) return notify('尚未登入', '請先登入後再儲存 API 設定。', 'warning');
+    const mapsApiKeys = {
+      primary: clean(mapsPrimaryInput?.value),
+      backup: clean(mapsBackupInput?.value)
+    };
     try {
-      await setDoc(settingsRef(), { mapsBrowserApiKey: nextKey }, { merge: true });
-      state.mapsBrowserApiKey = nextKey;
-      mapsInput.value = nextKey;
-      dispatchMapsSettings();
-      notify(nextKey ? 'Maps 設定已儲存' : 'Maps 設定已移除', nextKey ? '附近分店與距離功能現在可以使用。' : '已移除 Browser API Key；其他購物功能不受影響。', 'success');
+      await setDoc(settingsRef(), { mapsApiKeys, mapsBrowserApiKey: '' }, { merge: true });
+      applyMapsApiKeys(mapsApiKeys);
+      notify(mapsApiKeys.primary ? 'API 設定已儲存' : '主要 Key 尚未設定', mapsApiKeys.primary ? 'Google Maps / Places 設定已更新。請使用「測試」確認 Key 權限。' : '商店自動完成與附近分店搜尋需要主要 Browser API Key。', mapsApiKeys.primary ? 'success' : 'warning');
     } catch (error) {
       console.error('Save Maps settings failed:', error);
-      notify('儲存失敗', '無法儲存 Google Maps 設定，請稍後再試。');
+      notify('儲存失敗', '無法儲存 Google Maps API 設定，請稍後再試。');
     }
+  }
+
+  async function removeBackupKey() {
+    mapsBackupInput.value = '';
+    await saveMapsKeys();
+  }
+
+  function requestMapsKeyTest(slot) {
+    const key = clean(slot === 'backup' ? mapsBackupInput?.value : mapsPrimaryInput?.value);
+    if (!key) return notify('缺少 API Key', `請先輸入${slot === 'backup' ? '備用' : '主要'} Browser API Key。`, 'warning');
+    const EventCtor = window.CustomEvent || globalThis.CustomEvent;
+    if (typeof EventCtor !== 'function') return;
+    window.dispatchEvent(new EventCtor('shopping-list:maps-key-test-requested', {
+      detail: { slot, apiKey: key, generation: state.mapsKeyGeneration }
+    }));
   }
 
   function subscribeUser(user) {
@@ -225,20 +297,18 @@ export async function initAccountSettings() {
     state.settingsUnsub = null;
     state.userId = user?.uid || '';
     state.countries = [DEFAULT_COUNTRY];
-    state.mapsBrowserApiKey = '';
-    window.shoppingListMapsBrowserApiKey = '';
+    clearMapsRuntime();
     state.activeCountry = String(window.shoppingListActiveTrip?.country || window.shoppingListActiveCountry || DEFAULT_COUNTRY).trim() || DEFAULT_COUNTRY;
     document.getElementById('account-settings-email').textContent = user?.email || user?.displayName || '';
     renderCountries();
-    dispatchMapsSettings();
     if (!user) { closeModal(); return; }
     state.settingsUnsub = onSnapshot(settingsRef(), (snapshot) => {
       if (state.userId !== user.uid) return;
       const data = snapshot.exists() ? snapshot.data() : {};
       state.countries = normalizeCountries(data.countries);
-      state.mapsBrowserApiKey = String(data.mapsBrowserApiKey || '').trim();
+      const normalized = normalizeMapsApiKeys(data);
+      applyMapsApiKeys({ primary: normalized.primary, backup: normalized.backup });
       renderCountries();
-      dispatchMapsSettings();
     }, (error) => console.error('Account settings listener failed:', error));
   }
 
@@ -265,9 +335,12 @@ export async function initAccountSettings() {
   countryInput.addEventListener('keydown', (event) => { if (event.key === 'Enter') { event.preventDefault(); addCountry(); } });
   document.getElementById('account-open-maps').addEventListener('click', showMapsView);
   document.getElementById('account-maps-back').addEventListener('click', showRootView);
-  document.getElementById('account-maps-save').addEventListener('click', () => saveMapsKey());
-  document.getElementById('account-maps-remove').addEventListener('click', () => saveMapsKey(''));
-  mapsInput.addEventListener('keydown', (event) => { if (event.key === 'Enter') { event.preventDefault(); saveMapsKey(); } });
+  document.getElementById('account-maps-save').addEventListener('click', saveMapsKeys);
+  document.getElementById('account-maps-remove-backup').addEventListener('click', removeBackupKey);
+  document.getElementById('account-maps-test-primary').addEventListener('click', () => requestMapsKeyTest('primary'));
+  document.getElementById('account-maps-test-backup').addEventListener('click', () => requestMapsKeyTest('backup'));
+  mapsPrimaryInput.addEventListener('keydown', (event) => { if (event.key === 'Enter') { event.preventDefault(); saveMapsKeys(); } });
+  mapsBackupInput.addEventListener('keydown', (event) => { if (event.key === 'Enter') { event.preventDefault(); saveMapsKeys(); } });
   window.addEventListener('shopping-list:active-trip-changed', (event) => {
     state.activeCountry = String(event?.detail?.trip?.country || DEFAULT_COUNTRY).trim() || DEFAULT_COUNTRY;
     renderCountries();
