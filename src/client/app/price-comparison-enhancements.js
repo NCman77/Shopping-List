@@ -1,4 +1,4 @@
-import { appendComparisonHistory } from '../pricing/comparison-history.js';
+import { appendComparisonHistory, removeNewestComparisonHistory } from '../pricing/comparison-history.js';
 import {
   currencyCodeForCountry,
   resolveCountryPricingRule,
@@ -172,29 +172,27 @@ function ensureComparisonModal() {
         <button id="close-price-comparison" type="button" class="shrink-0 w-9 h-9 rounded-full bg-white border-2 border-warmBrown text-warmBrown"><i class="fas fa-times"></i></button>
       </div>
       <div class="p-5 space-y-5 bg-white">
-        <section class="rounded-2xl border-2 border-warmBrown/20 bg-pastelBlue/15 p-4 space-y-2">
+        <section id="compare-research-card" class="w-full rounded-[1.5rem] border-4 border-warmBrown bg-pastelYellow/20 p-4 space-y-2">
           <h3 class="text-sm font-bold text-warmBrown">價格功課</h3>
           <div id="compare-research-summary" class="text-xs text-gray-600 space-y-1"></div>
         </section>
 
-        <section class="space-y-3">
+        <section id="compare-live-card" class="w-full rounded-[1.5rem] border-4 border-warmBrown bg-pastelBlue/25 p-4 space-y-3">
           <h3 class="text-sm font-bold text-warmBrown">現場比價</h3>
-          <div class="grid grid-cols-2 gap-3">
-            <label class="text-xs font-bold text-warmBrown">目前店價
-              <input id="compare-store-price" type="number" min="0" step="any" inputmode="decimal" class="mt-1 w-full rounded-xl border-2 border-warmBrown bg-shinBg px-3 py-2.5" placeholder="1480">
+          <div class="grid grid-cols-3 gap-2 sm:gap-3">
+            <label class="min-w-0 text-[11px] sm:text-xs font-bold text-warmBrown">目前店價
+              <input id="compare-store-price" type="number" min="0" step="any" inputmode="decimal" class="mt-1 w-full min-w-0 rounded-xl border-2 border-warmBrown bg-white px-2 sm:px-3 py-2.5" placeholder="1480">
             </label>
-            <label class="text-xs font-bold text-warmBrown">優惠券 %
-              <input id="compare-coupon-percent" type="number" min="0" max="100" step="any" inputmode="decimal" class="mt-1 w-full rounded-xl border-2 border-warmBrown bg-shinBg px-3 py-2.5" placeholder="10">
+            <label class="min-w-0 text-[11px] sm:text-xs font-bold text-warmBrown">優惠券 %
+              <input id="compare-coupon-percent" type="number" min="0" max="100" step="any" inputmode="decimal" class="mt-1 w-full min-w-0 rounded-xl border-2 border-warmBrown bg-white px-2 sm:px-3 py-2.5" placeholder="10">
+            </label>
+            <label class="min-w-0 text-[11px] sm:text-xs font-bold text-warmBrown">免稅/退稅
+              <select id="compare-tax-mode" class="mt-1 w-full min-w-0 rounded-xl border-2 border-warmBrown bg-white px-2 py-2.5 text-[11px] sm:text-xs"></select>
             </label>
           </div>
-          <label id="compare-tax-mode-wrap" class="block text-xs font-bold text-warmBrown">免稅／退稅方式
-            <select id="compare-tax-mode" class="mt-1 w-full rounded-xl border-2 border-warmBrown bg-shinBg px-3 py-2.5"></select>
-          </label>
-          <p id="compare-tax-notice" class="text-[11px] leading-relaxed text-gray-500"></p>
-          <p class="text-[10px] leading-relaxed text-gray-400">免稅試算僅供估算；Refund Method 旅程則為退稅試算僅供估算。品牌排除、優惠券併用、店家 rounding 與實際資格仍以現場結帳為準。</p>
         </section>
 
-        <section class="rounded-[1.5rem] border-4 border-warmBrown bg-pastelGreen/25 p-4 text-center">
+        <section id="compare-estimate-card" class="w-full rounded-[1.5rem] border-4 border-warmBrown bg-pastelGreen/25 p-4 text-center">
           <p class="text-xs font-bold text-warmBrown/65">預估到手價</p>
           <div id="compare-final-local" class="mt-1 text-3xl font-black text-warmBrown">—</div>
           <div id="compare-final-twd" class="mt-1 text-lg font-bold text-warmBrown/80">—</div>
@@ -205,15 +203,29 @@ function ensureComparisonModal() {
 
         <section class="rounded-2xl border-2 border-warmBrown/15 bg-gray-50 p-3">
           <div id="compare-fx-status" class="text-[11px] text-gray-500"></div>
-          <a id="compare-fx-attribution" href="https://www.exchangerate-api.com" target="_blank" rel="noopener noreferrer" class="hidden mt-1 text-[10px] underline text-gray-400">Rates By Exchange Rate API</a>
         </section>
 
-        <button id="save-comparison-history" type="button" class="w-full py-3 rounded-xl bg-pastelPink border-2 border-warmBrown text-warmBrown font-bold shadow-[3px_3px_0_rgba(92,64,51,.22)] disabled:opacity-40 disabled:shadow-none">保存這次比價紀錄</button>
+        <div class="grid grid-cols-2 gap-3">
+          <button id="save-comparison-history" type="button" class="w-full py-3 rounded-xl bg-pastelPink border-2 border-warmBrown text-warmBrown font-bold shadow-[3px_3px_0_rgba(92,64,51,.22)] disabled:opacity-40 disabled:shadow-none">保存</button>
+          <button id="delete-comparison-history" type="button" class="w-full py-3 rounded-xl bg-pastelOrange/70 border-2 border-warmBrown text-warmBrown font-bold shadow-[3px_3px_0_rgba(92,64,51,.22)] disabled:opacity-40 disabled:shadow-none">刪除</button>
+        </div>
         <p id="compare-history-status" class="min-h-4 text-center text-[11px] text-gray-500"></p>
       </div>
     </div>`;
   document.body.appendChild(modal);
   return modal;
+}
+
+function ensureRateAttribution() {
+  const root = document.getElementById('account-settings-root');
+  if (!root) return false;
+  if (document.getElementById('exchange-rate-attribution')) return true;
+  const attribution = document.createElement('p');
+  attribution.id = 'exchange-rate-attribution';
+  attribution.className = 'pt-1 text-center text-[9px] text-gray-300';
+  attribution.innerHTML = '<a href="https://www.exchangerate-api.com" target="_blank" rel="noopener noreferrer" class="hover:text-gray-400 underline">Rates By Exchange Rate API</a>';
+  root.appendChild(attribution);
+  return true;
 }
 
 function inputValue(id) {
@@ -262,6 +274,11 @@ export async function initPriceComparisonEnhancements() {
   ensureMultiLocationField();
   ensureResearchFields();
   const compareModal = ensureComparisonModal();
+  if (!ensureRateAttribution()) {
+    void waitFor(() => document.getElementById('account-settings-root'))
+      .then(() => ensureRateAttribution())
+      .catch(() => {});
+  }
 
   function availableLocations() {
     const select = document.getElementById('item-location');
@@ -387,35 +404,29 @@ export async function initPriceComparisonEnhancements() {
 
   function renderTaxModes() {
     const select = document.getElementById('compare-tax-mode');
-    const wrap = document.getElementById('compare-tax-mode-wrap');
-    const notice = document.getElementById('compare-tax-notice');
-    if (!select || !wrap || !notice) return;
+    if (!select) return;
     const modes = Array.isArray(state.compareRule?.taxModes) ? state.compareRule.taxModes : [];
     if (!modes.length) {
-      select.innerHTML = '<option value="none">此國家未設定旅客免稅規則</option>';
+      select.innerHTML = '<option value="none">未設定免稅</option>';
       select.disabled = true;
-      wrap.classList.add('opacity-60');
+      select.classList.add('opacity-60');
     } else {
       select.disabled = false;
-      wrap.classList.remove('opacity-60');
+      select.classList.remove('opacity-60');
       select.innerHTML = modes.map((mode) => `<option value="${mode.id}">${mode.label}</option>`).join('');
     }
-    notice.textContent = state.compareRule?.notice || '此國家目前只提供折扣與匯率換算，不套用未驗證的旅客免稅規則。';
   }
 
   function renderFxStatus() {
     const status = document.getElementById('compare-fx-status');
-    const attribution = document.getElementById('compare-fx-attribution');
-    if (!status || !attribution) return;
+    if (!status) return;
     if (state.compareFxLoading) {
       status.textContent = '正在取得最新匯率…';
-      attribution.classList.add('hidden');
       return;
     }
     const fx = state.compareFx;
     if (!fx?.rateToTwd) {
       status.textContent = '匯率暫時無法取得；仍可使用當地幣別比價。';
-      attribution.classList.add('hidden');
       return;
     }
     if (fx.source === 'stale-cache') {
@@ -423,7 +434,6 @@ export async function initPriceComparisonEnhancements() {
     } else {
       status.textContent = `匯率：1 ${fx.currencyCode} ≈ ${Number(fx.rateToTwd).toFixed(4)} TWD${formatDateTime(fx.updatedAt) ? ` · 更新 ${formatDateTime(fx.updatedAt)}` : ''}`;
     }
-    attribution.classList.remove('hidden');
   }
 
   function comparisonLine(label, percent) {
@@ -458,6 +468,7 @@ export async function initPriceComparisonEnhancements() {
     const headline = document.getElementById('compare-headline');
     const details = document.getElementById('compare-details');
     const saveButton = document.getElementById('save-comparison-history');
+    const deleteButton = document.getElementById('delete-comparison-history');
 
     if (localOutput) localOutput.textContent = calculation.estimatedFinalPrice == null ? '—' : formatMoney(calculation.estimatedFinalPrice, currency);
     if (twdOutput) twdOutput.textContent = estimatedTwd == null ? '約合台幣 —' : `≈ ${formatMoney(estimatedTwd, 'TWD')}`;
@@ -479,6 +490,7 @@ export async function initPriceComparisonEnhancements() {
     }
     if (details) details.innerHTML = detailLines.filter(Boolean).map((line) => `<div>${line}</div>`).join('') || '<div class="text-gray-400">輸入目前店價後會自動計算。</div>';
     if (saveButton) saveButton.disabled = calculation.estimatedFinalPrice == null;
+    if (deleteButton) deleteButton.disabled = !Array.isArray(item.priceComparisons) || item.priceComparisons.length === 0;
 
     state.lastCalculation = {
       item,
@@ -688,10 +700,32 @@ export async function initPriceComparisonEnhancements() {
     const priceComparisons = appendComparisonHistory(item?.priceComparisons, record, 20);
     try {
       await updateDoc(doc(db, 'artifacts', APP_ID, 'users', state.userId, 'items', state.compareItemId), { priceComparisons });
+      state.items.set(item.id, { ...item, priceComparisons });
       if (status) status.textContent = '已保存這次比價紀錄。';
+      calculateAndRender();
     } catch (error) {
       console.error('Comparison history save failed:', error);
       if (status) status.textContent = '比較紀錄儲存失敗；目前畫面的計算結果仍可正常使用。';
+    }
+  });
+  document.getElementById('delete-comparison-history')?.addEventListener('click', async () => {
+    const status = document.getElementById('compare-history-status');
+    const item = state.items.get(state.compareItemId);
+    if (!item || !state.userId || !state.compareItemId) return;
+    if (!Array.isArray(item.priceComparisons) || item.priceComparisons.length === 0) {
+      if (status) status.textContent = '目前沒有可刪除的比價紀錄。';
+      calculateAndRender();
+      return;
+    }
+    const priceComparisons = removeNewestComparisonHistory(item.priceComparisons);
+    try {
+      await updateDoc(doc(db, 'artifacts', APP_ID, 'users', state.userId, 'items', state.compareItemId), { priceComparisons });
+      state.items.set(item.id, { ...item, priceComparisons });
+      if (status) status.textContent = '已刪除最近一筆比價紀錄。';
+      calculateAndRender();
+    } catch (error) {
+      console.warn('Comparison history delete failed:', error);
+      if (status) status.textContent = '比較紀錄刪除失敗；不影響商品資料與目前試算。';
     }
   });
 
