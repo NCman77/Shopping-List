@@ -56,3 +56,14 @@ test('sign-out/account switch clears both in-memory Maps keys', async () => {
   assert.match(source, /window\.shoppingListMapsApiKeys\s*=\s*\{[^}]*primary:\s*''[^}]*backup:\s*''/s);
   assert.match(source, /window\.shoppingListMapsBrowserApiKey\s*=\s*''/);
 });
+
+test('an in-flight Maps key save cannot republish credentials after the account changes', async () => {
+  const source = await readFile(accountUrl, 'utf8');
+  assert.match(source, /const savingUserId\s*=\s*state\.userId/);
+  assert.match(source, /const ref\s*=\s*settingsRef\(\)/);
+  assert.match(source, /await setDoc\(ref,\s*\{\s*mapsApiKeys/);
+  assert.match(source, /if \(state\.userId !== savingUserId \|\| auth\.currentUser\?\.uid !== savingUserId\) return/);
+  const guardIndex = source.indexOf('state.userId !== savingUserId');
+  const applyIndex = source.indexOf('applyMapsApiKeys(mapsApiKeys)', guardIndex);
+  assert.ok(guardIndex >= 0 && applyIndex > guardIndex, 'account guard must run before publishing saved credentials');
+});
