@@ -42,6 +42,7 @@ test('home-card where-to-buy actions are moved beside the existing location and 
   assert.match(display, /aria-label\^="在 Google 地圖搜尋"/);
   assert.match(display, /appendChild\(button\)/);
   assert.match(display, /legacyLink\.remove\(\)/);
+  assert.match(display, /fa-tag[\s\S]*closest\('div'\)/);
 });
 
 test('selected where-to-buy chips stay on one horizontally scrollable row on phones', async () => {
