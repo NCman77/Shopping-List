@@ -13,9 +13,20 @@ function metadataRow(card, legacyLink) {
     || null;
 }
 
+function styleAddressAction(actions) {
+  const addressAction = [...(actions?.querySelectorAll?.('button') || [])].find(
+    (button) => button.textContent?.trim() === '地址'
+  );
+  if (!addressAction) return;
+  addressAction.classList.add('bg-pastelYellow');
+  addressAction.classList.remove('bg-pastelBlue');
+}
+
 function moveLocationActions(card) {
   const actions = card?.querySelector?.('.enhanced-item-actions');
   if (!actions) return;
+
+  styleAddressAction(actions);
 
   const buttons = [...actions.querySelectorAll('button[aria-label^="在 Google 地圖搜尋"]')];
   if (!buttons.length) return;
