@@ -14,6 +14,20 @@ export function normalizeLocations(values = []) {
   return normalized;
 }
 
+export function addLocationSelection(values = [], value = '') {
+  return normalizeLocations([...normalizeLocations(values), value]);
+}
+
+export function removeLocationSelection(values = [], value = '') {
+  const target = clean(value);
+  return normalizeLocations(values).filter((location) => location !== target);
+}
+
+export function availableLocationChoices(definitions = [], selected = []) {
+  const selectedSet = new Set(normalizeLocations(selected));
+  return normalizeLocations(definitions).filter((location) => !selectedSet.has(location));
+}
+
 export function resolveItemLocations(item = {}) {
   const multiple = normalizeLocations(item?.locations);
   if (multiple.length) return multiple;
