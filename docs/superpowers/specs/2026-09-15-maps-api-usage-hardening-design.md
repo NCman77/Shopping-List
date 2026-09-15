@@ -152,6 +152,15 @@ Account Settings gains an `API 設定` view containing Google Maps / Places:
 - concise setup guidance for HTTP referrer and API restrictions
 - quota setup guidance/link; quota is configured in Google Cloud Console, not by this frontend
 
+### Key test behavior
+
+A key test is a browser-side credential check, not a secrecy check.
+
+- If Maps JavaScript has not yet been initialized in the current page, Test may load the candidate key and attempt to import the Places library.
+- Listen for the documented global `gm_authFailure` callback and script/library load rejection.
+- If Maps JavaScript is already initialized with a different key, the UI must not pretend that a second key was independently validated in the same global context. It should report that an independent test requires a reload/new page context.
+- Testing a key must never write the key to source code, logs, analytics, or error text.
+
 ### Security posture
 
 The UI clearly states:
@@ -163,18 +172,18 @@ The UI clearly states:
 
 ### Backup activation rules
 
-Backup is only attempted for credential/bootstrap failures attributable to the primary key, such as an invalid/revoked/restricted key causing the Maps JavaScript library to fail.
+Backup is only attempted once for credential/bootstrap failures attributable to the primary key before a usable Maps JavaScript/Places global is established. Examples include documented authentication failures such as invalid/expired key or referrer restriction failure.
 
 Do **not** automatically switch to backup for:
 
-- quota/rate-limit exhaustion;
+- `OverQuotaMapError` or equivalent quota/rate-limit exhaustion;
 - billing disabled;
 - request-denied conditions indicating account/project policy or billing state;
 - ordinary Places no-results responses.
 
 When quota is exhausted, show a clear “Google Maps quota reached; check Cloud Console quota/billing” message and stop.
 
-Because Maps JavaScript API is global in one browser page, key failover must be conservative: if a key-specific script load fails before the library is initialized, try backup once. If Google Maps is already loaded successfully in the page, changing keys takes effect after page reload unless the loader can prove a safe reinitialization path. The UI must never claim a hot key swap succeeded when the already-loaded global library is still using the old key.
+Because Maps JavaScript API is global in one browser page, key failover must be conservative: if a key-specific script load/authentication fails before the library is initialized, clean up the failed loader state and try backup once. If Google Maps is already loaded successfully in the page, changing keys takes effect after page reload unless the loader can prove a safe reinitialization path. The UI must never claim a hot key swap succeeded when the already-loaded global library is still using the old key.
 
 ## 6. Quota safety
 
@@ -224,12 +233,13 @@ Use TDD. Add regression coverage for at least:
 6. opening Distance does not invoke Text Search.
 7. Search/Enter invokes Text Search exactly once for duplicate in-flight action.
 8. nearby cache key treats sufficiently close origins as the same cell and expires after TTL.
-9. primary key failure can attempt backup once; quota-related errors never rotate.
-10. legacy `mapsBrowserApiKey` is read as primary without destructive migration.
-11. API Settings never writes keys into source/static markup.
-12. user click on `全部 ▼` opens picker; internal trip reset does not.
-13. standalone `全部選項` controls are absent.
-14. all existing trip/status/pagination/item-save tests remain green.
+9. primary key credential failure can attempt backup once; quota-related errors never rotate.
+10. `gm_authFailure` and loader failures do not leak keys in logs/errors.
+11. legacy `mapsBrowserApiKey` is read as primary without destructive migration.
+12. API Settings never writes keys into source/static markup.
+13. user click on `全部 ▼` opens picker; internal trip reset does not.
+14. standalone `全部選項` controls are absent.
+15. all existing trip/status/pagination/item-save tests remain green.
 
 ## 10. Files likely affected
 
