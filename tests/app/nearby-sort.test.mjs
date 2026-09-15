@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { nearbySortStateChanged } from '../../src/client/app/nearby-sort.js';
 
 const sourcePath = new URL('../../src/client/app/nearby-sort.js', import.meta.url);
 const bootstrapPath = new URL('../../src/client/app/feature-bootstrap.js', import.meta.url);
@@ -36,6 +37,39 @@ test('permission/location failures turn nearby mode off for the session without 
   assert.match(source, /permissionBlocked/);
   assert.match(source, /定位/);
   assert.match(source, /enabled:\s*false/);
+});
+
+test('disabled nearby snapshots do not emit a sorting change, while real active sort changes do', () => {
+  const disabled = { enabled: false, origin: null, distancesByItemId: {} };
+  assert.equal(nearbySortStateChanged(disabled, { enabled: false, origin: null, distancesByItemId: {} }), false);
+  assert.equal(nearbySortStateChanged(disabled, {
+    enabled: true,
+    origin: { lat: 35.68, lng: 139.76, accuracy: 20 },
+    distancesByItemId: { a: 120 }
+  }), true);
+  assert.equal(nearbySortStateChanged({
+    enabled: true,
+    origin: { lat: 35.68, lng: 139.76, accuracy: 20 },
+    distancesByItemId: { a: 120 }
+  }, {
+    enabled: true,
+    origin: { lat: 35.68, lng: 139.76, accuracy: 25 },
+    distancesByItemId: { a: 120 }
+  }), false, 'accuracy-only GPS noise must not reset pagination');
+  assert.equal(nearbySortStateChanged({
+    enabled: true,
+    origin: { lat: 35.68, lng: 139.76 },
+    distancesByItemId: { a: 120 }
+  }, {
+    enabled: true,
+    origin: { lat: 35.6815, lng: 139.76 },
+    distancesByItemId: { a: 280 }
+  }), true);
+  assert.equal(nearbySortStateChanged({
+    enabled: true,
+    origin: { lat: 35.68, lng: 139.76 },
+    distancesByItemId: { a: 120 }
+  }, disabled), true, 'turning nearby sort off must restore normal ordering');
 });
 
 test('nearby module is bootstrapped independently from the existing item workflow', async () => {
