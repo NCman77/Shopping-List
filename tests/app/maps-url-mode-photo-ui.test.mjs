@@ -6,7 +6,7 @@ const mapsModeUrl = new URL('../../src/client/app/maps-mode-enhancements.js', im
 const photoFixUrl = new URL('../../src/client/app/photo-ui-fixes.js', import.meta.url);
 const bootstrapUrl = new URL('../../src/client/app/feature-bootstrap.js', import.meta.url);
 
-test('API settings expose and persist a Google Maps / Places enable switch', async () => {
+test('legacy Maps mode module still keeps its persisted toggle logic for historical compatibility', async () => {
   const source = await readFile(mapsModeUrl, 'utf8');
   assert.match(source, /account-maps-places-enabled/);
   assert.match(source, /mapsPlacesEnabled/);
@@ -14,7 +14,7 @@ test('API settings expose and persist a Google Maps / Places enable switch', asy
   assert.match(source, /setDoc\([^\n]*mapsPlacesEnabled/);
 });
 
-test('Distance uses a no-key Google Maps URL path when Places mode is disabled', async () => {
+test('legacy Maps mode retains its no-key URL path without being bootstrapped', async () => {
   const source = await readFile(mapsModeUrl, 'utf8');
   assert.match(source, /createGoogleMapsUrl/);
   assert.match(source, /nearby-distance-action/);
@@ -24,7 +24,7 @@ test('Distance uses a no-key Google Maps URL path when Places mode is disabled',
   assert.match(source, /stopImmediatePropagation/);
 });
 
-test('Places-off mode redacts runtime browser keys before existing Places listeners can use them', async () => {
+test('retired Places mode is no longer bootstrapped even though its compatibility module remains', async () => {
   const source = await readFile(mapsModeUrl, 'utf8');
   const bootstrap = await readFile(bootstrapUrl, 'utf8');
   assert.match(source, /export function installMapsSettingsRuntimeGuard/);
@@ -32,10 +32,8 @@ test('Places-off mode redacts runtime browser keys before existing Places listen
   assert.match(source, /capture:\s*true/);
   assert.match(source, /window\.shoppingListMapsApiKeys/);
   assert.match(source, /window\.shoppingListMapsBrowserApiKey\s*=\s*''/);
-  assert.match(source, /primary:\s*''/);
-  assert.match(source, /backup:\s*''/);
-  assert.match(bootstrap, /import \{ initMapsModeEnhancements, installMapsSettingsRuntimeGuard \} from '\.\/maps-mode-enhancements\.js'/);
-  assert.match(bootstrap, /installMapsSettingsRuntimeGuard\(\)/);
+  assert.doesNotMatch(bootstrap, /maps-mode-enhancements\.js/);
+  assert.doesNotMatch(bootstrap, /initMapsModeEnhancements|installMapsSettingsRuntimeGuard/);
 });
 
 test('photo upload placeholder is restored for existing items and desktop photo grid is capped without changing mobile width', async () => {
@@ -48,8 +46,8 @@ test('photo upload placeholder is restored for existing items and desktop photo 
   assert.doesNotMatch(source, /sm:max-w|md:max-w/);
 });
 
-test('new isolated enhancements are bootstrapped independently', async () => {
+test('photo UI remains bootstrapped while retired Maps mode stays unloaded', async () => {
   const source = await readFile(bootstrapUrl, 'utf8');
-  assert.match(source, /maps-mode-enhancements\.js/);
+  assert.doesNotMatch(source, /maps-mode-enhancements\.js/);
   assert.match(source, /photo-ui-fixes\.js/);
 });
