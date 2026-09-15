@@ -71,6 +71,14 @@ export function nearbySortStateChanged(previous, next) {
   return false;
 }
 
+export function trackingAttemptIsCurrent({ userId, generation } = {}, currentState = {}) {
+  return Boolean(
+    userId
+    && currentState.userId === userId
+    && Number(currentState.trackingGeneration) === Number(generation)
+  );
+}
+
 export async function initNearbySort() {
   if (typeof window === 'undefined' || typeof document === 'undefined') return;
   if (window.__shoppingListNearbySortInitialized) return;
@@ -99,11 +107,12 @@ export async function initNearbySort() {
     attemptedResolution: new Set(),
     resolving: false,
     starting: false,
+    trackingGeneration: 0,
     lastPublishedState: null
   };
 
-  function settingsRef() {
-    return state.userId ? doc(db, 'artifacts', APP_ID, 'users', state.userId, 'settings', 'preferences') : null;
+  function settingsRef(userId = state.userId) {
+    return userId ? doc(db, 'artifacts', APP_ID, 'users', userId, 'settings', 'preferences') : null;
   }
 
   function itemRef(itemId, userId = state.userId) {
@@ -146,19 +155,27 @@ export async function initNearbySort() {
     state.watchId = null;
   }
 
+  function cancelTrackingAttempt() {
+    state.trackingGeneration += 1;
+    state.starting = false;
+  }
+
   function disableSession({ clearOrigin = true } = {}) {
+    cancelTrackingAttempt();
     stopWatcher();
     state.enabled = false;
     if (clearOrigin) state.origin = null;
     publish();
   }
 
-  async function persistEnabled(enabled) {
-    if (!state.userId || !settingsRef()) return;
-    await setDoc(settingsRef(), { nearbySortEnabled: Boolean(enabled) }, { merge: true });
+  async function persistEnabled(enabled, userId = state.userId) {
+    const ref = settingsRef(userId);
+    if (!userId || !ref) return;
+    await setDoc(ref, { nearbySortEnabled: Boolean(enabled) }, { merge: true });
   }
 
-  function acceptPosition(position) {
+  function acceptPosition(position, attempt = null) {
+    if (attempt && !trackingAttemptIsCurrent(attempt, state)) return;
     const next = { lat: position.lat, lng: position.lng, accuracy: position.accuracy ?? null };
     if (!movedBeyondThreshold(state.origin, next, MOVEMENT_THRESHOLD_METERS)) return;
     state.origin = next;
@@ -169,44 +186,67 @@ export async function initNearbySort() {
 
   async function startTracking({ persist = false } = {}) {
     if (!state.userId || state.starting || state.permissionBlocked) return false;
+    const trackingUserId = state.userId;
+    const trackingGeneration = ++state.trackingGeneration;
+    const attempt = { userId: trackingUserId, generation: trackingGeneration };
     state.starting = true;
     try {
       const first = await getCurrentPosition();
+      if (!trackingAttemptIsCurrent({ userId: trackingUserId, generation: trackingGeneration }, state)) return false;
       state.origin = { lat: first.lat, lng: first.lng, accuracy: first.accuracy ?? null };
       state.enabled = true;
       stopWatcher();
       state.watchId = watchPosition({
-        onPosition: acceptPosition,
+        onPosition(position) {
+          if (!trackingAttemptIsCurrent({ userId: trackingUserId, generation: trackingGeneration }, state)) return;
+          acceptPosition(position, attempt);
+        },
         onError(error) {
+          if (!trackingAttemptIsCurrent({ userId: trackingUserId, generation: trackingGeneration }, state)) return;
           console.warn('Nearby sort location watch failed:', error);
           if (/權限/.test(error?.message || '')) state.permissionBlocked = true;
           disableSession();
           notify('附近排序已暫停', error?.message || '目前無法持續取得定位。');
         }
       });
-      if (persist) await persistEnabled(true);
+      if (persist) {
+        await persistEnabled(true, trackingUserId);
+        if (!trackingAttemptIsCurrent({ userId: trackingUserId, generation: trackingGeneration }, state)) return false;
+      }
       publish();
       void backfillMissingStoreCoordinates();
       return true;
     } catch (error) {
+      if (!trackingAttemptIsCurrent({ userId: trackingUserId, generation: trackingGeneration }, state)) return false;
       console.warn('Nearby sort start failed:', error);
       if (/權限/.test(error?.message || '')) state.permissionBlocked = true;
-      state.enabled = false;
-      state.origin = null;
-      publish();
+      disableSession();
       notify('無法開啟附近排序', error?.message || '定位暫時無法使用。');
       return false;
     } finally {
-      state.starting = false;
+      if (trackingAttemptIsCurrent({ userId: trackingUserId, generation: trackingGeneration }, state)) state.starting = false;
     }
   }
 
   async function toggleNearbySort() {
-    if (state.enabled || state.enabledPreference) {
+    if (state.starting) {
+      const userId = state.userId;
       state.enabledPreference = false;
       state.permissionBlocked = false;
       disableSession();
-      try { await persistEnabled(false); }
+      try { await persistEnabled(false, userId); }
+      catch (error) {
+        console.error('Persist nearby sort preference failed:', error);
+        notify('設定儲存失敗', '附近排序已在本次使用中關閉，但偏好無法同步。');
+      }
+      return;
+    }
+    if (state.enabled || state.enabledPreference) {
+      const userId = state.userId;
+      state.enabledPreference = false;
+      state.permissionBlocked = false;
+      disableSession();
+      try { await persistEnabled(false, userId); }
       catch (error) {
         console.error('Persist nearby sort preference failed:', error);
         notify('設定儲存失敗', '附近排序已在本次使用中關閉，但偏好無法同步。');
@@ -317,14 +357,14 @@ export async function initNearbySort() {
     state.settingsUnsub?.();
     state.settingsUnsub = null;
     if (!user) return;
-    state.settingsUnsub = onSnapshot(settingsRef(), (snapshot) => {
+    state.settingsUnsub = onSnapshot(settingsRef(user.uid), (snapshot) => {
       if (state.userId !== user.uid) return;
       const data = snapshot.exists() ? snapshot.data() : {};
       const requested = Boolean(data.nearbySortEnabled);
       state.enabledPreference = requested;
       if (requested && !state.enabled && !state.starting && !state.permissionBlocked) {
         void startTracking({ persist: false });
-      } else if (!requested && (state.enabled || state.watchId !== null)) {
+      } else if (!requested && (state.enabled || state.watchId !== null || state.starting)) {
         disableSession();
       } else {
         renderControl();
@@ -333,6 +373,7 @@ export async function initNearbySort() {
   }
 
   authSdk.onAuthStateChanged(auth, (user) => {
+    cancelTrackingAttempt();
     stopWatcher();
     state.settingsUnsub?.();
     state.itemsUnsub?.();
