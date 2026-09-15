@@ -47,6 +47,14 @@ test('selected branch keeps the user brand query for future nearby-branch search
   });
 });
 
+test('distance search query automatically uses the saved store name and only falls back to resolved branch name', async () => {
+  const module = await import('../../src/client/app/store-location-enhancements.js');
+  assert.equal(typeof module.branchSearchQuery, 'function');
+  assert.equal(module.branchSearchQuery({ storeName: '松本清', storeDisplayName: 'マツモトキヨシ 新宿店' }), '松本清');
+  assert.equal(module.branchSearchQuery({ storeName: '', storeDisplayName: 'Don Quijote Shinjuku' }), 'Don Quijote Shinjuku');
+  assert.equal(module.branchSearchQuery({}), '');
+});
+
 test('post-save metadata uses the stable trip-guard save result after the modal clears item-id', async () => {
   const source = await readFile(sourcePath, 'utf8');
   assert.match(source, /shoppingListLastItemSave/);
@@ -72,6 +80,15 @@ test('homepage distance action coexists with address action and opens a nearby b
   assert.match(source, /searchStoresByText/);
   assert.match(source, /getCurrentPosition/);
   assert.match(source, /query_place_id/);
+});
+
+test('add/edit form moves store beside category and location with a wide autocomplete overlay', async () => {
+  const source = await readFile(sourcePath, 'utf8');
+  assert.match(source, /const purchaseMetaRow = document\.getElementById\('item-location'\)\?\.closest\('\.flex-1'\)\?\.parentElement/);
+  assert.match(source, /purchaseMetaRow\.id = 'item-purchase-meta-row'/);
+  assert.match(source, /grid-cols-\[minmax\(0,0\.8fr\)_minmax\(0,0\.8fr\)_minmax\(0,1\.4fr\)\]/);
+  assert.match(source, /purchaseMetaRow\.appendChild\(field\)/);
+  assert.match(source, /store-suggestions[^`]*right-0[^`]*w-\[min\(92vw,24rem\)\]/s);
 });
 
 test('missing Maps configuration or location failure is recoverable and does not replace existing address behavior', async () => {

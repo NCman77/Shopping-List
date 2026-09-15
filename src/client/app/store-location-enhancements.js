@@ -73,6 +73,10 @@ export function buildSelectedStorePatch({ storeName = '', place = null, resolved
   };
 }
 
+export function branchSearchQuery(item = {}) {
+  return clean(item?.storeName) || clean(item?.storeDisplayName);
+}
+
 export async function initStoreLocationEnhancements() {
   if (typeof window === 'undefined' || typeof document === 'undefined') return;
   if (window.__shoppingListStoreLocationInitialized) return;
@@ -124,16 +128,25 @@ export async function initStoreLocationEnhancements() {
     if (document.getElementById('item-store-name')) return;
     const addressInput = document.getElementById('item-address');
     const addressField = addressInput?.parentElement?.parentElement;
+    const purchaseMetaRow = document.getElementById('item-location')?.closest('.flex-1')?.parentElement;
     if (!addressField) return;
+
+    if (purchaseMetaRow) {
+      purchaseMetaRow.id = 'item-purchase-meta-row';
+      purchaseMetaRow.className = 'grid grid-cols-[minmax(0,0.8fr)_minmax(0,0.8fr)_minmax(0,1.4fr)] gap-3 items-start';
+      for (const child of purchaseMetaRow.children) child.classList.add('min-w-0');
+    }
+
     const field = document.createElement('div');
     field.id = 'item-store-field';
-    field.className = 'relative';
+    field.className = 'relative min-w-0';
     field.innerHTML = `
-      <label class="block text-sm font-bold text-warmBrown mb-2 ml-1">商店 <span class="text-[10px] text-gray-400 font-medium">（選填）</span></label>
-      <input type="text" id="item-store-name" autocomplete="off" class="w-full bg-shinBg border-2 border-warmBrown rounded-2xl px-5 py-3 focus:outline-none focus:bg-white focus:border-4 transition-all font-medium text-warmBrown placeholder-gray-300" placeholder="例如：松本清、唐吉訶德">
-      <div id="store-suggestions" class="hidden absolute z-[120] left-0 right-0 mt-1 max-h-52 overflow-y-auto bg-white border-2 border-warmBrown rounded-2xl shadow-lg"></div>
-      <p class="text-[10px] text-gray-400 mt-1 ml-1">選擇 Google Places 建議可自動帶入正確地址；沒設定 API Key 時仍可手動輸入。</p>`;
-    addressField.insertAdjacentElement('beforebegin', field);
+      <label class="block text-sm font-bold text-warmBrown mb-2 ml-1">商店</label>
+      <input type="text" id="item-store-name" autocomplete="off" class="w-full bg-shinBg border-2 border-warmBrown rounded-2xl px-3 py-3 focus:outline-none focus:bg-white focus:border-4 transition-all font-medium text-warmBrown placeholder-gray-300 min-w-0" placeholder="例如：松本清">
+      <div id="store-suggestions" class="hidden absolute z-[120] right-0 w-[min(92vw,24rem)] mt-1 max-h-52 overflow-y-auto bg-white border-2 border-warmBrown rounded-2xl shadow-lg"></div>`;
+
+    if (purchaseMetaRow) purchaseMetaRow.appendChild(field);
+    else addressField.insertAdjacentElement('beforebegin', field);
 
     const input = field.querySelector('#item-store-name');
     input.addEventListener('input', () => {
@@ -241,7 +254,7 @@ export async function initStoreLocationEnhancements() {
     state.addressTouched = false;
     state.sessionToken = null;
     const input = document.getElementById('item-store-name');
-    if (input) input.value = clean(item?.storeName || item?.storeDisplayName);
+    if (input) input.value = branchSearchQuery(item);
     hideSuggestions();
   }
 
@@ -339,7 +352,7 @@ export async function initStoreLocationEnhancements() {
     const query = document.getElementById('nearby-branch-query');
     const results = document.getElementById('nearby-branch-results');
     const status = document.getElementById('nearby-branch-status');
-    query.value = clean(item?.storeName || item?.storeDisplayName);
+    query.value = branchSearchQuery(item);
     results.replaceChildren();
     status.textContent = query.value ? '正在取得目前位置…' : '請先輸入商店名稱，再搜尋附近分店。';
     modal.classList.remove('hidden');
@@ -401,7 +414,7 @@ export async function initStoreLocationEnhancements() {
       const item = state.items.get(itemId);
       if (!item || card.querySelector('.nearby-distance-action')) continue;
       const actions = card.querySelector('.enhanced-item-actions');
-      if (!actions || (!clean(item.address) && !clean(item.storeName))) continue;
+      if (!actions || (!clean(item.address) && !branchSearchQuery(item))) continue;
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'nearby-distance-action text-[10px] font-bold bg-pastelYellow text-warmBrown px-2.5 py-1 rounded-full border border-warmBrown hover:brightness-95';
