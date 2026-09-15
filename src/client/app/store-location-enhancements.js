@@ -487,9 +487,9 @@ export async function initStoreLocationEnhancements() {
     }
 
     const userId = state.userId;
-    const requestId = ++state.branchRequest;
     const earlyKey = `${userId}|${itemId}|${query.toLocaleLowerCase()}`;
     if (branchSearchInFlight?.earlyKey === earlyKey) return branchSearchInFlight.promise;
+    const requestId = ++state.branchRequest;
 
     if (results) results.replaceChildren();
     if (status) status.textContent = '正在取得定位並搜尋附近分店…';
