@@ -91,6 +91,11 @@ export function normalizeMapsApiKeys(settings = {}) {
   return { primary, backup, source };
 }
 
+export function resolveMapsPlacesEnabled(settings = {}) {
+  if (typeof settings?.mapsPlacesEnabled === 'boolean') return settings.mapsPlacesEnabled;
+  return Boolean(normalizeMapsApiKeys(settings).primary);
+}
+
 export function classifyMapsError(error) {
   const code = clean(error?.code);
   const name = clean(error?.name);
