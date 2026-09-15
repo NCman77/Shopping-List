@@ -275,8 +275,12 @@ export async function initStoreLocationEnhancements() {
     const result = await originalSave.apply(this, args);
     if (!patch || !auth.currentUser || !state.userId) return result;
     const modalContent = document.getElementById('add-modal-content');
-    const itemId = clean(document.getElementById('item-id')?.value);
-    const baseSaveSucceeded = Boolean(itemId && modalContent?.classList?.contains('translate-y-full'));
+    const itemId = clean(window.shoppingListLastItemSave?.itemId);
+    const baseSaveSucceeded = Boolean(
+      window.shoppingListLastItemSave?.succeeded
+      && itemId
+      && modalContent?.classList?.contains('translate-y-full')
+    );
     if (!baseSaveSucceeded) return result;
     try {
       await updateDoc(itemRef(itemId), patch);
