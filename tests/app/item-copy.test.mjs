@@ -60,6 +60,25 @@ test('copied item preserves reusable content and store identity but resets statu
   assert.equal(copied.photoThumbCoverId, null);
 });
 
+test('copying an item without resolved store metadata keeps missing numeric fields null', () => {
+  const copied = buildCopiedItemData({
+    source: {
+      id: 'source-2',
+      name: '沒有店家座標的商品',
+      storeLat: null,
+      storeLng: '',
+      storeResolvedAt: undefined
+    },
+    targetTrip: { id: 'trip-new', country: '日本' },
+    newItemId: 'copy-2',
+    now: 123456
+  });
+
+  assert.equal(copied.storeLat, null);
+  assert.equal(copied.storeLng, null);
+  assert.equal(copied.storeResolvedAt, null);
+});
+
 test('duplicate detection is scoped to source item plus target trip', () => {
   const items = [
     { id: 'copy-a', tripId: 'trip-b', copiedFromItemId: 'source-1' },
