@@ -1,3 +1,5 @@
+import { normalizeItemLocations } from './item-locations.js';
+
 function clean(value) {
   return String(value ?? '').trim();
 }
@@ -19,10 +21,12 @@ export function buildCopiedItemData({ source = {}, targetTrip = {}, newItemId = 
   if (!targetTripId || !targetCountry) throw new TypeError('目標旅程資料不完整。');
   if (!itemId) throw new TypeError('缺少新商品 ID。');
 
+  const locations = normalizeItemLocations(source);
   const copied = {
     name: clean(source.name),
     category: clean(source.category),
-    location: clean(source.location),
+    locations,
+    location: locations[0] || '',
     address: clean(source.address),
     website: clean(source.website),
     description: clean(source.description),
