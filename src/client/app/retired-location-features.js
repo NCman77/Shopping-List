@@ -1,5 +1,6 @@
 function removeById(documentRef, id) {
-  documentRef?.getElementById?.(id)?.remove?.();
+  const node = documentRef?.getElementById?.(id);
+  if (node?.remove) node.remove();
 }
 
 function redactMapsRuntime(windowRef) {
@@ -20,7 +21,9 @@ export function removeRetiredLocationUi({
   removeById(documentRef, 'nearby-branch-modal');
   removeById(documentRef, 'nearby-sort-shell');
   documentRef.querySelectorAll?.('.nearby-distance-action, .nearby-distance-label')
-    ?.forEach?.((node) => node.remove?.());
+    ?.forEach?.((node) => {
+      if (node?.remove) node.remove();
+    });
 }
 
 export function initRetiredLocationFeatures({
