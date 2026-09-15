@@ -7,6 +7,7 @@ import { resolvePhotoPersistenceForSave } from '../photos/photo-visibility-state
 import { resolveItemLocations } from '../pricing/location-selection.js';
 import {
   captureRegisteredItemSaveExtensions,
+  createOwnedItemSavePhotoService,
   createItemSaveOperation,
   createItemSaveResult,
   isItemSaveOperationCurrent
@@ -101,6 +102,11 @@ export async function initShoppingListEnhancements() {
     fetchImpl: window.fetch.bind(window),
     sessionStorageImpl: window.sessionStorage,
     getUserId: () => state.userId
+  });
+  const driveServiceForUser = (userId) => createDrivePhotoService({
+    fetchImpl: window.fetch.bind(window),
+    sessionStorageImpl: window.sessionStorage,
+    getUserId: () => userId
   });
   let driveConnectPromise = null;
   let activeSaveOperation = null;
@@ -215,6 +221,12 @@ export async function initShoppingListEnhancements() {
 
   async function ensureDriveAccess() {
     if (drivePhotoService.hasAccessToken()) return;
+    document.getElementById('drive-connect-btn')?.classList.remove('hidden');
+    throw new DriveAuthorizationError('需要重新連結 Google Drive。');
+  }
+
+  async function ensureOwnedDriveAccess(service) {
+    if (service.hasAccessToken()) return;
     document.getElementById('drive-connect-btn')?.classList.remove('hidden');
     throw new DriveAuthorizationError('需要重新連結 Google Drive。');
   }
@@ -457,6 +469,15 @@ export async function initShoppingListEnhancements() {
       const itemId = existingItemId || (userId
         ? doc(collection(db, 'artifacts', APP_ID, 'users', userId, 'items')).id
         : (window.crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`));
+      const removedPhotoIds = new Set(state.removedPhotoIds);
+      const capturedItemPhotos = activePhotosForItem(itemId);
+      const existingActivePhotos = capturedItemPhotos.filter((photo) => !removedPhotoIds.has(photo.id));
+      const removedPhotoDriveFileIds = {};
+      for (const photo of capturedItemPhotos) {
+        if (removedPhotoIds.has(photo.id) && photo.driveFileId) {
+          removedPhotoDriveFileIds[photo.id] = photo.driveFileId;
+        }
+      }
       const operation = createItemSaveOperation({
         operationId: window.crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`,
         userId,
@@ -465,7 +486,9 @@ export async function initShoppingListEnhancements() {
         modalGeneration: state.modalGeneration,
         fields,
         pendingPhotos: state.pendingPhotos,
-        removedPhotoIds: state.removedPhotoIds,
+        removedPhotoIds,
+        existingActivePhotos,
+        removedPhotoDriveFileIds,
         extensions: captureRegisteredItemSaveExtensions()
       });
       activeSaveOperation = operation;
@@ -536,6 +559,10 @@ export async function initShoppingListEnhancements() {
 
     try {
       if (!operation.userId) return publishResult(false, 'authentication-required');
+      const operationPhotoService = createOwnedItemSavePhotoService(operation, {
+        createService: driveServiceForUser,
+        getCurrentUserId: () => auth.currentUser?.uid
+      });
 
       const name = String(operation.fields['item-name'] || '').trim();
       if (!name) {
@@ -561,9 +588,8 @@ export async function initShoppingListEnhancements() {
       const existingSnapshot = await getDoc(itemRef);
       const existing = existingSnapshot.exists() ? existingSnapshot.data() : null;
       const pending = operation.pendingPhotos.filter((photo) => !photo.error);
-      const removedPhotoIds = new Set(operation.removedPhotoIds);
 
-      if (pending.length || operation.removedPhotoIds.length) await ensureDriveAccess();
+      if (pending.length || operation.removedPhotoIds.length) await ensureOwnedDriveAccess(operationPhotoService);
       if (pending.length && isItemSaveOperationCurrent(operation, currentOperationState())) {
         document.getElementById('photo-upload-status').textContent = `正在上傳 0/${pending.length}…`;
       }
@@ -571,7 +597,7 @@ export async function initShoppingListEnhancements() {
       let completed = 0;
       const uploaded = await mapWithConcurrency(pending, 2, async (photo, index) => {
         const fileName = safeFileName(photo.originalName, photo.mimeType);
-        const driveFile = await drivePhotoService.uploadPhoto({
+        const driveFile = await operationPhotoService.uploadPhoto({
           blob: photo.blob,
           fileName,
           itemId: operation.itemId
@@ -583,12 +609,12 @@ export async function initShoppingListEnhancements() {
         return {
           photo,
           driveFile,
-          order: activePhotosForItem(operation.itemId).filter((entry) => !removedPhotoIds.has(entry.id)).length + index
+          order: operation.existingActivePhotos.length + index
         };
       });
 
       const batch = writeBatch(db);
-      const existingActive = activePhotosForItem(operation.itemId).filter((photo) => !removedPhotoIds.has(photo.id));
+      const existingActive = operation.existingActivePhotos;
       const newPhotoIds = [];
       for (const entry of uploaded) {
         const photoRef = doc(collection(db, 'artifacts', APP_ID, 'users', operation.userId, 'itemPhotos'));
@@ -637,17 +663,18 @@ export async function initShoppingListEnhancements() {
         updatedAt: Date.now()
       };
       batch.set(itemRef, itemData, { merge: true });
-      if (auth.currentUser?.uid !== operation.userId) throw new Error('item-save-operation-stale');
+      operationPhotoService.assertCurrentUser();
       await batch.commit();
 
       for (const photoId of operation.removedPhotoIds) {
-        const photo = state.photoDocs.find((entry) => entry.id === photoId);
-        if (!photo) continue;
+        const driveFileId = operation.removedPhotoDriveFileIds[photoId];
+        if (!driveFileId) continue;
         try {
-          await drivePhotoService.deletePhoto(photo.driveFileId);
+          await operationPhotoService.deletePhoto(driveFileId);
+          operationPhotoService.assertCurrentUser();
           await deleteDoc(doc(db, 'artifacts', APP_ID, 'users', operation.userId, 'itemPhotos', photoId));
         } catch (error) {
-          if (!(error instanceof DriveAuthorizationError)) drivePhotoService.queueCleanup(photo.driveFileId);
+          if (!(error instanceof DriveAuthorizationError)) operationPhotoService.queueCleanup(driveFileId);
         }
       }
 

@@ -49,7 +49,44 @@ export function createItemSaveOperation(input = {}) {
     fields: copyAndFreeze(input.fields || {}),
     pendingPhotos: copyAndFreeze(input.pendingPhotos || []),
     removedPhotoIds: Object.freeze(Array.from(input.removedPhotoIds || [], (id) => String(id))),
+    existingActivePhotos: copyAndFreeze(input.existingActivePhotos || []),
+    removedPhotoDriveFileIds: copyAndFreeze(input.removedPhotoDriveFileIds || {}),
     extensions: copyAndFreeze(input.extensions || {})
+  });
+}
+
+export function createOwnedItemSavePhotoService(operation, options = {}) {
+  const capturedUserId = String(operation?.userId || '');
+  const { createService, getCurrentUserId } = options;
+  if (!capturedUserId) throw new TypeError('Item save operation user is required.');
+  if (typeof createService !== 'function') throw new TypeError('Item photo service factory is required.');
+  if (typeof getCurrentUserId !== 'function') throw new TypeError('Current user provider is required.');
+
+  const service = createService(capturedUserId);
+  function assertCurrentUser() {
+    if (String(getCurrentUserId() || '') === capturedUserId) return;
+    const error = new Error('item-save-operation-stale');
+    error.code = 'item-save-operation-stale';
+    throw error;
+  }
+
+  return Object.freeze({
+    assertCurrentUser,
+    hasAccessToken() {
+      assertCurrentUser();
+      return service.hasAccessToken();
+    },
+    uploadPhoto(input) {
+      assertCurrentUser();
+      return service.uploadPhoto(input);
+    },
+    deletePhoto(fileId) {
+      assertCurrentUser();
+      return service.deletePhoto(fileId);
+    },
+    queueCleanup(fileId) {
+      return service.queueCleanup(fileId);
+    }
   });
 }
 

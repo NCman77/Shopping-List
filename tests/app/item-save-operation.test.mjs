@@ -3,11 +3,19 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import {
   captureRegisteredItemSaveExtensions,
+  createOwnedItemSavePhotoService,
   createItemSaveOperation,
   createItemSaveResult,
   isItemSaveOperationCurrent,
   registerItemSaveSnapshotProvider
 } from '../../src/client/app/item-save-operation.js';
+import { resolvePhotoPersistenceForSave } from '../../src/client/photos/photo-visibility-state.js';
+
+function deferred() {
+  let resolve;
+  const promise = new Promise((accept) => { resolve = accept; });
+  return { promise, resolve };
+}
 
 test('item operation keeps the original form and photo values', () => {
   const fields = { 'item-name': '商品 A', 'item-status': false };
@@ -64,4 +72,87 @@ test('enhanced save begins before its first await and reads snapshot fields', as
   assert.match(save, /operation\.removedPhotoIds/);
   assert.match(save, /createItemSaveResult/);
   assert.doesNotMatch(save, /const saveSucceeded = Boolean\(modalContent/);
+});
+
+test('deferred save never writes photos with credentials from a later user', async () => {
+  let currentUserId = 'user-a';
+  const uploadGate = deferred();
+  const serviceOwners = [];
+  const writes = [];
+  const cleanups = [];
+  const operation = createItemSaveOperation({ operationId: 'op-a', userId: 'user-a', itemId: 'item-a' });
+  const photoService = createOwnedItemSavePhotoService(operation, {
+    getCurrentUserId: () => currentUserId,
+    createService: (userId) => {
+      serviceOwners.push(userId);
+      return {
+        hasAccessToken: () => true,
+        uploadPhoto: async () => { writes.push(userId); return { id: 'drive-a' }; },
+        deletePhoto: async () => { writes.push(userId); },
+        queueCleanup: (fileId) => { cleanups.push({ userId, fileId }); }
+      };
+    }
+  });
+
+  const save = (async () => {
+    await uploadGate.promise;
+    return photoService.uploadPhoto({ blob: new Blob(['a']), itemId: operation.itemId });
+  })();
+  currentUserId = 'user-b';
+  uploadGate.resolve();
+
+  await assert.rejects(save, { code: 'item-save-operation-stale' });
+  assert.deepEqual(serviceOwners, ['user-a']);
+  assert.deepEqual(writes, []);
+  photoService.queueCleanup('drive-a');
+  assert.deepEqual(cleanups, [{ userId: 'user-a', fileId: 'drive-a' }]);
+});
+
+test('deferred upload keeps photo order cover and deletion ownership from capture time', async () => {
+  const uploadGate = deferred();
+  const capturedActive = [{ id: 'photo-cover', driveFileId: 'drive-cover', thumbnailDataUrl: 'data:image/webp;base64,AA==' }];
+  const capturedRemoved = { 'photo-remove': 'drive-remove' };
+  const operation = createItemSaveOperation({
+    operationId: 'op-a', userId: 'user-a', itemId: 'item-a',
+    existingActivePhotos: capturedActive,
+    removedPhotoDriveFileIds: capturedRemoved
+  });
+
+  const upload = (async () => {
+    await uploadGate.promise;
+    const persistence = resolvePhotoPersistenceForSave({
+      existingActivePhotos: operation.existingActivePhotos,
+      uploadedPhotos: [{ id: 'photo-new', thumbnailDataUrl: 'data:image/webp;base64,BB==' }]
+    });
+    return {
+      order: operation.existingActivePhotos.length,
+      coverPhotoId: persistence.coverPhotoId,
+      removedDriveFileId: operation.removedPhotoDriveFileIds['photo-remove']
+    };
+  })();
+
+  capturedActive[0].id = 'photo-later';
+  capturedActive.push({ id: 'photo-later-2', driveFileId: 'drive-later-2' });
+  capturedRemoved['photo-remove'] = 'drive-later';
+  uploadGate.resolve();
+
+  assert.deepEqual(await upload, {
+    order: 1,
+    coverPhotoId: 'photo-cover',
+    removedDriveFileId: 'drive-remove'
+  });
+});
+
+test('enhanced save uses captured Drive and photo subscription ownership', async () => {
+  const source = await readFile(new URL('../../src/client/app/app-enhancements.js', import.meta.url), 'utf8');
+  const start = source.indexOf('window.saveItem = async function');
+  const end = source.indexOf('const originalAskDelete', start);
+  const save = source.slice(start, end);
+
+  assert.match(save, /createOwnedItemSavePhotoService/);
+  assert.match(save, /operation\.existingActivePhotos/);
+  assert.match(save, /operation\.removedPhotoDriveFileIds/);
+  assert.doesNotMatch(save, /activePhotosForItem/);
+  assert.doesNotMatch(save, /state\.photoDocs/);
+  assert.doesNotMatch(save, /drivePhotoService\.(?:uploadPhoto|deletePhoto|queueCleanup)/);
 });
