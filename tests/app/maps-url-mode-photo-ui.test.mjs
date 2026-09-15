@@ -26,12 +26,16 @@ test('Distance uses a no-key Google Maps URL path when Places mode is disabled',
 
 test('Places-off mode redacts runtime browser keys before existing Places listeners can use them', async () => {
   const source = await readFile(mapsModeUrl, 'utf8');
+  const bootstrap = await readFile(bootstrapUrl, 'utf8');
+  assert.match(source, /export function installMapsSettingsRuntimeGuard/);
   assert.match(source, /shopping-list:maps-settings-changed/);
   assert.match(source, /capture:\s*true/);
   assert.match(source, /window\.shoppingListMapsApiKeys/);
   assert.match(source, /window\.shoppingListMapsBrowserApiKey\s*=\s*''/);
   assert.match(source, /primary:\s*''/);
   assert.match(source, /backup:\s*''/);
+  assert.match(bootstrap, /import \{ initMapsModeEnhancements, installMapsSettingsRuntimeGuard \} from '\.\/maps-mode-enhancements\.js'/);
+  assert.match(bootstrap, /installMapsSettingsRuntimeGuard\(\)/);
 });
 
 test('photo upload placeholder is restored for existing items and desktop photo grid is capped without changing mobile width', async () => {
