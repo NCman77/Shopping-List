@@ -16,8 +16,20 @@ function fakeButton(location, { selected = false, old = false } = {}) {
   };
 }
 
-function fakeRoot(buttons) {
+function fakeOption(value, { temporary = false } = {}) {
   return {
+    value,
+    dataset: temporary ? { pricingTemporary: 'true' } : {}
+  };
+}
+
+function fakeRoot(buttons, options = null) {
+  return {
+    ownerDocument: options ? {
+      getElementById(id) {
+        return id === 'item-location' ? { options } : null;
+      }
+    } : null,
     querySelectorAll(selector) {
       assert.equal(selector, '.multi-location-choice[data-location]');
       return buttons;
@@ -58,6 +70,20 @@ test('picker model excludes selected and legacy-only locations from dropdown cho
 
   assert.deepEqual(model.definitions, ['新宿', '澀谷']);
   assert.deepEqual(model.selected, ['澀谷', '已刪除店家']);
+  assert.deepEqual(model.selectable, ['新宿']);
+});
+
+test('temporary compatibility option for the first deleted location never becomes selectable again', () => {
+  const model = buildLocationPickerModel(fakeRoot([
+    fakeButton('新宿'),
+    fakeButton('已刪除店家', { selected: true })
+  ], [
+    fakeOption('新宿'),
+    fakeOption('已刪除店家', { temporary: true })
+  ]));
+
+  assert.deepEqual(model.definitions, ['新宿']);
+  assert.deepEqual(model.selected, ['已刪除店家']);
   assert.deepEqual(model.selectable, ['新宿']);
 });
 
