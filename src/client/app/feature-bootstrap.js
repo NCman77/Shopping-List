@@ -1,4 +1,7 @@
 import { runEnhancementsIndependently } from './auth-session.js';
+import { initMapsModeEnhancements, installMapsSettingsRuntimeGuard } from './maps-mode-enhancements.js';
+
+installMapsSettingsRuntimeGuard();
 
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
   void runEnhancementsIndependently(
@@ -14,10 +17,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       const { initAccountSettings } = await import('./account-settings.js');
       return initAccountSettings();
     },
-    async () => {
-      const { initMapsModeEnhancements } = await import('./maps-mode-enhancements.js');
-      return initMapsModeEnhancements();
-    },
+    async () => initMapsModeEnhancements(),
     async () => {
       const { initTripUi } = await import('./trip-ui.js');
       return initTripUi();
