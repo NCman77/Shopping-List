@@ -9,6 +9,7 @@ function redactMapsRuntime(windowRef) {
   windowRef.shoppingListMapsApiKeys = { primary: '', backup: '', generation };
   windowRef.shoppingListMapsBrowserApiKey = '';
   windowRef.shoppingListMapsPlacesEnabled = false;
+  windowRef.shoppingListNearbySort = { enabled: false, origin: null, distancesByItemId: {} };
 }
 
 export function removeRetiredLocationUi({
