@@ -65,7 +65,7 @@ export async function initTripSaveGuard() {
   const originalSave = window.saveItem;
 
   window.saveItem = async function(...args) {
-    window.shoppingListLastItemSave = { itemId: '', succeeded: false };
+    window.shoppingListLastItemSave = { itemId: '', userId: '', succeeded: false };
     const user = auth.currentUser;
     if (!user) return originalSave.apply(this, args);
 
@@ -118,6 +118,7 @@ export async function initTripSaveGuard() {
       const saveSucceeded = Boolean(modalContent?.classList?.contains('translate-y-full'));
       window.shoppingListLastItemSave = {
         itemId: saveSucceeded ? itemId : '',
+        userId: saveSucceeded ? user.uid : '',
         succeeded: saveSucceeded
       };
       if (!saveSucceeded && reservedNewItem) {
@@ -128,7 +129,7 @@ export async function initTripSaveGuard() {
       }
       return result;
     } catch (error) {
-      window.shoppingListLastItemSave = { itemId: '', succeeded: false };
+      window.shoppingListLastItemSave = { itemId: '', userId: '', succeeded: false };
       if (reservedNewItem) {
         try { await deleteDoc(itemRef); } catch (cleanupError) {
           console.error('Failed to clean reserved item after save error:', cleanupError);
