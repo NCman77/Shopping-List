@@ -5,7 +5,6 @@ import { buildSelectedStorePatch } from '../../src/client/app/store-location-enh
 
 const sourcePath = new URL('../../src/client/app/store-location-enhancements.js', import.meta.url);
 const bootstrapPath = new URL('../../src/client/app/feature-bootstrap.js', import.meta.url);
-const indexPath = new URL('../../index.html', import.meta.url);
 
 test('store enhancement adds an optional store input and autocomplete result surface', async () => {
   const source = await readFile(sourcePath, 'utf8');
@@ -83,14 +82,11 @@ test('homepage distance action coexists with address action and opens a nearby b
   assert.match(source, /query_place_id/);
 });
 
-test('add/edit form keeps category, location and store on one compact row with a wide autocomplete overlay', async () => {
-  const [index, source] = await Promise.all([
-    readFile(indexPath, 'utf8'),
-    readFile(sourcePath, 'utf8')
-  ]);
-  assert.match(index, /id="item-purchase-meta-row"/);
-  assert.match(index, /grid-cols-\[minmax\(0,0\.8fr\)_minmax\(0,0\.8fr\)_minmax\(0,1\.4fr\)\]/);
-  assert.match(source, /document\.getElementById\('item-purchase-meta-row'\)/);
+test('add/edit form moves store beside category and location with a wide autocomplete overlay', async () => {
+  const source = await readFile(sourcePath, 'utf8');
+  assert.match(source, /const purchaseMetaRow = document\.getElementById\('item-location'\)\?\.closest\('\.flex-1'\)\?\.parentElement/);
+  assert.match(source, /purchaseMetaRow\.id = 'item-purchase-meta-row'/);
+  assert.match(source, /grid-cols-\[minmax\(0,0\.8fr\)_minmax\(0,0\.8fr\)_minmax\(0,1\.4fr\)\]/);
   assert.match(source, /purchaseMetaRow\.appendChild\(field\)/);
   assert.match(source, /store-suggestions[^`]*right-0[^`]*w-\[min\(92vw,24rem\)\]/s);
 });
