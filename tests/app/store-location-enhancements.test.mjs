@@ -15,6 +15,27 @@ test('store enhancement adds an optional store input and autocomplete result sur
   assert.match(source, /resolveStoreSuggestion/);
 });
 
+test('autocomplete uses two-character auto mode, 450ms debounce, and a manual path for one-character stores', async () => {
+  const source = await readFile(sourcePath, 'utf8');
+  assert.match(source, /AUTOCOMPLETE_DEBOUNCE_MS/);
+  assert.match(source, /autocompleteMode/);
+  assert.match(source, /setTimeout\([^;]*AUTOCOMPLETE_DEBOUNCE_MS/s);
+  assert.match(source, /showManualSuggestionSearch/);
+  assert.match(source, /runManualSuggestionSearch/);
+  assert.match(source, /mode === 'manual'/);
+  assert.match(source, /手動搜尋|搜尋「/);
+});
+
+test('autocomplete session starts only for an actual request and is discarded after selection, modal reset, account or key change', async () => {
+  const source = await readFile(sourcePath, 'utf8');
+  assert.match(source, /AutocompleteSessionToken/);
+  assert.match(source, /function resetSuggestionSession/);
+  assert.match(source, /state\.sessionToken = null/);
+  assert.match(source, /shopping-list:maps-settings-changed/);
+  assert.match(source, /state\.suggestionRequest \+= 1/);
+  assert.match(source, /resolvedStoreValue/);
+});
+
 test('store selection synchronizes canonical address and optional place metadata without storing user GPS', async () => {
   const source = await readFile(sourcePath, 'utf8');
   for (const field of ['storeName', 'storePlaceId', 'storeDisplayName', 'storeAddress', 'storeLat', 'storeLng', 'storeResolvedAt']) {
@@ -82,6 +103,38 @@ test('homepage distance action coexists with address action and opens a nearby b
   assert.match(source, /query_place_id/);
 });
 
+test('opening Distance only prefills the query; Search or Enter explicitly triggers nearby Text Search', async () => {
+  const source = await readFile(sourcePath, 'utf8');
+  const openStart = source.indexOf('function openBranchModal');
+  const searchStart = source.indexOf('async function runBranchSearch');
+  assert.ok(openStart >= 0 && searchStart > openStart);
+  const openBody = source.slice(openStart, searchStart);
+  assert.doesNotMatch(openBody, /runBranchSearch\(/);
+  assert.match(openBody, /按搜尋/);
+  assert.match(source, /nearby-branch-search[^\n]*addEventListener|nearby-branch-search/s);
+  assert.match(source, /event\.key === 'Enter'/);
+});
+
+test('nearby branch requests use memory cache, credential generation and in-flight suppression and clear on account/key changes', async () => {
+  const source = await readFile(sourcePath, 'utf8');
+  assert.match(source, /NearbySearchCache/);
+  assert.match(source, /makeNearbyCacheKey/);
+  assert.match(source, /nearbyCache/);
+  assert.match(source, /branchSearchInFlight/);
+  assert.match(source, /credentialGeneration/);
+  assert.match(source, /nearbyCache\.clear\(\)/);
+  assert.match(source, /shopping-list:maps-settings-changed/);
+});
+
+test('Maps access uses primary/backup runtime credentials and classifies quota failures without quota failover', async () => {
+  const source = await readFile(sourcePath, 'utf8');
+  assert.match(source, /shoppingListMapsApiKeys/);
+  assert.match(source, /loadPlacesLibraryWithFailover/);
+  assert.match(source, /classifyMapsError/);
+  assert.match(source, /quota/);
+  assert.match(source, /配額|Cloud Console/);
+});
+
 test('add/edit form moves store beside category and location with a wide autocomplete overlay', async () => {
   const source = await readFile(sourcePath, 'utf8');
   assert.match(source, /const purchaseMetaRow = document\.getElementById\('item-location'\)\?\.closest\('\.flex-1'\)\?\.parentElement/);
@@ -93,7 +146,7 @@ test('add/edit form moves store beside category and location with a wide autocom
 
 test('missing Maps configuration or location failure is recoverable and does not replace existing address behavior', async () => {
   const source = await readFile(sourcePath, 'utf8');
-  assert.match(source, /shoppingListMapsBrowserApiKey/);
+  assert.match(source, /shoppingListMapsBrowserApiKey|shoppingListMapsApiKeys/);
   assert.match(source, /Google Maps \/ Places/);
   assert.match(source, /定位/);
   assert.doesNotMatch(source, /openAddressInMaps\s*=/);

@@ -1,9 +1,18 @@
-import { loadPlacesLibrary } from '../location/google-places-loader.js';
+import { loadPlacesLibrary, loadPlacesLibraryWithFailover } from '../location/google-places-loader.js';
 import { getCurrentPosition } from '../location/browser-location.js';
 import { fetchStoreSuggestions, resolveStoreSuggestion, searchStoresByText } from '../location/store-places.js';
 import { formatDistance } from '../location/distance.js';
+import {
+  AUTOCOMPLETE_DEBOUNCE_MS,
+  NearbySearchCache,
+  autocompleteMode,
+  classifyMapsError,
+  makeNearbyCacheKey
+} from '../location/places-usage-policy.js';
 
 const APP_ID = 'japan-shopping-app';
+const nearbyCache = new NearbySearchCache();
+let branchSearchInFlight = null;
 
 function waitFor(predicate, timeout = 12000) {
   return new Promise((resolve, reject) => {
@@ -109,8 +118,12 @@ export async function initStoreLocationEnhancements() {
     suggestionTimer: null,
     suggestionRequest: 0,
     sessionToken: null,
+    resolvedStoreValue: '',
     branchItemId: '',
     branchOrigin: null,
+    branchRequest: 0,
+    credentialGeneration: Number(window.shoppingListMapsApiKeys?.generation) || 0,
+    activeKeySlot: '',
     listObserver: null
   };
 
@@ -118,10 +131,31 @@ export async function initStoreLocationEnhancements() {
     return doc(db, 'artifacts', APP_ID, 'users', userId, 'items', itemId);
   }
 
+  function runtimeMapsKeys() {
+    const runtime = window.shoppingListMapsApiKeys || {};
+    return {
+      primary: clean(runtime.primary || window.shoppingListMapsBrowserApiKey),
+      backup: clean(runtime.backup),
+      generation: Number(runtime.generation) || state.credentialGeneration || 0
+    };
+  }
+
   async function placesLibrary() {
-    const apiKey = clean(window.shoppingListMapsBrowserApiKey);
-    if (!apiKey) throw new Error('尚未設定 Google Maps / Places API Key，請先到帳號設定完成設定。');
-    return loadPlacesLibrary({ apiKey });
+    const keys = runtimeMapsKeys();
+    if (!keys.primary) throw new Error('尚未設定 Google Maps / Places API Key，請到帳號設定 → API 設定完成設定。');
+    const loaded = await loadPlacesLibraryWithFailover({
+      primaryKey: keys.primary,
+      backupKey: keys.backup
+    });
+    state.activeKeySlot = loaded.keySlot;
+    return loaded.library;
+  }
+
+  function resetSuggestionSession({ invalidate = true } = {}) {
+    clearTimeout(state.suggestionTimer);
+    state.suggestionTimer = null;
+    state.sessionToken = null;
+    if (invalidate) state.suggestionRequest += 1;
   }
 
   function ensureStoreField() {
@@ -152,10 +186,12 @@ export async function initStoreLocationEnhancements() {
     input.addEventListener('input', () => {
       state.storeTouched = true;
       state.selectedPlace = null;
+      state.resolvedStoreValue = '';
       scheduleSuggestions(input.value);
     });
     input.addEventListener('focus', () => {
-      if (clean(input.value).length >= 2) scheduleSuggestions(input.value);
+      const value = clean(input.value);
+      if (value && value !== state.resolvedStoreValue) scheduleSuggestions(value);
     });
     document.getElementById('item-address')?.addEventListener('input', () => {
       state.addressTouched = true;
@@ -171,11 +207,39 @@ export async function initStoreLocationEnhancements() {
     box.classList.add('hidden');
   }
 
-  async function renderSuggestions(input, requestId) {
+  function showManualSuggestionSearch(query) {
+    const box = document.getElementById('store-suggestions');
+    const value = clean(query);
+    if (!box || !value) return hideSuggestions();
+    box.replaceChildren();
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'w-full text-left px-4 py-3 text-sm font-bold text-warmBrown hover:bg-shinBg';
+    button.textContent = `搜尋「${value}」`;
+    button.addEventListener('mousedown', (event) => event.preventDefault());
+    button.addEventListener('click', () => void runManualSuggestionSearch(value));
+    box.appendChild(button);
+    box.classList.remove('hidden');
+  }
+
+  async function runManualSuggestionSearch(value = document.getElementById('item-store-name')?.value) {
+    const query = clean(value);
+    if (!query) return hideSuggestions();
+    clearTimeout(state.suggestionTimer);
+    state.suggestionTimer = null;
+    state.suggestionRequest += 1;
+    const requestId = state.suggestionRequest;
+    await renderSuggestions(query, requestId, { force: true });
+  }
+
+  async function renderSuggestions(input, requestId, { force = false } = {}) {
     const box = document.getElementById('store-suggestions');
     if (!box || requestId !== state.suggestionRequest) return;
     const query = clean(input);
-    if (query.length < 2) return hideSuggestions();
+    const mode = autocompleteMode(query);
+    if (mode === 'none') return hideSuggestions();
+    if (mode === 'manual' && !force) return showManualSuggestionSearch(query);
+
     try {
       const library = await placesLibrary();
       if (requestId !== state.suggestionRequest) return;
@@ -206,12 +270,14 @@ export async function initStoreLocationEnhancements() {
           try {
             const place = await resolveStoreSuggestion(suggestion);
             if (!place) throw new Error('無法取得這間店的詳細資料。');
+            if (requestId !== state.suggestionRequest) return;
             state.selectedPlace = place;
             state.storeTouched = true;
             state.addressTouched = false;
+            state.resolvedStoreValue = query;
             document.getElementById('item-store-name').value = query;
             document.getElementById('item-address').value = place.address || '';
-            state.sessionToken = null;
+            resetSuggestionSession({ invalidate: false });
             hideSuggestions();
           } catch (error) {
             notify('店家資料讀取失敗', error.message || '請稍後再試。');
@@ -224,24 +290,33 @@ export async function initStoreLocationEnhancements() {
       box.classList.remove('hidden');
     } catch (error) {
       if (requestId !== state.suggestionRequest) return;
-      box.innerHTML = `<div class="p-3 text-xs text-gray-500">${escapeHtml(error.message || 'Google Maps / Places 暫時無法使用。')}</div>`;
+      const kind = classifyMapsError(error);
+      let message = error?.message || 'Google Maps / Places 暫時無法使用。';
+      if (kind === 'quota') message = 'Google Maps 配額已達限制，請到 Google Cloud Console 檢查 quota；網站不會自動切換備用 Key。';
+      if (kind === 'billing') message = 'Google Maps 計費目前不可用，請到 Google Cloud Console 檢查 Billing；網站不會自動切換備用 Key。';
+      box.innerHTML = `<div class="p-3 text-xs text-gray-500">${escapeHtml(message)}</div>`;
       box.classList.remove('hidden');
     }
   }
 
   function scheduleSuggestions(value) {
     clearTimeout(state.suggestionTimer);
+    state.suggestionTimer = null;
     state.suggestionRequest += 1;
     const requestId = state.suggestionRequest;
-    state.suggestionTimer = setTimeout(() => void renderSuggestions(value, requestId), 300);
+    const mode = autocompleteMode(value);
+    if (mode === 'none') return hideSuggestions();
+    if (mode === 'manual') return showManualSuggestionSearch(value);
+    state.suggestionTimer = setTimeout(() => void renderSuggestions(value, requestId), AUTOCOMPLETE_DEBOUNCE_MS);
   }
 
   function resetFormStore() {
     ensureStoreField();
+    resetSuggestionSession();
     state.selectedPlace = null;
     state.storeTouched = false;
     state.addressTouched = false;
-    state.sessionToken = null;
+    state.resolvedStoreValue = '';
     const input = document.getElementById('item-store-name');
     if (input) input.value = '';
     hideSuggestions();
@@ -249,12 +324,14 @@ export async function initStoreLocationEnhancements() {
 
   function populateFormStore(item) {
     ensureStoreField();
+    resetSuggestionSession();
     state.selectedPlace = null;
     state.storeTouched = false;
     state.addressTouched = false;
-    state.sessionToken = null;
     const input = document.getElementById('item-store-name');
-    if (input) input.value = branchSearchQuery(item);
+    const value = branchSearchQuery(item);
+    if (input) input.value = value;
+    state.resolvedStoreValue = clean(item?.storePlaceId) ? value : '';
     hideSuggestions();
   }
 
@@ -342,69 +419,135 @@ export async function initStoreLocationEnhancements() {
     modal?.classList.remove('flex');
     state.branchItemId = '';
     state.branchOrigin = null;
+    state.branchRequest += 1;
+    branchSearchInFlight = null;
   }
 
   function openBranchModal(item) {
     ensureBranchModal();
     state.branchItemId = clean(item?.id);
     state.branchOrigin = null;
+    state.branchRequest += 1;
+    branchSearchInFlight = null;
     const modal = document.getElementById('nearby-branch-modal');
     const query = document.getElementById('nearby-branch-query');
     const results = document.getElementById('nearby-branch-results');
     const status = document.getElementById('nearby-branch-status');
     query.value = branchSearchQuery(item);
     results.replaceChildren();
-    status.textContent = query.value ? '正在取得目前位置…' : '請先輸入商店名稱，再搜尋附近分店。';
+    status.textContent = query.value ? '已帶入商店名稱，按搜尋取得附近分店。' : '請先輸入商店名稱，再按搜尋。';
     modal.classList.remove('hidden');
     modal.classList.add('flex');
-    if (query.value) void runBranchSearch();
-    else setTimeout(() => query.focus(), 60);
+    if (!query.value) setTimeout(() => query.focus(), 60);
+  }
+
+  function renderBranchResults(branches, query, { cached = false } = {}) {
+    const status = document.getElementById('nearby-branch-status');
+    const results = document.getElementById('nearby-branch-results');
+    if (!status || !results) return;
+    results.replaceChildren();
+    if (!branches.length) {
+      status.textContent = '附近找不到符合的分店；可換關鍵字再試。';
+      return;
+    }
+    status.textContent = `找到 ${branches.length} 間，已依直線距離由近到遠排列。${cached ? '（使用短暫快取）' : ''}`;
+    for (const branch of branches) {
+      const row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'w-full text-left p-4 bg-white hover:bg-shinBg flex gap-3 items-start';
+      row.innerHTML = `<span class="shrink-0 min-w-[4rem] text-sm font-black text-warmBrown">${escapeHtml(formatDistance(branch.distanceMeters))}</span><span class="min-w-0"><span class="block font-bold text-warmBrown">${escapeHtml(branch.displayName || query)}</span><span class="block text-xs text-gray-500 mt-1">${escapeHtml(branch.address)}</span><span class="block text-[10px] text-blue-500 mt-1">點一下在 Google Maps 開啟</span></span>`;
+      row.addEventListener('click', () => {
+        const url = createPlaceMapsUrl(branch);
+        if (url) window.open(url, '_blank', 'noopener,noreferrer');
+      });
+      results.appendChild(row);
+    }
+  }
+
+  function branchErrorMessage(error) {
+    const kind = classifyMapsError(error);
+    if (kind === 'quota') return { kind, title: 'Google Maps 配額已達限制', message: '請到 Google Cloud Console 檢查 quota／配額；網站不會自動切換備用 Key。' };
+    if (kind === 'billing') return { kind, title: 'Google Maps 計費不可用', message: '請到 Google Cloud Console 檢查 Billing；網站不會自動切換備用 Key。' };
+    if (kind === 'credential') return { kind, title: 'Google Maps API Key 無法使用', message: '請到帳號設定 → API 設定檢查 Browser Key、HTTP referrer 與 API restrictions。' };
+    const message = error?.message || 'Google Maps / Places 或定位暫時無法使用。';
+    if (/定位|權限/.test(message)) return { kind: 'location', title: '無法使用定位', message };
+    return { kind, title: '附近分店搜尋失敗', message };
   }
 
   async function runBranchSearch() {
-    const item = state.items.get(state.branchItemId);
+    const itemId = clean(state.branchItemId);
+    const item = state.items.get(itemId);
     if (!item) return;
     const query = clean(document.getElementById('nearby-branch-query')?.value);
     const status = document.getElementById('nearby-branch-status');
     const results = document.getElementById('nearby-branch-results');
     if (!query) {
-      status.textContent = '請輸入商店名稱。';
+      if (status) status.textContent = '請輸入商店名稱。';
       return;
     }
-    results.replaceChildren();
-    status.textContent = '正在取得定位並搜尋附近分店…';
+
+    const userId = state.userId;
+    const earlyKey = `${userId}|${itemId}|${query.toLocaleLowerCase()}`;
+    if (branchSearchInFlight?.earlyKey === earlyKey) return branchSearchInFlight.promise;
+    const requestId = ++state.branchRequest;
+
+    if (results) results.replaceChildren();
+    if (status) status.textContent = '正在取得定位並搜尋附近分店…';
+
+    const promise = (async () => {
+      try {
+        const origin = await getCurrentPosition();
+        if (requestId !== state.branchRequest || state.userId !== userId || state.branchItemId !== itemId) return;
+        state.branchOrigin = origin;
+
+        const keys = runtimeMapsKeys();
+        const credentialGeneration = keys.generation;
+        state.credentialGeneration = credentialGeneration;
+        const cacheKey = makeNearbyCacheKey({ query, origin, credentialGeneration });
+        const cached = nearbyCache.get(cacheKey);
+        if (cached !== undefined) {
+          renderBranchResults(cached, query, { cached: true });
+          return cached;
+        }
+
+        const library = await placesLibrary();
+        if (requestId !== state.branchRequest || state.userId !== userId || state.branchItemId !== itemId) return;
+        const branches = await searchStoresByText({ query, origin, placesLibrary: library });
+        if (requestId !== state.branchRequest || state.userId !== userId || state.branchItemId !== itemId) return;
+        nearbyCache.set(cacheKey, branches);
+        renderBranchResults(branches, query);
+        return branches;
+      } catch (error) {
+        if (requestId !== state.branchRequest) return;
+        console.error('Nearby branch search failed:', error);
+        const details = branchErrorMessage(error);
+        if (status) status.textContent = details.message;
+        notify(details.title, details.message);
+      }
+    })();
+
+    branchSearchInFlight = { earlyKey, promise };
     try {
-      const [origin, library] = await Promise.all([
-        getCurrentPosition(),
-        placesLibrary()
-      ]);
-      state.branchOrigin = origin;
-      const branches = await searchStoresByText({ query, origin, placesLibrary: library });
-      if (!branches.length) {
-        status.textContent = '附近找不到符合的分店；可換關鍵字再試。';
-        return;
-      }
-      status.textContent = `找到 ${branches.length} 間，已依直線距離由近到遠排列。`;
-      for (const branch of branches) {
-        const row = document.createElement('button');
-        row.type = 'button';
-        row.className = 'w-full text-left p-4 bg-white hover:bg-shinBg flex gap-3 items-start';
-        row.innerHTML = `<span class="shrink-0 min-w-[4rem] text-sm font-black text-warmBrown">${escapeHtml(formatDistance(branch.distanceMeters))}</span><span class="min-w-0"><span class="block font-bold text-warmBrown">${escapeHtml(branch.displayName || query)}</span><span class="block text-xs text-gray-500 mt-1">${escapeHtml(branch.address)}</span><span class="block text-[10px] text-blue-500 mt-1">點一下在 Google Maps 開啟</span></span>`;
-        row.addEventListener('click', () => {
-          const url = createPlaceMapsUrl(branch);
-          if (url) window.open(url, '_blank', 'noopener,noreferrer');
-        });
-        results.appendChild(row);
-      }
+      return await promise;
+    } finally {
+      if (branchSearchInFlight?.promise === promise) branchSearchInFlight = null;
+    }
+  }
+
+  async function testMapsKey(event) {
+    const slot = clean(event?.detail?.slot) === 'backup' ? 'backup' : 'primary';
+    const apiKey = clean(event?.detail?.apiKey);
+    if (!apiKey) return;
+    if (window.google?.maps?.importLibrary) {
+      notify('重新載入後再測試', 'Google Maps 已在這個頁面載入；為避免把目前 Key 誤認成另一把 Key，請重新載入頁面後再測試指定 Key。');
+      return;
+    }
+    try {
+      await loadPlacesLibrary({ apiKey });
+      notify(`${slot === 'backup' ? '備用' : '主要'} Key 測試成功`, 'Maps JavaScript API 與 Places library 已成功載入。', 'success');
     } catch (error) {
-      console.error('Nearby branch search failed:', error);
-      const message = error?.message || 'Google Maps / Places 或定位暫時無法使用。';
-      status.textContent = message;
-      if (/API Key|Google Maps \/ Places/.test(message)) {
-        notify('需要 Google Maps / Places 設定', message);
-      } else if (/定位|權限/.test(message)) {
-        notify('無法使用定位', message);
-      }
+      const details = branchErrorMessage(error);
+      notify(`${slot === 'backup' ? '備用' : '主要'} Key 測試失敗`, details.message, 'error');
     }
   }
 
@@ -432,15 +575,22 @@ export async function initStoreLocationEnhancements() {
     queueMicrotask(() => queueMicrotask(enhanceDistanceActions));
   }
 
+  function invalidatePlacesSession() {
+    resetSuggestionSession();
+    state.resolvedStoreValue = '';
+    state.branchRequest += 1;
+    branchSearchInFlight = null;
+    nearbyCache.clear();
+  }
+
   function subscribeUser(user) {
     state.itemsUnsub?.();
     state.itemsUnsub = null;
+    invalidatePlacesSession();
+    closeBranchModal();
     state.userId = user?.uid || '';
     state.items.clear();
-    if (!user) {
-      closeBranchModal();
-      return;
-    }
+    if (!user) return;
     const ref = collection(db, 'artifacts', APP_ID, 'users', user.uid, 'items');
     state.itemsUnsub = onSnapshot(ref, (snapshot) => {
       if (state.userId !== user.uid) return;
@@ -460,8 +610,14 @@ export async function initStoreLocationEnhancements() {
   document.addEventListener('click', (event) => {
     if (!event.target.closest('#item-store-field')) hideSuggestions();
   });
-  document.addEventListener('keydown', (event) => { if (event.key === 'Escape') hideSuggestions(); });
+  document.addEventListener('keydown', (event) => { if (event.key === 'Escape') { resetSuggestionSession(); hideSuggestions(); } });
   window.addEventListener('shopping-list:active-trip-changed', scheduleDistanceEnhancement);
+  window.addEventListener('shopping-list:maps-settings-changed', (event) => {
+    state.credentialGeneration = Number(event?.detail?.generation) || runtimeMapsKeys().generation;
+    state.activeKeySlot = '';
+    invalidatePlacesSession();
+  });
+  window.addEventListener('shopping-list:maps-key-test-requested', (event) => void testMapsKey(event));
   authSdk.onAuthStateChanged(auth, subscribeUser);
   scheduleDistanceEnhancement();
 }

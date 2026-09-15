@@ -17,14 +17,15 @@ test('filter option search is case-insensitive and preserves original order', ()
   assert.deepEqual(filterOptionsByQuery(options, '').map((option) => option.value), ['all', '藥妝', 'Shinjuku', 'Shibuya']);
 });
 
-test('picker keeps horizontal filters and adds complete-option controls for category and location', async () => {
+test('picker keeps horizontal filters and moves complete-option entry into the native all chips', async () => {
   const source = await readFile(sourcePath, 'utf8');
   assert.match(source, /category-filters/);
   assert.match(source, /location-filters/);
-  assert.match(source, /filter-picker-open/);
-  assert.match(source, /全部選項/);
   assert.match(source, /filter-picker-modal/);
   assert.match(source, /filter-picker-search/);
+  assert.match(source, /全部\s*<i class="fas fa-chevron-down/);
+  assert.doesNotMatch(source, /filter-picker-open/);
+  assert.doesNotMatch(source, /全部選項/);
 });
 
 test('picker reads only currently visible existing filter buttons and delegates selection back to their click handler', async () => {
@@ -35,6 +36,17 @@ test('picker reads only currently visible existing filter buttons and delegates 
   assert.match(source, /sourceButton\.click\(\)/);
   assert.match(source, /data-cat/);
   assert.match(source, /data-loc/);
+});
+
+test('user all-chip activation opens picker while internal trip reset bypasses picker', async () => {
+  const source = await readFile(sourcePath, 'utf8');
+  assert.match(source, /function enhanceAllChip\(type\)/);
+  assert.match(source, /button\.dataset\.filterPickerAll = type/);
+  assert.match(source, /event\.isTrusted/);
+  assert.match(source, /openModal\(type\)/);
+  assert.match(source, /function selectAllWithoutPicker\(type\)/);
+  assert.match(source, /selectAllWithoutPicker\('category'\)/);
+  assert.match(source, /selectAllWithoutPicker\('location'\)/);
 });
 
 test('picker tracks existing filter selection and closes/rebuilds safely when trips or filter options change', async () => {

@@ -67,7 +67,7 @@ export async function initFilterPicker() {
     modal.innerHTML = `
       <div class="w-full max-w-md max-h-[82vh] bg-white border-4 border-warmBrown rounded-t-[2rem] sm:rounded-[2rem] shadow-[8px_8px_0_rgba(92,64,51,0.25)] overflow-hidden">
         <div class="px-5 py-4 bg-pastelYellow border-b-4 border-warmBrown flex items-center justify-between gap-3">
-          <div><h3 id="filter-picker-title" class="font-bold text-warmBrown text-lg">全部選項</h3><p class="text-[11px] text-warmBrown/60">一次查看目前旅程可用的選項</p></div>
+          <div><h3 id="filter-picker-title" class="font-bold text-warmBrown text-lg">選擇項目</h3><p class="text-[11px] text-warmBrown/60">一次查看目前旅程可用的選項</p></div>
           <button id="filter-picker-close" type="button" class="w-9 h-9 shrink-0 rounded-full bg-white border-2 border-warmBrown text-warmBrown"><i class="fas fa-times"></i></button>
         </div>
         <div class="p-4 bg-shinBg border-b-2 border-warmBrown/20">
@@ -106,7 +106,7 @@ export async function initFilterPicker() {
       .filter((button) => !button.classList.contains('hidden'))
       .map((sourceButton) => ({
         value: clean(sourceButton.dataset?.[config.dataKey]),
-        label: clean(sourceButton.textContent) || clean(sourceButton.dataset?.[config.dataKey]),
+        label: clean(sourceButton.dataset?.filterPickerLabel || sourceButton.textContent) || clean(sourceButton.dataset?.[config.dataKey]),
         sourceButton
       }))
       .filter((option) => option.value && option.label);
@@ -164,30 +164,44 @@ export async function initFilterPicker() {
     setTimeout(() => search?.focus(), 60);
   }
 
-  function makeOpenButton(type) {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'filter-picker-open shrink-0 px-3 py-1.5 rounded-full bg-white border-2 border-warmBrown text-warmBrown text-xs font-bold shadow-[2px_2px_0_rgba(92,64,51,.15)]';
-    button.dataset.filterPicker = type;
-    button.innerHTML = '全部選項 <i class="fas fa-chevron-down ml-1 text-[9px]"></i>';
-    button.addEventListener('click', () => openModal(type));
-    return button;
+  function allButtonFor(type) {
+    const config = FILTERS[type];
+    const root = config ? document.getElementById(config.rootId) : null;
+    return root?.querySelector(`${config.selector}[${config.dataAttr}="all"]`) || null;
   }
 
-  function ensureOpenButtons() {
+  function enhanceAllChip(type) {
+    const button = allButtonFor(type);
+    if (!button || button.dataset.filterPickerAll === type) return;
+    button.dataset.filterPickerAll = type;
+    button.dataset.filterPickerLabel = '全部';
+    button.innerHTML = '全部 <i class="fas fa-chevron-down ml-1 text-[9px]"></i>';
+    button.addEventListener('click', (event) => {
+      if (!event.isTrusted) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      openModal(type);
+    }, true);
+  }
+
+  function selectAllWithoutPicker(type) {
+    const button = allButtonFor(type);
+    if (!button) return;
+    state.selected[type] = 'all';
+    button.click();
+  }
+
+  function ensureAllChips() {
     state.scheduled = false;
-    for (const [type, config] of Object.entries(FILTERS)) {
-      const root = document.getElementById(config.rootId);
-      if (!root || root.querySelector(`.filter-picker-open[data-filter-picker="${type}"]`)) continue;
-      root.appendChild(makeOpenButton(type));
-    }
+    enhanceAllChip('category');
+    enhanceAllChip('location');
     if (state.activeType) renderOptions();
   }
 
   function scheduleEnsure() {
     if (state.scheduled) return;
     state.scheduled = true;
-    queueMicrotask(ensureOpenButtons);
+    queueMicrotask(ensureAllChips);
   }
 
   document.addEventListener('click', (event) => {
@@ -203,9 +217,9 @@ export async function initFilterPicker() {
   });
 
   window.addEventListener('shopping-list:active-trip-changed', () => {
-    state.selected.category = 'all';
-    state.selected.location = 'all';
     closeModal();
+    selectAllWithoutPicker('category');
+    selectAllWithoutPicker('location');
     scheduleEnsure();
   });
   window.addEventListener('shopping-list:trips-changed', () => {
@@ -222,5 +236,5 @@ export async function initFilterPicker() {
   });
 
   ensureModal();
-  ensureOpenButtons();
+  ensureAllChips();
 }

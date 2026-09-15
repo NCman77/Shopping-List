@@ -1,6 +1,7 @@
 import { getCurrentPosition, watchPosition, clearPositionWatch } from '../location/browser-location.js';
 import { distanceForItem, movedBeyondThreshold } from '../location/distance.js';
-import { loadPlacesLibrary } from '../location/google-places-loader.js';
+import { loadPlacesLibraryWithFailover } from '../location/google-places-loader.js';
+import { isCoordinateCacheFresh } from '../location/places-usage-policy.js';
 import { resolveAddressPlace } from '../location/store-places.js';
 import { itemMatchesActiveTrip } from './travel-trip.js';
 
@@ -32,6 +33,17 @@ function notify(title, message, type = 'warning') {
   else console[type === 'error' ? 'error' : 'warn'](`${title}: ${message}`);
 }
 
+export function freshStoreCoordinate(item = {}, now = Date.now()) {
+  if (!isCoordinateCacheFresh(item?.storeResolvedAt, now)) return null;
+  if (item?.storeLat === null || item?.storeLat === undefined || item?.storeLat === '') return null;
+  if (item?.storeLng === null || item?.storeLng === undefined || item?.storeLng === '') return null;
+  const lat = Number(item.storeLat);
+  const lng = Number(item.storeLng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+  return { lat, lng };
+}
+
 export function nearbySortStateChanged(previous, next) {
   const previousEnabled = Boolean(previous?.enabled);
   const nextEnabled = Boolean(next?.enabled);
@@ -57,6 +69,14 @@ export function nearbySortStateChanged(previous, next) {
     if (previousKey !== nextKey || Number(previousDistances[previousKey]) !== Number(nextDistances[nextKey])) return true;
   }
   return false;
+}
+
+export function trackingAttemptIsCurrent({ userId, generation } = {}, currentState = {}) {
+  return Boolean(
+    userId
+    && currentState.userId === userId
+    && Number(currentState.trackingGeneration) === Number(generation)
+  );
 }
 
 export async function initNearbySort() {
@@ -87,22 +107,25 @@ export async function initNearbySort() {
     attemptedResolution: new Set(),
     resolving: false,
     starting: false,
+    trackingGeneration: 0,
     lastPublishedState: null
   };
 
-  function settingsRef() {
-    return state.userId ? doc(db, 'artifacts', APP_ID, 'users', state.userId, 'settings', 'preferences') : null;
+  function settingsRef(userId = state.userId) {
+    return userId ? doc(db, 'artifacts', APP_ID, 'users', userId, 'settings', 'preferences') : null;
   }
 
-  function itemRef(itemId) {
-    return doc(db, 'artifacts', APP_ID, 'users', state.userId, 'items', itemId);
+  function itemRef(itemId, userId = state.userId) {
+    return doc(db, 'artifacts', APP_ID, 'users', userId, 'items', itemId);
   }
 
   function distancesForOrigin() {
     const distances = {};
     if (!state.origin) return distances;
     for (const [itemId, item] of state.items) {
-      const distance = distanceForItem(item, state.origin);
+      const coordinate = freshStoreCoordinate(item);
+      if (!coordinate) continue;
+      const distance = distanceForItem({ ...item, storeLat: coordinate.lat, storeLng: coordinate.lng }, state.origin);
       if (Number.isFinite(distance)) distances[itemId] = distance;
     }
     return distances;
@@ -132,19 +155,27 @@ export async function initNearbySort() {
     state.watchId = null;
   }
 
+  function cancelTrackingAttempt() {
+    state.trackingGeneration += 1;
+    state.starting = false;
+  }
+
   function disableSession({ clearOrigin = true } = {}) {
+    cancelTrackingAttempt();
     stopWatcher();
     state.enabled = false;
     if (clearOrigin) state.origin = null;
     publish();
   }
 
-  async function persistEnabled(enabled) {
-    if (!state.userId || !settingsRef()) return;
-    await setDoc(settingsRef(), { nearbySortEnabled: Boolean(enabled) }, { merge: true });
+  async function persistEnabled(enabled, userId = state.userId) {
+    const ref = settingsRef(userId);
+    if (!userId || !ref) return;
+    await setDoc(ref, { nearbySortEnabled: Boolean(enabled) }, { merge: true });
   }
 
-  function acceptPosition(position) {
+  function acceptPosition(position, attempt = null) {
+    if (attempt && !trackingAttemptIsCurrent(attempt, state)) return;
     const next = { lat: position.lat, lng: position.lng, accuracy: position.accuracy ?? null };
     if (!movedBeyondThreshold(state.origin, next, MOVEMENT_THRESHOLD_METERS)) return;
     state.origin = next;
@@ -155,44 +186,67 @@ export async function initNearbySort() {
 
   async function startTracking({ persist = false } = {}) {
     if (!state.userId || state.starting || state.permissionBlocked) return false;
+    const trackingUserId = state.userId;
+    const trackingGeneration = ++state.trackingGeneration;
+    const attempt = { userId: trackingUserId, generation: trackingGeneration };
     state.starting = true;
     try {
       const first = await getCurrentPosition();
+      if (!trackingAttemptIsCurrent({ userId: trackingUserId, generation: trackingGeneration }, state)) return false;
       state.origin = { lat: first.lat, lng: first.lng, accuracy: first.accuracy ?? null };
       state.enabled = true;
       stopWatcher();
       state.watchId = watchPosition({
-        onPosition: acceptPosition,
+        onPosition(position) {
+          if (!trackingAttemptIsCurrent({ userId: trackingUserId, generation: trackingGeneration }, state)) return;
+          acceptPosition(position, attempt);
+        },
         onError(error) {
+          if (!trackingAttemptIsCurrent({ userId: trackingUserId, generation: trackingGeneration }, state)) return;
           console.warn('Nearby sort location watch failed:', error);
           if (/權限/.test(error?.message || '')) state.permissionBlocked = true;
           disableSession();
           notify('附近排序已暫停', error?.message || '目前無法持續取得定位。');
         }
       });
-      if (persist) await persistEnabled(true);
+      if (persist) {
+        await persistEnabled(true, trackingUserId);
+        if (!trackingAttemptIsCurrent({ userId: trackingUserId, generation: trackingGeneration }, state)) return false;
+      }
       publish();
       void backfillMissingStoreCoordinates();
       return true;
     } catch (error) {
+      if (!trackingAttemptIsCurrent({ userId: trackingUserId, generation: trackingGeneration }, state)) return false;
       console.warn('Nearby sort start failed:', error);
       if (/權限/.test(error?.message || '')) state.permissionBlocked = true;
-      state.enabled = false;
-      state.origin = null;
-      publish();
+      disableSession();
       notify('無法開啟附近排序', error?.message || '定位暫時無法使用。');
       return false;
     } finally {
-      state.starting = false;
+      if (trackingAttemptIsCurrent({ userId: trackingUserId, generation: trackingGeneration }, state)) state.starting = false;
     }
   }
 
   async function toggleNearbySort() {
-    if (state.enabled || state.enabledPreference) {
+    if (state.starting) {
+      const userId = state.userId;
       state.enabledPreference = false;
       state.permissionBlocked = false;
       disableSession();
-      try { await persistEnabled(false); }
+      try { await persistEnabled(false, userId); }
+      catch (error) {
+        console.error('Persist nearby sort preference failed:', error);
+        notify('設定儲存失敗', '附近排序已在本次使用中關閉，但偏好無法同步。');
+      }
+      return;
+    }
+    if (state.enabled || state.enabledPreference) {
+      const userId = state.userId;
+      state.enabledPreference = false;
+      state.permissionBlocked = false;
+      disableSession();
+      try { await persistEnabled(false, userId); }
       catch (error) {
         console.error('Persist nearby sort preference failed:', error);
         notify('設定儲存失敗', '附近排序已在本次使用中關閉，但偏好無法同步。');
@@ -236,22 +290,27 @@ export async function initNearbySort() {
   async function backfillMissingStoreCoordinates() {
     if (!state.enabled || !state.userId || state.resolving) return;
     const trip = window.shoppingListActiveTrip;
-    const apiKey = clean(window.shoppingListMapsBrowserApiKey);
-    if (!trip?.id || !apiKey) return;
+    const userId = state.userId;
+    const tripId = clean(trip?.id);
+    const runtimeKeys = window.shoppingListMapsApiKeys || {};
+    const primaryKey = clean(runtimeKeys.primary || window.shoppingListMapsBrowserApiKey);
+    const backupKey = clean(runtimeKeys.backup);
+    if (!tripId || !primaryKey) return;
 
     const candidates = [...state.items.values()].filter((item) => (
       itemMatchesActiveTrip(item, trip)
       && clean(item.address)
-      && !(Number.isFinite(Number(item.storeLat)) && Number.isFinite(Number(item.storeLng)))
+      && !freshStoreCoordinate(item)
       && !state.attemptedResolution.has(`${item.id}:${clean(item.address)}`)
     ));
     if (!candidates.length) return;
 
     state.resolving = true;
     try {
-      const library = await loadPlacesLibrary({ apiKey });
+      const { library } = await loadPlacesLibraryWithFailover({ primaryKey, backupKey });
+      if (state.userId !== userId || !state.enabled || clean(window.shoppingListActiveTrip?.id) !== tripId) return;
       for (const item of candidates) {
-        if (!state.enabled || !state.userId) break;
+        if (state.userId !== userId || !state.enabled || clean(window.shoppingListActiveTrip?.id) !== tripId) break;
         const attemptKey = `${item.id}:${clean(item.address)}`;
         state.attemptedResolution.add(attemptKey);
         try {
@@ -260,8 +319,8 @@ export async function initNearbySort() {
             country: item.country || trip.country,
             placesLibrary: library
           });
-          if (!place) continue;
-          await updateDoc(itemRef(item.id), {
+          if (!place || state.userId !== userId || clean(window.shoppingListActiveTrip?.id) !== tripId) continue;
+          await updateDoc(itemRef(item.id, userId), {
             storePlaceId: place.placeId,
             storeDisplayName: place.displayName,
             storeAddress: place.address,
@@ -298,14 +357,14 @@ export async function initNearbySort() {
     state.settingsUnsub?.();
     state.settingsUnsub = null;
     if (!user) return;
-    state.settingsUnsub = onSnapshot(settingsRef(), (snapshot) => {
+    state.settingsUnsub = onSnapshot(settingsRef(user.uid), (snapshot) => {
       if (state.userId !== user.uid) return;
       const data = snapshot.exists() ? snapshot.data() : {};
       const requested = Boolean(data.nearbySortEnabled);
       state.enabledPreference = requested;
       if (requested && !state.enabled && !state.starting && !state.permissionBlocked) {
         void startTracking({ persist: false });
-      } else if (!requested && (state.enabled || state.watchId !== null)) {
+      } else if (!requested && (state.enabled || state.watchId !== null || state.starting)) {
         disableSession();
       } else {
         renderControl();
@@ -314,6 +373,7 @@ export async function initNearbySort() {
   }
 
   authSdk.onAuthStateChanged(auth, (user) => {
+    cancelTrackingAttempt();
     stopWatcher();
     state.settingsUnsub?.();
     state.itemsUnsub?.();
@@ -337,7 +397,11 @@ export async function initNearbySort() {
     publish();
     void backfillMissingStoreCoordinates();
   });
-  window.addEventListener('shopping-list:maps-settings-changed', () => void backfillMissingStoreCoordinates());
+  window.addEventListener('shopping-list:maps-settings-changed', () => {
+    state.attemptedResolution.clear();
+    publish();
+    void backfillMissingStoreCoordinates();
+  });
 
   await waitFor(() => document.getElementById('item-list'));
   ensureControl();
