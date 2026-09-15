@@ -37,7 +37,7 @@ test('Maps keys are stored in the existing user preferences document with merge 
   assert.match(source, /mapsBrowserApiKey/);
   assert.match(source, /mapsApiKeys/);
   assert.match(source, /settingsRef\(\)/);
-  assert.match(source, /setDoc\(settingsRef\(\),\s*\{\s*mapsApiKeys:/);
+  assert.match(source, /setDoc\(settingsRef\(\),\s*\{\s*mapsApiKeys(?:\s*:|\s*,)/);
   assert.match(source, /\{ merge: true \}/);
   assert.match(source, /shopping-list:maps-settings-changed/);
 });
