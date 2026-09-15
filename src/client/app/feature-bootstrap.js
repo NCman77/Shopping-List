@@ -12,7 +12,10 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     },
     async () => {
       const { initAccountSettings } = await import('./account-settings.js');
-      return initAccountSettings();
+      const result = await initAccountSettings();
+      const { initRetiredLocationFeatures } = await import('./retired-location-features.js');
+      initRetiredLocationFeatures();
+      return result;
     },
     async () => {
       const { initTripUi } = await import('./trip-ui.js');
