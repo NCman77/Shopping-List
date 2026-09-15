@@ -15,6 +15,10 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       return initAccountSettings();
     },
     async () => {
+      const { initMapsModeEnhancements } = await import('./maps-mode-enhancements.js');
+      return initMapsModeEnhancements();
+    },
+    async () => {
       const { initTripUi } = await import('./trip-ui.js');
       return initTripUi();
     },
@@ -49,6 +53,10 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       return initItemWorkflowEnhancements();
     },
     async () => {
+      const { initPhotoUiFixes } = await import('./photo-ui-fixes.js');
+      return initPhotoUiFixes();
+    },
+    async () => {
       const { initItemCopyUi } = await import('./item-copy-ui.js');
       return initItemCopyUi();
     },
@@ -57,7 +65,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       return registerShoppingListServiceWorker();
     }
   ).then((results) => {
-    const labels = ['旅程資料', '國家篩選', '帳號設定', '旅程介面', '旅程篩選選項', '完整篩選選單', '背景個人化', '設定合併保護', '商品旅程儲存與商店位置', '附近排序', '商品狀態與分頁', '商品跨旅程複製', 'PWA 安裝'];
+    const labels = ['旅程資料', '國家篩選', '帳號設定', 'Maps 模式', '旅程介面', '旅程篩選選項', '完整篩選選單', '背景個人化', '設定合併保護', '商品旅程儲存與商店位置', '附近排序', '商品狀態與分頁', '商品照片介面修復', '商品跨旅程複製', 'PWA 安裝'];
     results.forEach((result, index) => {
       if (result.status === 'rejected') {
         console.error(`${labels[index]}功能載入失敗:`, result.reason);
