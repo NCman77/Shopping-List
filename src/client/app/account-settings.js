@@ -263,16 +263,20 @@ export async function initAccountSettings() {
 
   async function saveMapsKeys() {
     if (!state.userId) return notify('尚未登入', '請先登入後再儲存 API 設定。', 'warning');
+    const savingUserId = state.userId;
+    const ref = settingsRef();
     const mapsApiKeys = {
       primary: clean(mapsPrimaryInput?.value),
       backup: clean(mapsBackupInput?.value)
     };
     try {
-      await setDoc(settingsRef(), { mapsApiKeys, mapsBrowserApiKey: '' }, { merge: true });
+      await setDoc(ref, { mapsApiKeys, mapsBrowserApiKey: '' }, { merge: true });
+      if (state.userId !== savingUserId || auth.currentUser?.uid !== savingUserId) return;
       applyMapsApiKeys(mapsApiKeys);
       notify(mapsApiKeys.primary ? 'API 設定已儲存' : '主要 Key 尚未設定', mapsApiKeys.primary ? 'Google Maps / Places 設定已更新。請使用「測試」確認 Key 權限。' : '商店自動完成與附近分店搜尋需要主要 Browser API Key。', mapsApiKeys.primary ? 'success' : 'warning');
     } catch (error) {
       console.error('Save Maps settings failed:', error);
+      if (state.userId !== savingUserId || auth.currentUser?.uid !== savingUserId) return;
       notify('儲存失敗', '無法儲存 Google Maps API 設定，請稍後再試。');
     }
   }
