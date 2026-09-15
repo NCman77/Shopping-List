@@ -1,3 +1,5 @@
+import { resolveItemLocations } from '../pricing/location-selection.js';
+
 export function moveOption(values, fromIndex, toIndex) {
   const list = Array.isArray(values) ? [...values] : [];
   if (!Number.isInteger(fromIndex) || !Number.isInteger(toIndex)) return list;
@@ -13,7 +15,10 @@ export function removeOption(values, value) {
 
 export function findItemsUsingOption(items, kind, value) {
   if (kind !== 'category' && kind !== 'location') return [];
-  return (Array.isArray(items) ? items : []).filter((item) => item?.[kind] === value);
+  return (Array.isArray(items) ? items : []).filter((item) => {
+    if (kind === 'location') return resolveItemLocations(item).includes(value);
+    return item?.category === value;
+  });
 }
 
 export function buildDeletionImpact(items, kind, value) {
