@@ -8,6 +8,15 @@ function number(value) {
   return Number.isFinite(result) ? result : null;
 }
 
+function mappedDistance(distancesByItemId, itemId) {
+  if (!distancesByItemId || typeof distancesByItemId !== 'object') return Number.POSITIVE_INFINITY;
+  if (!Object.prototype.hasOwnProperty.call(distancesByItemId, itemId)) return Number.POSITIVE_INFINITY;
+  const raw = distancesByItemId[itemId];
+  if (raw === null || raw === undefined || raw === '') return Number.POSITIVE_INFINITY;
+  const distance = Number(raw);
+  return Number.isFinite(distance) && distance >= 0 ? distance : Number.POSITIVE_INFINITY;
+}
+
 export function normalizeCoordinate(point) {
   if (!point) return null;
   const lat = number(typeof point.lat === 'function' ? point.lat() : point.lat);
@@ -73,6 +82,23 @@ export function sortItemsByStatusAndDistance(items = [], origin) {
       if (knownA !== knownB) return knownA ? -1 : 1;
       if (knownA && distanceA !== distanceB) return distanceA - distanceB;
     }
+
+    return Number(b?.createdAt || 0) - Number(a?.createdAt || 0);
+  });
+}
+
+export function sortItemsByStatusAndDistanceMap(items = [], distancesByItemId = {}) {
+  return [...(Array.isArray(items) ? items : [])].sort((a, b) => {
+    const rankA = STATUS_RANK[resolveShoppingStatus(a)] ?? 0;
+    const rankB = STATUS_RANK[resolveShoppingStatus(b)] ?? 0;
+    if (rankA !== rankB) return rankA - rankB;
+
+    const distanceA = mappedDistance(distancesByItemId, a?.id);
+    const distanceB = mappedDistance(distancesByItemId, b?.id);
+    const knownA = Number.isFinite(distanceA);
+    const knownB = Number.isFinite(distanceB);
+    if (knownA !== knownB) return knownA ? -1 : 1;
+    if (knownA && distanceA !== distanceB) return distanceA - distanceB;
 
     return Number(b?.createdAt || 0) - Number(a?.createdAt || 0);
   });
