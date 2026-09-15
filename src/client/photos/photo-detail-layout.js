@@ -30,7 +30,7 @@ function installDetailViewStyles(documentRef) {
       position: relative !important;
       width: 100% !important;
       max-width: 100% !important;
-      aspect-ratio: 1 / 1 !important;
+      aspect-ratio: auto !important;
       height: auto !important;
       min-height: 0 !important;
       border: 2px solid #5C4033 !important;
@@ -53,14 +53,14 @@ function installDetailViewStyles(documentRef) {
       display: none !important;
     }
     .workflow-view-mode #photo-preview-grid img {
-      position: absolute !important;
-      inset: 0 !important;
+      position: static !important;
+      inset: auto !important;
       display: block !important;
       width: 100% !important;
-      max-width: none !important;
-      height: 100% !important;
-      object-fit: cover !important;
-      margin: 0 !important;
+      max-width: 100% !important;
+      height: auto !important;
+      object-fit: contain !important;
+      margin: 0 auto !important;
       background: white !important;
     }
   `;
