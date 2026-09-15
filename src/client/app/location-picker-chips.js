@@ -89,7 +89,7 @@ function ensureCompactUi(root, documentRef) {
         <option value="">選擇購買地點</option>
       </select>
     </div>
-    <div id="item-multi-location-chips" class="flex flex-wrap gap-2 mt-2 min-h-8"></div>`;
+    <div id="item-multi-location-chips" class="flex flex-nowrap overflow-x-auto no-scrollbar gap-2 mt-2 min-h-8 pb-1 sm:flex-wrap sm:overflow-visible"></div>`;
   root.insertAdjacentElement('afterend', wrapper);
   return wrapper;
 }
@@ -123,7 +123,7 @@ function renderPicker(root, documentRef) {
   chips.replaceChildren();
   if (!model.selected.length) {
     const empty = documentRef.createElement('span');
-    empty.className = 'px-1 py-1 text-xs text-gray-400';
+    empty.className = 'shrink-0 px-1 py-1 text-xs text-gray-400';
     empty.textContent = '尚未選擇地點';
     chips.appendChild(empty);
     return;
@@ -132,7 +132,7 @@ function renderPicker(root, documentRef) {
   const activeDefinitions = new Set(model.definitions);
   for (const location of model.selected) {
     const chip = documentRef.createElement('span');
-    chip.className = 'relative inline-flex items-center rounded-full border-2 border-warmBrown bg-pastelBlue pl-3 pr-7 py-1.5 text-xs font-bold text-warmBrown shadow-[2px_2px_0_rgba(92,64,51,.14)]';
+    chip.className = 'relative inline-flex shrink-0 items-center rounded-full border-2 border-warmBrown bg-pastelBlue pl-3 pr-7 py-1.5 text-xs font-bold text-warmBrown shadow-[2px_2px_0_rgba(92,64,51,.14)]';
 
     const label = documentRef.createElement('span');
     label.textContent = activeDefinitions.has(location) ? location : `${location}（舊）`;
