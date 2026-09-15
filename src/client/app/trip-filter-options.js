@@ -1,28 +1,15 @@
+import { usedLocationsForTrip } from './item-locations.js';
+
 const APP_ID = 'japan-shopping-app';
 
 function clean(value) {
   return String(value ?? '').trim();
 }
 
-function waitFor(predicate, timeout = 12000) {
-  return new Promise((resolve, reject) => {
-    const started = Date.now();
-    const timer = setInterval(() => {
-      const value = predicate();
-      if (value) {
-        clearInterval(timer);
-        resolve(value);
-      } else if (Date.now() - started > timeout) {
-        clearInterval(timer);
-        reject(new Error('等待旅程篩選選項初始化逾時。'));
-      }
-    }, 40);
-  });
-}
-
 export function valuesUsedByTrip(items = [], tripId = '', field = '') {
   const id = clean(tripId);
   if (!id || !['category', 'location'].includes(field)) return [];
+  if (field === 'location') return usedLocationsForTrip(items, id);
   const values = [];
   const seen = new Set();
   for (const item of Array.isArray(items) ? items : []) {
@@ -122,4 +109,20 @@ export async function initTripFilterOptions() {
 
   authSdk.onAuthStateChanged(auth, subscribeUser);
   scheduleApply();
+}
+
+function waitFor(predicate, timeout = 12000) {
+  return new Promise((resolve, reject) => {
+    const started = Date.now();
+    const timer = setInterval(() => {
+      const value = predicate();
+      if (value) {
+        clearInterval(timer);
+        resolve(value);
+      } else if (Date.now() - started > timeout) {
+        clearInterval(timer);
+        reject(new Error('等待旅程篩選選項初始化逾時。'));
+      }
+    }, 40);
+  });
 }
