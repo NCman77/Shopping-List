@@ -1,5 +1,6 @@
 import { DEFAULT_COUNTRY, normalizeCountries } from './travel-country.js';
 import { classifyTrip, normalizeTrip, sortTripsForPicker, tripDisplayTitle, validateTripDraft } from './travel-trip.js';
+import { currencyForCountry, currencyMeta, supportedCurrencies, tripHasLocalMoney } from './currency.js';
 
 const APP_ID = 'japan-shopping-app';
 
@@ -124,6 +125,7 @@ function ensureModal() {
         <input id="trip-form-id" type="hidden">
         <div><label class="block text-xs font-bold text-warmBrown mb-1.5">旅程名稱（可留空）</label><input id="trip-form-title" type="text" class="w-full px-4 py-2.5 rounded-xl border-2 border-warmBrown bg-shinBg outline-none" placeholder="例如：東京生日旅行"></div>
         <div><label class="block text-xs font-bold text-warmBrown mb-1.5">國家</label><select id="trip-form-country" class="w-full px-4 py-2.5 rounded-xl border-2 border-warmBrown bg-shinBg outline-none"></select><p id="trip-country-lock-note" class="hidden text-[11px] text-gray-500 mt-1">這趟旅程已有商品，因此國家不能更改。</p></div>
+        <div><label class="block text-xs font-bold text-warmBrown mb-1.5">使用幣別</label><select id="trip-form-currency" class="w-full px-4 py-2.5 rounded-xl border-2 border-warmBrown bg-shinBg outline-none"></select><p id="trip-currency-lock-note" class="hidden text-[11px] text-gray-500 mt-1">這趟旅程已有當地價格資料，因此幣別不能更改。</p></div>
         <div class="grid grid-cols-2 gap-3"><div><label class="block text-xs font-bold text-warmBrown mb-1.5">開始日期</label><input id="trip-form-start" type="date" class="w-full px-3 py-2.5 rounded-xl border-2 border-warmBrown bg-shinBg outline-none"></div><div><label class="block text-xs font-bold text-warmBrown mb-1.5">結束日期</label><input id="trip-form-end" type="date" class="w-full px-3 py-2.5 rounded-xl border-2 border-warmBrown bg-shinBg outline-none"></div></div>
         <button id="trip-form-save" type="button" class="w-full py-3 rounded-xl bg-pastelGreen border-2 border-warmBrown text-warmBrown font-bold shadow-[2px_2px_0_rgba(92,64,51,.18)]">儲存旅程</button>
       </div>
@@ -160,6 +162,7 @@ export async function initTripUi() {
     trips: [],
     activeTrip: null,
     countries: [DEFAULT_COUNTRY],
+    items: [],
     itemCounts: new Map(),
     editingTripId: '',
     settingsUnsub: null,
@@ -172,6 +175,7 @@ export async function initTripUi() {
   const formView = document.getElementById('trip-form-view');
   const backButton = document.getElementById('trip-modal-back');
   const countrySelect = document.getElementById('trip-form-country');
+  const currencySelect = document.getElementById('trip-form-currency');
 
   function tripCount(tripId) {
     return state.itemCounts.get(tripId) || 0;
@@ -324,6 +328,23 @@ export async function initTripUi() {
     }
   }
 
+  function renderCurrencyOptions(selectedCurrency = '') {
+    const selected = String(selectedCurrency || '').trim().toUpperCase();
+    currencySelect.innerHTML = '';
+    const blank = document.createElement('option');
+    blank.value = '';
+    blank.textContent = '請選擇幣別';
+    currencySelect.appendChild(blank);
+    for (const meta of supportedCurrencies()) {
+      const option = document.createElement('option');
+      option.value = meta.code;
+      option.textContent = `${meta.code} · ${meta.label}`;
+      option.selected = meta.code === selected;
+      currencySelect.appendChild(option);
+    }
+    currencySelect.value = selected;
+  }
+
   function openForm(trip) {
     const normalized = trip ? normalizeTrip(trip) : null;
     state.editingTripId = normalized?.id || '';
@@ -333,9 +354,14 @@ export async function initTripUi() {
     document.getElementById('trip-form-end').value = normalized?.endDate || '';
     const selectedCountry = normalized?.country || state.activeTrip?.country || window.shoppingListActiveCountry || DEFAULT_COUNTRY;
     renderCountryOptions(selectedCountry);
+    const selectedCurrency = normalized?.currencyCode || currencyForCountry(selectedCountry);
+    renderCurrencyOptions(selectedCurrency);
     const countryEditable = normalized ? canChangeTripCountry(normalized, tripCount(normalized.id)) : true;
     countrySelect.disabled = !countryEditable;
     document.getElementById('trip-country-lock-note').classList.toggle('hidden', countryEditable);
+    const currencyEditable = normalized ? !tripHasLocalMoney(state.items, normalized.id) : true;
+    currencySelect.disabled = !currencyEditable;
+    document.getElementById('trip-currency-lock-note').classList.toggle('hidden', currencyEditable);
     setView('form');
     modal.classList.remove('hidden');
     modal.classList.add('flex');
@@ -348,12 +374,15 @@ export async function initTripUi() {
     const draft = {
       title: document.getElementById('trip-form-title').value.trim(),
       country: countrySelect.value,
+      currencyCode: String(currencySelect.value || '').trim().toUpperCase(),
       startDate: document.getElementById('trip-form-start').value,
       endDate: document.getElementById('trip-form-end').value
     };
     const validation = validateTripDraft(draft);
     if (!validation.valid) return notify('旅程資料有誤', validation.error, 'warning');
+    if (!currencyMeta(draft.currencyCode)) return notify('旅程資料有誤', '請選擇使用幣別。', 'warning');
     if (existing && !canChangeTripCountry(existing, tripCount(existing.id))) draft.country = existing.country;
+    if (existing && tripHasLocalMoney(state.items, existing.id)) draft.currencyCode = existing.currencyCode;
 
     const tripRef = existing
       ? doc(db, 'artifacts', APP_ID, 'users', user.uid, 'trips', existing.id)
@@ -363,6 +392,7 @@ export async function initTripUi() {
       await setDoc(tripRef, {
         title: draft.title,
         country: draft.country,
+        currencyCode: draft.currencyCode,
         startDate: draft.startDate,
         endDate: draft.endDate,
         kind: 'trip',
@@ -399,6 +429,12 @@ export async function initTripUi() {
       notify('刪除失敗', '無法刪除旅程，請稍後再試。');
     }
   }
+
+  countrySelect.addEventListener('change', () => {
+    if (currencySelect.disabled) return;
+    const suggested = currencyForCountry(countrySelect.value);
+    if (suggested) renderCurrencyOptions(suggested);
+  });
 
   document.getElementById('active-trip-selector').addEventListener('click', () => {
     if (!state.trips.length) openForm(null);
@@ -438,25 +474,38 @@ export async function initTripUi() {
     state.userId = user?.uid || '';
     state.trips = Array.isArray(window.shoppingListTrips) ? window.shoppingListTrips.map(normalizeTrip) : [];
     state.activeTrip = window.shoppingListActiveTrip ? normalizeTrip(window.shoppingListActiveTrip) : null;
+    state.items = [];
     state.itemCounts = new Map();
     renderSelector();
     if (!user) return;
 
     const preferencesRef = doc(db, 'artifacts', APP_ID, 'users', user.uid, 'settings', 'preferences');
     state.settingsUnsub = onSnapshot(preferencesRef, (snapshot) => {
+      if (state.userId !== user.uid) return;
       const data = snapshot.exists() ? snapshot.data() : {};
       state.countries = normalizeCountries(data.countries);
     });
 
     const itemsRef = collection(db, 'artifacts', APP_ID, 'users', user.uid, 'items');
     state.itemsUnsub = onSnapshot(itemsRef, (snapshot) => {
+      if (state.userId !== user.uid) return;
       const counts = new Map();
-      snapshot.docs.forEach((itemDoc) => {
-        const tripId = String(itemDoc.data()?.tripId || '').trim();
+      state.items = snapshot.docs.map((itemDoc) => ({ id: itemDoc.id, ...itemDoc.data() }));
+      state.items.forEach((item) => {
+        const tripId = String(item?.tripId || '').trim();
         if (tripId) counts.set(tripId, (counts.get(tripId) || 0) + 1);
       });
       state.itemCounts = counts;
-      if (!modal.classList.contains('hidden') && state.view === 'manage') renderManage();
+      if (!modal.classList.contains('hidden')) {
+        if (state.view === 'manage') renderManage();
+        if (state.view === 'form' && state.editingTripId) {
+          const current = state.trips.find((trip) => trip.id === state.editingTripId);
+          if (current && tripHasLocalMoney(state.items, current.id)) {
+            currencySelect.disabled = true;
+            document.getElementById('trip-currency-lock-note').classList.remove('hidden');
+          }
+        }
+      }
     });
   });
 
