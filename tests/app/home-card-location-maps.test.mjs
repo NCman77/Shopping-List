@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 import { resolveItemLocations } from '../../src/client/pricing/location-selection.js';
 import { createGoogleMapsUrl } from '../../src/client/utils/url-utils.js';
 
@@ -14,6 +16,11 @@ test('home card location actions use every selected location instead of only the
   assert.match(source, /createGoogleMapsUrl\(location\)/);
   assert.match(source, /event\.stopPropagation\(\)/);
   assert.match(source, /actions\.appendChild\(locationMap\)/);
+});
+
+test('app enhancements remains syntactically valid after adding multi-location map actions', () => {
+  const result = spawnSync(process.execPath, ['--check', fileURLToPath(appPath)], { encoding: 'utf8' });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
 });
 
 test('selected multi-location values preserve order and each produces its own Google Maps search URL', () => {
