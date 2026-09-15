@@ -4,6 +4,7 @@ import { createDrivePhotoService, DriveAuthorizationError } from './drive-photo-
 import { groupActivePhotosByItem } from './photo-metadata.js';
 import { createLightweightThumbnail } from '../photos/photo-thumbnail-persistence.js';
 import { resolvePhotoPersistenceForSave } from '../photos/photo-visibility-state.js';
+import { resolveItemLocations } from '../pricing/location-selection.js';
 
 const APP_ID = 'japan-shopping-app';
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
@@ -313,6 +314,23 @@ export async function initShoppingListEnhancements() {
           } catch { showMessage('網址錯誤', '這個商品的介紹網址格式不正確。', 'warning'); }
         });
         actions.appendChild(link);
+      }
+
+      for (const location of resolveItemLocations(item)) {
+        const locationMap = document.createElement('button');
+        locationMap.type = 'button';
+        locationMap.className = 'text-[10px] font-bold bg-pastelYellow text-warmBrown px-2.5 py-1 rounded-full border border-warmBrown hover:brightness-95';
+        locationMap.setAttribute('aria-label', `在 Google 地圖搜尋${location}附近分店`);
+        const icon = document.createElement('i');
+        icon.className = 'fas fa-location-dot mr-1';
+        locationMap.append(icon, document.createTextNode(location));
+        locationMap.addEventListener('click', (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          const url = createGoogleMapsUrl(location);
+          if (url) window.open(url, '_blank', 'noopener,noreferrer');
+        });
+        actions.appendChild(locationMap);
       }
 
       if (item.address) {
