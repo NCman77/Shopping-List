@@ -4,7 +4,6 @@ import { spawnSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 
-const appEnhancementsPath = new URL('../../src/client/app/app-enhancements.js', import.meta.url);
 const authSessionPath = new URL('../../src/client/app/auth-session.js', import.meta.url);
 const featureBootstrapPath = new URL('../../src/client/app/feature-bootstrap.js', import.meta.url);
 const locationPickerPath = new URL('../../src/client/app/location-picker-chips.js', import.meta.url);
@@ -46,11 +45,12 @@ test('home-card where-to-buy actions are moved beside the existing location and 
   assert.match(display, /fa-tag[\s\S]*closest\('div'\)/);
 });
 
-test('home-card address action is yellow while where-to-buy actions stay blue', async () => {
-  const enhancements = await source(appEnhancementsPath);
+test('home-card address action is styled yellow while where-to-buy actions stay blue', async () => {
   const display = await source(homeLocationDisplayPath);
-  assert.match(enhancements, /map\.className = '[^']*bg-pastelYellow[^']*'/);
-  assert.doesNotMatch(enhancements, /map\.className = '[^']*bg-pastelBlue[^']*'/);
+  assert.match(display, /addressAction/);
+  assert.match(display, /textContent\?\.trim\(\) === '地址'/);
+  assert.match(display, /addressAction\.classList\.add\('bg-pastelYellow'\)/);
+  assert.match(display, /addressAction\.classList\.remove\('bg-pastelBlue'\)/);
   assert.match(display, /button\.classList\.add\('home-location-map-action', 'bg-pastelBlue'\)/);
 });
 
@@ -63,7 +63,7 @@ test('selected where-to-buy chips stay on one horizontally scrollable row on pho
 });
 
 test('simplified location adapters and their bootstraps remain syntactically valid', () => {
-  for (const path of [retiredFeaturesPath, homeLocationDisplayPath, appEnhancementsPath, authSessionPath, featureBootstrapPath, locationPickerPath]) {
+  for (const path of [retiredFeaturesPath, homeLocationDisplayPath, authSessionPath, featureBootstrapPath, locationPickerPath]) {
     const result = spawnSync(process.execPath, ['--check', fileURLToPath(path)], { encoding: 'utf8' });
     assert.equal(result.status, 0, result.stderr || result.stdout);
   }
