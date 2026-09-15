@@ -5,6 +5,14 @@ function legacyLocationLink(card) {
   }) || null;
 }
 
+function metadataRow(card, legacyLink) {
+  const categoryIcon = card?.querySelector?.('i.fa-tag');
+  return card?.querySelector?.('.home-item-meta-row')
+    || legacyLink?.parentElement
+    || categoryIcon?.closest('div')
+    || null;
+}
+
 function moveLocationActions(card) {
   const actions = card?.querySelector?.('.enhanced-item-actions');
   if (!actions) return;
@@ -13,7 +21,7 @@ function moveLocationActions(card) {
   if (!buttons.length) return;
 
   const legacyLink = legacyLocationLink(card);
-  const metaRow = card.querySelector('.home-item-meta-row') || legacyLink?.parentElement;
+  const metaRow = metadataRow(card, legacyLink);
   if (!metaRow) return;
   metaRow.classList.add('home-item-meta-row');
 
