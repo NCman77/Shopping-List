@@ -24,7 +24,7 @@ function repairPhotoUi() {
   }
 
   const grid = document.getElementById('photo-preview-grid');
-  if (grid) grid.classList.add('sm:max-w-sm', 'sm:mx-auto');
+  if (grid) grid.classList.add('lg:max-w-md', 'lg:mx-auto');
 }
 
 export async function initPhotoUiFixes() {
