@@ -54,6 +54,15 @@ test('post-save metadata uses the stable trip-guard save result after the modal 
   assert.doesNotMatch(source, /const itemId = clean\(document\.getElementById\('item-id'\)\?\.value\)/);
 });
 
+test('post-save metadata stays scoped to the account that started the save', async () => {
+  const source = await readFile(sourcePath, 'utf8');
+  assert.match(source, /const savingUserId = clean\(auth\.currentUser\?\.uid \|\| state\.userId\)/);
+  assert.match(source, /window\.shoppingListLastItemSave\?\.userId === savingUserId/);
+  assert.match(source, /auth\.currentUser\?\.uid === savingUserId/);
+  assert.match(source, /state\.userId === savingUserId/);
+  assert.match(source, /itemRef\(itemId, savingUserId\)/);
+});
+
 test('homepage distance action coexists with address action and opens a nearby branch modal', async () => {
   const source = await readFile(sourcePath, 'utf8');
   assert.match(source, /nearby-distance-action/);
