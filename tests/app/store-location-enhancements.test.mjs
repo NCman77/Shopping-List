@@ -25,7 +25,8 @@ test('store selection synchronizes canonical address and optional place metadata
 
 test('homepage distance action coexists with address action and opens a nearby branch modal', async () => {
   const source = await readFile(sourcePath, 'utf8');
-  assert.match(source, />距離</);
+  assert.match(source, /nearby-distance-action/);
+  assert.match(source, /距離/);
   assert.match(source, /nearby-branch-modal/);
   assert.match(source, /enhanced-item-actions/);
   assert.match(source, /searchStoresByText/);
