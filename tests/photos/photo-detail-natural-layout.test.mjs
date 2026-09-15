@@ -20,7 +20,7 @@ function fakeClassList(initial = []) {
   };
 }
 
-test('detail view CSS matches the edit-mode three-column square photo sizing', async () => {
+test('detail view keeps the edit-mode three-column footprint while preserving each photo aspect ratio', async () => {
   const mod = await loadModule();
   const source = await readFile(new URL('../../src/client/photos/photo-detail-layout.js', import.meta.url), 'utf8');
 
@@ -28,13 +28,12 @@ test('detail view CSS matches the edit-mode three-column square photo sizing', a
   assert.equal(typeof mod.DETAIL_PHOTO_IMAGE_CLASS, 'string');
   assert.match(source, /\.workflow-view-mode #photo-preview-grid\s*\{[\s\S]*display:\s*grid\s*!important/);
   assert.match(source, /grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)\s*!important/);
-  assert.match(source, /\.workflow-view-mode #photo-preview-grid > div\s*\{[\s\S]*aspect-ratio:\s*1\s*\/\s*1\s*!important/);
-  assert.match(source, /\.workflow-view-mode #photo-preview-grid img\s*\{[\s\S]*height:\s*100%\s*!important/);
-  assert.match(source, /object-fit:\s*cover\s*!important/);
+  assert.doesNotMatch(source, /\.workflow-view-mode #photo-preview-grid > div\s*\{[^}]*aspect-ratio:\s*1\s*\/\s*1\s*!important/s);
+  assert.match(source, /\.workflow-view-mode #photo-preview-grid img\s*\{[^}]*position:\s*static\s*!important[^}]*height:\s*auto\s*!important[^}]*object-fit:\s*contain\s*!important/s);
   assert.doesNotMatch(source, /#item-list[\s\S]*aspect-ratio/);
 });
 
-test('normalization only records image readiness and does not rewrite square/crop classes', async () => {
+test('normalization only records image readiness and leaves base edit-mode classes untouched', async () => {
   const mod = await loadModule();
   assert.equal(typeof mod.normalizeDetailPhotoCard, 'function');
 
@@ -68,6 +67,6 @@ test('detail sizing remains scoped to the detail modal and homepage card renderi
   assert.match(layoutSource, /photo-preview-grid/);
   assert.match(layoutSource, /waitForPhotoGrid/);
 
-  // Homepage and edit-mode photo cards keep the base app's square presentation.
+  // The base app remains untouched; this regression fix is scoped to view-mode CSS only.
   assert.match(appSource, /aspect-square/);
 });
