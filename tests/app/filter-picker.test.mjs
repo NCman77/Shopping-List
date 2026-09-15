@@ -41,7 +41,7 @@ test('picker reads only currently visible existing filter buttons and delegates 
 test('user all-chip activation opens picker while internal trip reset bypasses picker', async () => {
   const source = await readFile(sourcePath, 'utf8');
   assert.match(source, /function enhanceAllChip\(type\)/);
-  assert.match(source, /data-filter-picker-all/);
+  assert.match(source, /button\.dataset\.filterPickerAll = type/);
   assert.match(source, /event\.isTrusted/);
   assert.match(source, /openModal\(type\)/);
   assert.match(source, /function selectAllWithoutPicker\(type\)/);
