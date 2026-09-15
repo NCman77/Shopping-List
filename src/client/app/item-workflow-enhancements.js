@@ -10,6 +10,7 @@ import {
   statusWritePatch
 } from './item-workflow.js';
 import { itemMatchesActiveTrip } from './travel-trip.js';
+import { formatDistance, sortItemsByStatusAndDistance } from '../location/distance.js';
 
 const APP_ID = 'japan-shopping-app';
 const PAGE_SIZE = 10;
@@ -158,7 +159,7 @@ function setDetailMode(mode, { existing = false } = {}) {
   const view = mode === 'view';
 
   modal?.classList.toggle('workflow-view-mode', view);
-  const fieldIds = ['item-name', 'item-category', 'item-location', 'item-address', 'item-website', 'item-desc', 'item-photo'];
+  const fieldIds = ['item-name', 'item-category', 'item-location', 'item-store-name', 'item-address', 'item-website', 'item-desc', 'item-photo'];
   fieldIds.forEach((id) => {
     const control = document.getElementById(id);
     if (control) control.disabled = view;
@@ -294,6 +295,26 @@ export async function initItemWorkflowEnhancements() {
     };
   }
 
+  function ensureDistanceLabel(card, item) {
+    const actions = card.querySelector('.enhanced-item-actions');
+    if (!actions) return;
+    let label = actions.querySelector('.nearby-distance-label');
+    const nearby = window.shoppingListNearbySort;
+    const distance = Number(nearby?.distancesByItemId?.[item.id]);
+    const visible = Boolean(nearby?.enabled && Number.isFinite(distance));
+    if (!visible) {
+      label?.remove();
+      return;
+    }
+    if (!label) {
+      label = document.createElement('span');
+      label.className = 'nearby-distance-label text-[10px] font-bold bg-white/80 text-warmBrown px-2.5 py-1 rounded-full border border-warmBrown/40';
+      label.setAttribute('aria-label', '目前距離');
+      actions.prepend(label);
+    }
+    label.textContent = formatDistance(distance);
+  }
+
   function applyWorkflow() {
     state.scheduled = false;
     if (state.applying) return;
@@ -306,9 +327,13 @@ export async function initItemWorkflowEnhancements() {
       baseEmpty?.classList.remove('flex');
 
       const candidates = eligibleCards();
-      const sortedItems = state.filter === 'all'
-        ? sortForHomepage(candidates.map(({ item }) => item))
-        : [...candidates.map(({ item }) => item)].sort((a, b) => Number(b?.createdAt || 0) - Number(a?.createdAt || 0));
+      const candidateItems = candidates.map(({ item }) => item);
+      const nearbyState = window.shoppingListNearbySort;
+      const sortedItems = nearbyState?.enabled && nearbyState?.origin
+        ? sortItemsByStatusAndDistance(candidateItems, nearbyState.origin)
+        : state.filter === 'all'
+          ? sortForHomepage(candidateItems)
+          : [...candidateItems].sort((a, b) => Number(b?.createdAt || 0) - Number(a?.createdAt || 0));
       const cardById = new Map(candidates.map(({ card, item }) => [item.id, card]));
       const currentIds = candidates.map(({ item }) => item.id);
       const desiredIds = sortedItems.map((item) => item.id);
@@ -331,7 +356,10 @@ export async function initItemWorkflowEnhancements() {
         const item = state.items.get(itemId);
         const candidate = item && cardById.has(itemId);
         card.classList.toggle('workflow-page-hidden', !candidate || !visibleIds.has(itemId));
-        if (item) ensureCardAction(card, item);
+        if (item) {
+          ensureCardAction(card, item);
+          ensureDistanceLabel(card, item);
+        }
       }
 
       let empty = document.getElementById('workflow-empty-state');
@@ -402,6 +430,11 @@ export async function initItemWorkflowEnhancements() {
     state.filter = 'all';
     state.page = 1;
     document.querySelector('#status-filters [data-status="all"]')?.click();
+    scheduleApply();
+  });
+
+  window.addEventListener('shopping-list:nearby-sort-changed', () => {
+    state.page = 1;
     scheduleApply();
   });
 

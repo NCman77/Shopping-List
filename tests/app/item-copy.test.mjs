@@ -6,7 +6,7 @@ import { buildCopiedItemData, findExistingCopy } from '../../src/client/app/item
 const uiPath = new URL('../../src/client/app/item-copy-ui.js', import.meta.url);
 const bootstrapPath = new URL('../../src/client/app/feature-bootstrap.js', import.meta.url);
 
-test('copied item preserves reusable content but resets status and membership', () => {
+test('copied item preserves reusable content and store identity but resets status and membership', () => {
   const copied = buildCopiedItemData({
     source: {
       id: 'source-1',
@@ -16,6 +16,13 @@ test('copied item preserves reusable content but resets status and membership', 
       address: 'Tokyo',
       website: 'https://example.com/eve',
       description: '回購',
+      storeName: '松本清',
+      storePlaceId: 'place-1',
+      storeDisplayName: '松本清 新宿店',
+      storeAddress: '東京都新宿區',
+      storeLat: 35.69,
+      storeLng: 139.70,
+      storeResolvedAt: 123,
       purchased: true,
       shoppingStatus: 'purchased',
       tripId: 'trip-old',
@@ -34,6 +41,13 @@ test('copied item preserves reusable content but resets status and membership', 
   assert.equal(copied.address, 'Tokyo');
   assert.equal(copied.website, 'https://example.com/eve');
   assert.equal(copied.description, '回購');
+  assert.equal(copied.storeName, '松本清');
+  assert.equal(copied.storePlaceId, 'place-1');
+  assert.equal(copied.storeDisplayName, '松本清 新宿店');
+  assert.equal(copied.storeAddress, '東京都新宿區');
+  assert.equal(copied.storeLat, 35.69);
+  assert.equal(copied.storeLng, 139.70);
+  assert.equal(copied.storeResolvedAt, 123);
   assert.equal(copied.tripId, 'trip-new');
   assert.equal(copied.country, '日本');
   assert.equal(copied.shoppingStatus, 'wanted');
@@ -44,6 +58,25 @@ test('copied item preserves reusable content but resets status and membership', 
   assert.equal(copied.photoUrl, '');
   assert.equal(copied.coverPhotoId, null);
   assert.equal(copied.photoThumbCoverId, null);
+});
+
+test('copying an item without resolved store metadata keeps missing numeric fields null', () => {
+  const copied = buildCopiedItemData({
+    source: {
+      id: 'source-2',
+      name: '沒有店家座標的商品',
+      storeLat: null,
+      storeLng: '',
+      storeResolvedAt: undefined
+    },
+    targetTrip: { id: 'trip-new', country: '日本' },
+    newItemId: 'copy-2',
+    now: 123456
+  });
+
+  assert.equal(copied.storeLat, null);
+  assert.equal(copied.storeLng, null);
+  assert.equal(copied.storeResolvedAt, null);
 });
 
 test('duplicate detection is scoped to source item plus target trip', () => {

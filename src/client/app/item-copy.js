@@ -2,6 +2,13 @@ function clean(value) {
   return String(value ?? '').trim();
 }
 
+function finiteOrNull(value) {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'string' && !value.trim()) return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
 export function buildCopiedItemData({ source = {}, targetTrip = {}, newItemId = '', now = Date.now() } = {}) {
   const sourceId = clean(source.id);
   const targetTripId = clean(targetTrip.id);
@@ -12,13 +19,20 @@ export function buildCopiedItemData({ source = {}, targetTrip = {}, newItemId = 
   if (!targetTripId || !targetCountry) throw new TypeError('目標旅程資料不完整。');
   if (!itemId) throw new TypeError('缺少新商品 ID。');
 
-  return {
+  const copied = {
     name: clean(source.name),
     category: clean(source.category),
     location: clean(source.location),
     address: clean(source.address),
     website: clean(source.website),
     description: clean(source.description),
+    storeName: clean(source.storeName),
+    storePlaceId: clean(source.storePlaceId),
+    storeDisplayName: clean(source.storeDisplayName),
+    storeAddress: clean(source.storeAddress),
+    storeLat: finiteOrNull(source.storeLat),
+    storeLng: finiteOrNull(source.storeLng),
+    storeResolvedAt: finiteOrNull(source.storeResolvedAt),
     shoppingStatus: 'wanted',
     purchased: false,
     photoUrl: '',
@@ -30,6 +44,8 @@ export function buildCopiedItemData({ source = {}, targetTrip = {}, newItemId = 
     createdAt: now,
     updatedAt: now
   };
+
+  return copied;
 }
 
 export function findExistingCopy(items = [], sourceItemId = '', targetTripId = '') {

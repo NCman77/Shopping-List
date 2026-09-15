@@ -40,6 +40,15 @@ test('trip save guard blocks new save without active trip and reserves membershi
   assert.ok(reserveIndex >= 0 && saveIndex > reserveIndex);
 });
 
+test('successful trip-guard save publishes the stable item id and saving user for outer post-save enhancements', async () => {
+  const source = await readFile(guardPath, 'utf8');
+  assert.match(source, /shoppingListLastItemSave/);
+  assert.match(source, /succeeded:\s*false/);
+  assert.match(source, /succeeded:\s*saveSucceeded/);
+  assert.match(source, /itemId:\s*saveSucceeded\s*\?\s*itemId\s*:\s*''/);
+  assert.match(source, /userId:\s*saveSucceeded\s*\?\s*user\.uid\s*:\s*''/);
+});
+
 test('bootstrap uses trip save guard instead of competing country save guard', async () => {
   const source = await readFile(bootstrapPath, 'utf8');
   assert.match(source, /trip-save-guard\.js/);
