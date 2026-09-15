@@ -43,8 +43,9 @@ test('photo upload placeholder is restored for existing items and desktop photo 
   assert.match(source, /photo-placeholder/);
   assert.match(source, /classList\.remove\('hidden'\)/);
   assert.match(source, /photo-preview-grid/);
-  assert.match(source, /sm:max-w-sm/);
-  assert.match(source, /sm:mx-auto/);
+  assert.match(source, /lg:max-w-md/);
+  assert.match(source, /lg:mx-auto/);
+  assert.doesNotMatch(source, /sm:max-w|md:max-w/);
 });
 
 test('new isolated enhancements are bootstrapped independently', async () => {
