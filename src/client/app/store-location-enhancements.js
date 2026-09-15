@@ -110,8 +110,8 @@ export async function initStoreLocationEnhancements() {
     listObserver: null
   };
 
-  function itemRef(itemId) {
-    return doc(db, 'artifacts', APP_ID, 'users', state.userId, 'items', itemId);
+  function itemRef(itemId, userId = state.userId) {
+    return doc(db, 'artifacts', APP_ID, 'users', userId, 'items', itemId);
   }
 
   async function placesLibrary() {
@@ -272,18 +272,22 @@ export async function initStoreLocationEnhancements() {
   const originalSave = window.saveItem;
   window.saveItem = async function(...args) {
     const patch = buildStorePatch();
+    const savingUserId = clean(auth.currentUser?.uid || state.userId);
     const result = await originalSave.apply(this, args);
-    if (!patch || !auth.currentUser || !state.userId) return result;
+    if (!patch || !savingUserId) return result;
     const modalContent = document.getElementById('add-modal-content');
     const itemId = clean(window.shoppingListLastItemSave?.itemId);
     const baseSaveSucceeded = Boolean(
       window.shoppingListLastItemSave?.succeeded
+      && window.shoppingListLastItemSave?.userId === savingUserId
+      && auth.currentUser?.uid === savingUserId
+      && state.userId === savingUserId
       && itemId
       && modalContent?.classList?.contains('translate-y-full')
     );
     if (!baseSaveSucceeded) return result;
     try {
-      await updateDoc(itemRef(itemId), patch);
+      await updateDoc(itemRef(itemId, savingUserId), patch);
       const current = state.items.get(itemId) || {};
       state.items.set(itemId, { ...current, ...patch });
     } catch (error) {
