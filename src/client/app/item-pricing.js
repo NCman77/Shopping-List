@@ -16,11 +16,11 @@ function rounded(value, digits) {
 }
 
 export function normalizePriceRange(minInput, maxInput, currencyCode) {
-  const meta = currencyMeta(currencyCode);
-  if (!meta) throw new TypeError('無法辨識價格幣別。');
   const rawMin = clean(minInput);
   const rawMax = clean(maxInput);
   if (!rawMin && !rawMax) return { min: null, max: null };
+  const meta = currencyMeta(currencyCode);
+  if (!meta) throw new TypeError('無法辨識價格幣別。');
   if (!rawMin && rawMax) throw new TypeError('請先輸入起始價格。');
   const minNumber = Number(rawMin);
   const maxNumber = rawMax ? Number(rawMax) : null;
