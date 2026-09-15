@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 
 const authSessionPath = new URL('../../src/client/app/auth-session.js', import.meta.url);
 const featureBootstrapPath = new URL('../../src/client/app/feature-bootstrap.js', import.meta.url);
@@ -27,6 +29,7 @@ test('account API controls are removed after account settings initialize', async
   assert.match(cleanup, /account-open-maps/);
   assert.match(cleanup, /account-maps-view/);
   assert.match(cleanup, /\.remove\(\)/);
+  assert.match(cleanup, /shoppingListNearbySort = \{ enabled: false, origin: null, distancesByItemId: \{\} \}/);
 });
 
 test('home-card where-to-buy actions are moved beside the existing location and styled blue', async () => {
@@ -47,4 +50,11 @@ test('selected where-to-buy chips stay on one horizontally scrollable row on pho
   assert.match(text, /sm:flex-wrap/);
   assert.match(text, /sm:overflow-visible/);
   assert.match(text, /shrink-0/);
+});
+
+test('simplified location adapters and their bootstraps remain syntactically valid', () => {
+  for (const path of [retiredFeaturesPath, homeLocationDisplayPath, authSessionPath, featureBootstrapPath, locationPickerPath]) {
+    const result = spawnSync(process.execPath, ['--check', fileURLToPath(path)], { encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+  }
 });
