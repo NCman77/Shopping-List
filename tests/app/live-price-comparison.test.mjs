@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const pricingUiPath = new URL('../../src/client/app/price-comparison-enhancements.js', import.meta.url);
-const accountSettingsPath = new URL('../../src/client/app/account-settings.js', import.meta.url);
 
 async function source() {
   return readFile(pricingUiPath, 'utf8');
@@ -54,15 +53,15 @@ test('live calculator is wired to pure calculator country rules and active trip 
   assert.match(text, /shoppingListActiveTrip\?\.startDate/);
 });
 
-test('FX conversion stays on demand while attribution is removed from comparison and retained in account settings', async () => {
+test('FX conversion stays on demand while attribution is outside the comparison modal and retained in account settings', async () => {
   const text = await source();
-  const accountText = await readFile(accountSettingsPath, 'utf8');
+  const modalSource = text.match(/function ensureComparisonModal\(\)[\s\S]*?function inputValue/)?.[0] || '';
   assert.match(text, /fetchRateToTwd/);
   assert.match(text, /convertToTwd/);
   assert.match(text, /stale-cache/);
   assert.match(text, /匯率暫時無法取得/);
-  assert.doesNotMatch(text, /Rates By Exchange Rate API/);
-  assert.match(accountText, /Rates By Exchange Rate API/);
+  assert.doesNotMatch(modalSource, /Rates By Exchange Rate API/);
+  assert.match(text, /account-settings-root[\s\S]*Rates By Exchange Rate API/);
 });
 
 test('Taiwan and local reference ranges are rendered as detailed comparisons', async () => {
