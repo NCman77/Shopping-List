@@ -1,4 +1,5 @@
 import { DEFAULT_COUNTRY, resolveItemCountry } from './travel-country.js';
+import { currencyForCountry } from './currency.js';
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -39,11 +40,13 @@ export function validateTripDraft(draft = {}) {
 export function normalizeTrip(trip = {}) {
   const kind = clean(trip.kind) === 'legacy' ? 'legacy' : 'trip';
   const country = clean(trip.country) || DEFAULT_COUNTRY;
+  const currencyCode = clean(trip.currencyCode).toUpperCase() || currencyForCountry(country);
   return {
     ...trip,
     id: clean(trip.id),
     title: clean(trip.title),
     country,
+    currencyCode,
     startDate: kind === 'legacy' ? null : clean(trip.startDate) || null,
     endDate: kind === 'legacy' ? null : clean(trip.endDate) || null,
     kind
