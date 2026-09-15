@@ -35,6 +35,7 @@ function createButton(label) {
 function createContainer(children = []) {
   const container = {
     children: [],
+    classList: new FakeClassList(),
     appendChild(child) {
       child.parentElement?.removeChild(child);
       this.children.push(child);
