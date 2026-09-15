@@ -668,7 +668,7 @@ export async function initPriceComparisonEnhancements() {
   document.getElementById('compare-tax-mode')?.addEventListener('change', calculateAndRender);
   document.getElementById('save-comparison-history')?.addEventListener('click', async () => {
     const current = calculateAndRender();
-    if (!current?.calculation?.estimatedFinalPrice || !state.userId || !state.compareItemId) return;
+    if (current?.calculation?.estimatedFinalPrice == null || !state.userId || !state.compareItemId) return;
     const status = document.getElementById('compare-history-status');
     const item = state.items.get(state.compareItemId);
     const record = {
