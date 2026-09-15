@@ -34,7 +34,8 @@ export function formatDistance(meters) {
   const value = Number(meters);
   if (!Number.isFinite(value) || value < 0) return '';
   if (value < 1000) return `${Math.round(value)} m`;
-  return `${(value / 1000).toFixed(1)} km`;
+  const roundedKilometres = Math.round(value / 100) / 10;
+  return `${roundedKilometres.toFixed(1)} km`;
 }
 
 export function movedBeyondThreshold(previous, next, thresholdMeters = 150) {
