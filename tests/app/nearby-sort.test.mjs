@@ -27,7 +27,9 @@ test('nearby sort watches location with the 150m movement threshold and clears t
 test('only the enabled preference is persisted and live coordinates are never written to Firestore', async () => {
   const source = await readFile(sourcePath, 'utf8');
   assert.match(source, /nearbySortEnabled/);
-  assert.match(source, /setDoc\(settingsRef\(\),\s*\{\s*nearbySortEnabled:/);
+  assert.match(source, /function persistEnabled\(enabled,\s*userId\s*=\s*state\.userId\)/);
+  assert.match(source, /const ref = settingsRef\(userId\)/);
+  assert.match(source, /setDoc\(ref,\s*\{\s*nearbySortEnabled:/);
   assert.match(source, /\{ merge: true \}/);
   assert.doesNotMatch(source, /setDoc\([^\n]*(lat|lng|latitude|longitude)/i);
   assert.doesNotMatch(source, /updateDoc\([^\n]*(origin|accuracy)/i);
