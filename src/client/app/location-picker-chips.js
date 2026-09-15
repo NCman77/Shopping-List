@@ -42,14 +42,24 @@ function locationButtons(root) {
   return [...(root?.querySelectorAll?.('.multi-location-choice[data-location]') || [])];
 }
 
-export function buildLocationPickerModel(root) {
-  const buttons = locationButtons(root);
-  const definitions = normalizeLocations(buttons
+function activeLocationDefinitions(root, buttons) {
+  const legacySelect = root?.ownerDocument?.getElementById?.('item-location');
+  if (legacySelect?.options) {
+    return normalizeLocations([...legacySelect.options]
+      .filter((option) => option?.dataset?.pricingTemporary !== 'true')
+      .map((option) => option.value));
+  }
+  return normalizeLocations(buttons
     .filter((button) => {
       const location = clean(button.dataset?.location);
       return clean(button.textContent) !== `${location}（舊）`;
     })
     .map((button) => button.dataset?.location));
+}
+
+export function buildLocationPickerModel(root) {
+  const buttons = locationButtons(root);
+  const definitions = activeLocationDefinitions(root, buttons);
   const selected = normalizeLocations(buttons
     .filter((button) => button.getAttribute?.('aria-pressed') === 'true')
     .map((button) => button.dataset?.location));
