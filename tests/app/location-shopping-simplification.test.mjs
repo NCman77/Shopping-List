@@ -45,6 +45,15 @@ test('home-card where-to-buy actions are moved beside the existing location and 
   assert.match(display, /fa-tag[\s\S]*closest\('div'\)/);
 });
 
+test('home-card address action is styled yellow while where-to-buy actions stay blue', async () => {
+  const display = await source(homeLocationDisplayPath);
+  assert.match(display, /addressAction/);
+  assert.match(display, /textContent\?\.trim\(\) === '地址'/);
+  assert.match(display, /addressAction\.classList\.add\('bg-pastelYellow'\)/);
+  assert.match(display, /addressAction\.classList\.remove\('bg-pastelBlue'\)/);
+  assert.match(display, /button\.classList\.add\('home-location-map-action', 'bg-pastelBlue'\)/);
+});
+
 test('selected where-to-buy chips stay on one horizontally scrollable row on phones', async () => {
   const text = await source(locationPickerPath);
   assert.match(text, /id="item-multi-location-chips" class="[^"]*flex-nowrap[^"]*overflow-x-auto[^"]*no-scrollbar/);
