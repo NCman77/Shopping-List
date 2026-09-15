@@ -1,3 +1,5 @@
+import { resolveItemLocations } from '../pricing/location-selection.js';
+
 const APP_ID = 'japan-shopping-app';
 
 function clean(value) {
@@ -27,10 +29,14 @@ export function valuesUsedByTrip(items = [], tripId = '', field = '') {
   const seen = new Set();
   for (const item of Array.isArray(items) ? items : []) {
     if (clean(item?.tripId) !== id) continue;
-    const value = clean(item?.[field]);
-    if (!value || seen.has(value)) continue;
-    seen.add(value);
-    values.push(value);
+    const itemValues = field === 'location'
+      ? resolveItemLocations(item)
+      : [clean(item?.category)].filter(Boolean);
+    for (const value of itemValues) {
+      if (!value || seen.has(value)) continue;
+      seen.add(value);
+      values.push(value);
+    }
   }
   return values;
 }

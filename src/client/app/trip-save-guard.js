@@ -139,4 +139,7 @@ export async function initTripSaveGuard() {
       throw error;
     }
   };
+
+  window.__shoppingListTripSaveGuardReady = true;
+  window.dispatchEvent(new CustomEvent('shopping-list:trip-save-guard-ready'));
 }

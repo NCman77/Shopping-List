@@ -11,6 +11,7 @@ import {
 } from './item-workflow.js';
 import { itemMatchesActiveTrip } from './travel-trip.js';
 import { formatDistance, sortItemsByStatusAndDistanceMap } from '../location/distance.js';
+import { itemMatchesLocation } from '../pricing/location-selection.js';
 
 const APP_ID = 'japan-shopping-app';
 const PAGE_SIZE = 10;
@@ -164,6 +165,9 @@ function setDetailMode(mode, { existing = false } = {}) {
     const control = document.getElementById(id);
     if (control) control.disabled = view;
   });
+  document.querySelectorAll('.price-edit-control, .multi-location-control').forEach((control) => {
+    control.disabled = view;
+  });
   document.querySelectorAll('#photo-preview-grid button[aria-label^="移除"]').forEach((button) => {
     button.disabled = view;
     button.classList.toggle('hidden', view);
@@ -251,11 +255,13 @@ export async function initItemWorkflowEnhancements() {
   function eligibleCards() {
     if (!window.shoppingListTripContextReady || !window.shoppingListActiveTrip?.id) return [];
     const result = [];
+    const locationFilter = window.shoppingListMultiLocationFilter || 'all';
     for (const card of [...list.children]) {
       if (card.id) continue;
       const itemId = cardItemId(card);
       const item = state.items.get(itemId);
       if (!item || !itemMatchesActiveTrip(item, window.shoppingListActiveTrip)) continue;
+      if (!itemMatchesLocation(item, locationFilter)) continue;
       const status = resolveShoppingStatus(item);
       if (state.filter !== 'all' && status !== state.filter) continue;
       result.push({ card, item });
@@ -434,6 +440,11 @@ export async function initItemWorkflowEnhancements() {
   });
 
   window.addEventListener('shopping-list:nearby-sort-changed', () => {
+    state.page = 1;
+    scheduleApply();
+  });
+
+  window.addEventListener('shopping-list:multi-location-filter-changed', () => {
     state.page = 1;
     scheduleApply();
   });
