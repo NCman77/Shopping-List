@@ -7,7 +7,7 @@ import { COORDINATE_CACHE_MAX_AGE_MS } from '../../src/client/location/places-us
 const sourcePath = new URL('../../src/client/app/nearby-sort.js', import.meta.url);
 const bootstrapPath = new URL('../../src/client/app/feature-bootstrap.js', import.meta.url);
 
-test('nearby sort exposes an explicit homepage toggle and in-memory public state', async () => {
+test('legacy nearby sort module retains its explicit homepage toggle and in-memory public state', async () => {
   const source = await readFile(sourcePath, 'utf8');
   assert.match(source, /附近排序/);
   assert.match(source, /shoppingListNearbySort/);
@@ -15,7 +15,7 @@ test('nearby sort exposes an explicit homepage toggle and in-memory public state
   assert.match(source, /nearby-sort-toggle/);
 });
 
-test('nearby sort watches location with the 150m movement threshold and clears the watcher on disable or sign-out', async () => {
+test('legacy nearby sort watches location with the 150m movement threshold and clears the watcher on disable or sign-out', async () => {
   const source = await readFile(sourcePath, 'utf8');
   assert.match(source, /watchPosition/);
   assert.match(source, /clearPositionWatch/);
@@ -100,8 +100,8 @@ test('distance sorting and lazy backfill both use freshness without clearing reu
   assert.doesNotMatch(source, /storePlaceId:\s*['"]{2}/);
 });
 
-test('nearby module is bootstrapped independently from the existing item workflow', async () => {
+test('legacy nearby module is no longer bootstrapped into the shopping list', async () => {
   const source = await readFile(bootstrapPath, 'utf8');
-  assert.match(source, /nearby-sort\.js/);
-  assert.match(source, /initNearbySort/);
+  assert.doesNotMatch(source, /nearby-sort\.js/);
+  assert.doesNotMatch(source, /initNearbySort/);
 });
