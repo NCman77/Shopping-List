@@ -6,7 +6,7 @@ import { buildSelectedStorePatch } from '../../src/client/app/store-location-enh
 const sourcePath = new URL('../../src/client/app/store-location-enhancements.js', import.meta.url);
 const bootstrapPath = new URL('../../src/client/app/feature-bootstrap.js', import.meta.url);
 
-test('store enhancement adds an optional store input and autocomplete result surface', async () => {
+test('legacy store enhancement retains its optional store input and autocomplete result surface', async () => {
   const source = await readFile(sourcePath, 'utf8');
   assert.match(source, /item-store-name/);
   assert.match(source, /商店/);
@@ -45,7 +45,7 @@ test('store selection synchronizes canonical address and optional place metadata
   assert.match(source, /updateDoc\(/);
 });
 
-test('selected branch keeps the user brand query for future nearby-branch searches', () => {
+test('selected branch keeps the user brand query for historical compatibility', () => {
   const patch = buildSelectedStorePatch({
     storeName: '松本清',
     place: {
@@ -68,7 +68,7 @@ test('selected branch keeps the user brand query for future nearby-branch search
   });
 });
 
-test('distance search query automatically uses the saved store name and only falls back to resolved branch name', async () => {
+test('legacy distance search query uses saved store name and only falls back to resolved branch name', async () => {
   const module = await import('../../src/client/app/store-location-enhancements.js');
   assert.equal(typeof module.branchSearchQuery, 'function');
   assert.equal(module.branchSearchQuery({ storeName: '松本清', storeDisplayName: 'マツモトキヨシ 新宿店' }), '松本清');
@@ -92,7 +92,7 @@ test('post-save metadata stays scoped to the account that started the save', asy
   assert.match(source, /itemRef\(itemId, savingUserId\)/);
 });
 
-test('homepage distance action coexists with address action and opens a nearby branch modal', async () => {
+test('legacy homepage distance action remains isolated in the retired module', async () => {
   const source = await readFile(sourcePath, 'utf8');
   assert.match(source, /nearby-distance-action/);
   assert.match(source, /距離/);
@@ -103,7 +103,7 @@ test('homepage distance action coexists with address action and opens a nearby b
   assert.match(source, /query_place_id/);
 });
 
-test('opening Distance only prefills the query; Search or Enter explicitly triggers nearby Text Search', async () => {
+test('legacy opening Distance only prefills the query; Search or Enter explicitly triggers nearby Text Search', async () => {
   const source = await readFile(sourcePath, 'utf8');
   const openStart = source.indexOf('function openBranchModal');
   const searchStart = source.indexOf('async function runBranchSearch');
@@ -126,7 +126,7 @@ test('nearby branch requests use memory cache, credential generation and in-flig
   assert.match(source, /shopping-list:maps-settings-changed/);
 });
 
-test('Maps access uses primary/backup runtime credentials and classifies quota failures without quota failover', async () => {
+test('legacy Maps access uses primary/backup runtime credentials and classifies quota failures without quota failover', async () => {
   const source = await readFile(sourcePath, 'utf8');
   assert.match(source, /shoppingListMapsApiKeys/);
   assert.match(source, /loadPlacesLibraryWithFailover/);
@@ -135,7 +135,7 @@ test('Maps access uses primary/backup runtime credentials and classifies quota f
   assert.match(source, /配額|Cloud Console/);
 });
 
-test('add/edit form moves store beside category and location with a wide autocomplete overlay', async () => {
+test('legacy add/edit form layout remains in the retired module for historical compatibility', async () => {
   const source = await readFile(sourcePath, 'utf8');
   assert.match(source, /const purchaseMetaRow = document\.getElementById\('item-location'\)\?\.closest\('\.flex-1'\)\?\.parentElement/);
   assert.match(source, /purchaseMetaRow\.id = 'item-purchase-meta-row'/);
@@ -144,7 +144,7 @@ test('add/edit form moves store beside category and location with a wide autocom
   assert.match(source, /store-suggestions[^`]*right-0[^`]*w-\[min\(92vw,24rem\)\]/s);
 });
 
-test('missing Maps configuration or location failure is recoverable and does not replace existing address behavior', async () => {
+test('missing Maps configuration or location failure remains recoverable inside the retired module', async () => {
   const source = await readFile(sourcePath, 'utf8');
   assert.match(source, /shoppingListMapsBrowserApiKey|shoppingListMapsApiKeys/);
   assert.match(source, /Google Maps \/ Places/);
@@ -152,9 +152,10 @@ test('missing Maps configuration or location failure is recoverable and does not
   assert.doesNotMatch(source, /openAddressInMaps\s*=/);
 });
 
-test('store enhancement is initialized after trip save guard so its post-save metadata patch uses the reserved item id', async () => {
+test('trip save guard remains bootstrapped while store location enhancement is retired', async () => {
   const source = await readFile(bootstrapPath, 'utf8');
-  assert.match(source, /await initTripSaveGuard\(\)/);
-  assert.match(source, /initStoreLocationEnhancements/);
-  assert.match(source, /store-location-enhancements\.js/);
+  assert.match(source, /trip-save-guard\.js/);
+  assert.match(source, /initTripSaveGuard/);
+  assert.doesNotMatch(source, /initStoreLocationEnhancements/);
+  assert.doesNotMatch(source, /store-location-enhancements\.js/);
 });

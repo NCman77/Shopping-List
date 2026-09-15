@@ -1,7 +1,4 @@
 import { runEnhancementsIndependently } from './auth-session.js';
-import { initMapsModeEnhancements, installMapsSettingsRuntimeGuard } from './maps-mode-enhancements.js';
-
-installMapsSettingsRuntimeGuard();
 
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
   void runEnhancementsIndependently(
@@ -15,9 +12,11 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     },
     async () => {
       const { initAccountSettings } = await import('./account-settings.js');
-      return initAccountSettings();
+      const result = await initAccountSettings();
+      const { initRetiredLocationFeatures } = await import('./retired-location-features.js');
+      initRetiredLocationFeatures();
+      return result;
     },
-    async () => initMapsModeEnhancements(),
     async () => {
       const { initTripUi } = await import('./trip-ui.js');
       return initTripUi();
@@ -40,9 +39,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     },
     async () => {
       const { initTripSaveGuard } = await import('./trip-save-guard.js');
-      await initTripSaveGuard();
-      const { initStoreLocationEnhancements } = await import('./store-location-enhancements.js');
-      return initStoreLocationEnhancements();
+      return initTripSaveGuard();
     },
     async () => {
       const { initPriceComparisonEnhancements } = await import('./price-comparison-enhancements.js');
@@ -51,10 +48,6 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     async () => {
       const { initLocationPickerChips } = await import('./location-picker-chips.js');
       return initLocationPickerChips();
-    },
-    async () => {
-      const { initNearbySort } = await import('./nearby-sort.js');
-      return initNearbySort();
     },
     async () => {
       const { initItemWorkflowEnhancements } = await import('./item-workflow-enhancements.js');
@@ -73,7 +66,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       return registerShoppingListServiceWorker();
     }
   ).then((results) => {
-    const labels = ['旅程資料', '國家篩選', '帳號設定', 'Maps 模式', '旅程介面', '旅程篩選選項', '完整篩選選單', '背景個人化', '設定合併保護', '商品旅程儲存與商店位置', '商品比價', '哪裡買下拉選擇', '附近排序', '商品狀態與分頁', '商品照片介面修復', '商品跨旅程複製', 'PWA 安裝'];
+    const labels = ['旅程資料', '國家篩選', '帳號設定', '旅程介面', '旅程篩選選項', '完整篩選選單', '背景個人化', '設定合併保護', '商品旅程儲存', '商品比價', '哪裡買下拉選擇', '商品狀態與分頁', '商品照片介面修復', '商品跨旅程複製', 'PWA 安裝'];
     results.forEach((result, index) => {
       if (result.status === 'rejected') {
         console.error(`${labels[index]}功能載入失敗:`, result.reason);
