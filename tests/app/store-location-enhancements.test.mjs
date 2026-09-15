@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { buildSelectedStorePatch } from '../../src/client/app/store-location-enhancements.js';
 
 const sourcePath = new URL('../../src/client/app/store-location-enhancements.js', import.meta.url);
 const bootstrapPath = new URL('../../src/client/app/feature-bootstrap.js', import.meta.url);
@@ -21,6 +22,29 @@ test('store selection synchronizes canonical address and optional place metadata
   }
   assert.doesNotMatch(source, /userLat|userLng|currentLatitude|currentLongitude/);
   assert.match(source, /updateDoc\(/);
+});
+
+test('selected branch keeps the user brand query for future nearby-branch searches', () => {
+  const patch = buildSelectedStorePatch({
+    storeName: '松本清',
+    place: {
+      placeId: 'branch-1',
+      displayName: 'マツモトキヨシ 新宿三丁目Part2店',
+      address: '東京都新宿区新宿3-17-3',
+      lat: 35.6912,
+      lng: 139.7046
+    },
+    resolvedAt: 12345
+  });
+  assert.deepEqual(patch, {
+    storeName: '松本清',
+    storePlaceId: 'branch-1',
+    storeDisplayName: 'マツモトキヨシ 新宿三丁目Part2店',
+    storeAddress: '東京都新宿区新宿3-17-3',
+    storeLat: 35.6912,
+    storeLng: 139.7046,
+    storeResolvedAt: 12345
+  });
 });
 
 test('homepage distance action coexists with address action and opens a nearby branch modal', async () => {
