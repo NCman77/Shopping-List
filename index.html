@@ -287,6 +287,7 @@
     import { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
     import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, addDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
     import { createAuthSessionController } from "./auth-session.js";
+    import { safePersistedImageSource } from "./src/client/app/safe-rendering.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyA36R3soEZPpXwpTc1W9_XvFMglouvxzFw",
@@ -559,42 +560,92 @@
         });
     }
 
+    function makeFilterButton({ kind, value, label, active, activeClasses, inactiveClasses }) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.dataset[kind] = String(value ?? '');
+        button.className = `px-4 py-1.5 rounded-full border-2 border-warmBrown text-sm font-bold whitespace-nowrap transition-all ${active ? activeClasses : inactiveClasses}`;
+        button.style.minWidth = 'fit-content';
+        button.textContent = String(label ?? '');
+        return button;
+    }
+
+    function appendTextOption(select, value, label = value) {
+        const option = document.createElement('option');
+        option.value = String(value ?? '');
+        option.textContent = String(label ?? '');
+        select.appendChild(option);
+    }
+
     function renderFilterTabs() {
         const catContainer = document.getElementById('category-filters');
         if(!catContainer) return;
-        
-        catContainer.innerHTML = `<button data-cat="all" class="cat-btn px-4 py-1.5 rounded-full border-2 border-warmBrown text-sm font-bold whitespace-nowrap transition-all ${state.filters.category === 'all' ? 'bg-pastelOrange shadow-[2px_2px_0_rgba(92,64,51,1)] text-warmBrown' : 'bg-white text-gray-500 hover:bg-gray-50'}" style="min-width: fit-content;">全部</button>`;
-        
+
+        const activeCategoryClasses = 'bg-pastelOrange shadow-[2px_2px_0_rgba(92,64,51,1)] text-warmBrown';
+        const inactiveClasses = 'bg-white text-gray-500 hover:bg-gray-50';
+        const categoryButtons = [makeFilterButton({
+            kind: 'cat',
+            value: 'all',
+            label: '全部',
+            active: state.filters.category === 'all',
+            activeClasses: activeCategoryClasses,
+            inactiveClasses
+        })];
+
         state.categories.forEach(cat => {
-            const isActive = state.filters.category === cat;
-            catContainer.innerHTML += `<button data-cat="${cat}" class="cat-btn px-4 py-1.5 rounded-full border-2 border-warmBrown text-sm font-bold whitespace-nowrap transition-all ${isActive ? 'bg-pastelOrange shadow-[2px_2px_0_rgba(92,64,51,1)] text-warmBrown' : 'bg-white text-gray-500 hover:bg-gray-50'}" style="min-width: fit-content;">${cat}</button>`;
+            categoryButtons.push(makeFilterButton({
+                kind: 'cat',
+                value: cat,
+                label: cat,
+                active: state.filters.category === cat,
+                activeClasses: activeCategoryClasses,
+                inactiveClasses
+            }));
         });
+
+        categoryButtons.forEach(button => {
+            button.classList.add('cat-btn');
+            button.addEventListener('click', () => {
+                state.filters.category = button.dataset.cat;
+                renderFilterTabs();
+                renderItemList();
+            });
+        });
+        catContainer.replaceChildren(...categoryButtons);
 
         const locContainer = document.getElementById('location-filters');
         if(!locContainer) return;
-        
-        locContainer.innerHTML = `<button data-loc="all" class="loc-btn px-4 py-1.5 rounded-full border-2 border-warmBrown text-sm font-bold whitespace-nowrap transition-all ${state.filters.location === 'all' ? 'bg-pastelBlue shadow-[2px_2px_0_rgba(92,64,51,1)] text-warmBrown' : 'bg-white text-gray-500 hover:bg-gray-50'}" style="min-width: fit-content;">全部</button>`;
-        
+
+        const activeLocationClasses = 'bg-pastelBlue shadow-[2px_2px_0_rgba(92,64,51,1)] text-warmBrown';
+        const locationButtons = [makeFilterButton({
+            kind: 'loc',
+            value: 'all',
+            label: '全部',
+            active: state.filters.location === 'all',
+            activeClasses: activeLocationClasses,
+            inactiveClasses
+        })];
+
         state.locations.forEach(loc => {
-            const isActive = state.filters.location === loc;
-            locContainer.innerHTML += `<button data-loc="${loc}" class="loc-btn px-4 py-1.5 rounded-full border-2 border-warmBrown text-sm font-bold whitespace-nowrap transition-all ${isActive ? 'bg-pastelBlue shadow-[2px_2px_0_rgba(92,64,51,1)] text-warmBrown' : 'bg-white text-gray-500 hover:bg-gray-50'}" style="min-width: fit-content;">${loc}</button>`;
+            locationButtons.push(makeFilterButton({
+                kind: 'loc',
+                value: loc,
+                label: loc,
+                active: state.filters.location === loc,
+                activeClasses: activeLocationClasses,
+                inactiveClasses
+            }));
         });
 
-        document.querySelectorAll('.cat-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                state.filters.category = e.target.dataset.cat;
+        locationButtons.forEach(button => {
+            button.classList.add('loc-btn');
+            button.addEventListener('click', () => {
+                state.filters.location = button.dataset.loc;
                 renderFilterTabs();
                 renderItemList();
             });
         });
-
-        document.querySelectorAll('.loc-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                state.filters.location = e.target.dataset.loc;
-                renderFilterTabs();
-                renderItemList();
-            });
-        });
+        locContainer.replaceChildren(...locationButtons);
     }
 
     document.querySelectorAll('.status-btn').forEach(btn => {
@@ -616,15 +667,17 @@
     function renderFormSelects() {
         const catSelect = document.getElementById('item-category');
         if(catSelect) {
-            catSelect.innerHTML = state.categories.map(cat => `<option value="${cat}">${cat}</option>`).join('');
+            catSelect.replaceChildren();
+            state.categories.forEach(cat => appendTextOption(catSelect, cat));
         }
         
         const locSelect = document.getElementById('item-location');
         if(locSelect) {
+            locSelect.replaceChildren();
             if (state.locations.length === 0) {
-                locSelect.innerHTML = `<option value="">(請先新增地點)</option>`;
+                appendTextOption(locSelect, '', '(請先新增地點)');
             } else {
-                locSelect.innerHTML = state.locations.map(loc => `<option value="${loc}">${loc}</option>`).join('');
+                state.locations.forEach(loc => appendTextOption(locSelect, loc));
             }
         }
     }
@@ -659,39 +712,89 @@
             
             filteredItems.forEach(item => {
                 const mapLink = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent((item.location || '') + ' 日本')}`;
-                const hasPhoto = !!item.photoUrl;
-                const photoSrc = item.photoUrl || '';
-                
+                const photoSrc = safePersistedImageSource(item.photoUrl);
+
                 const card = document.createElement('div');
                 card.className = `fade-in bg-white p-3.5 rounded-[1.5rem] mb-4 border-2 border-warmBrown flex gap-3 relative transition-transform hover:-translate-y-1 ${item.purchased ? 'bg-gray-50 opacity-70' : 'shadow-[4px_4px_0_rgba(92,64,51,0.15)]'}`;
-                
-                card.innerHTML = `
-                    <div class="w-24 h-24 shrink-0 rounded-2xl overflow-hidden bg-shinBg border-2 border-warmBrown cursor-pointer flex items-center justify-center shadow-[2px_2px_0_rgba(92,64,51,0.2)]" onclick="window.openEditModal('${item.id}')">
-                        ${hasPhoto 
-                            ? `<img src="${photoSrc}" class="w-full h-full object-cover ${item.purchased ? 'grayscale' : ''}" alt="item photo">`
-                            : `<i class="fas fa-gift text-3xl text-pastelOrange"></i>`
-                        }
-                    </div>
-                    <div class="flex-1 flex flex-col justify-between overflow-hidden py-1">
-                        <div>
-                            <div class="flex justify-between items-start mb-1 gap-2">
-                                <h3 class="font-bold text-warmBrown truncate cursor-pointer text-lg ${item.purchased ? 'line-through text-gray-400' : ''}" onclick="window.openEditModal('${item.id}')">${item.name}</h3>
-                                <button type="button" onclick="window.askDelete('${item.id}')" class="text-gray-300 hover:text-pastelPink p-1 -mt-1 -mr-1 transition-colors"><i class="fas fa-trash-alt"></i></button>
-                            </div>
-                            <div class="flex flex-wrap gap-1.5 mb-1.5">
-                                <span class="text-[10px] font-bold bg-pastelOrange text-warmBrown px-2.5 py-0.5 rounded-full border border-warmBrown"><i class="fas fa-tag mr-1 opacity-70"></i>${item.category}</span>
-                                ${item.location ? `<a href="${mapLink}" target="_blank" class="text-[10px] font-bold bg-pastelBlue text-warmBrown px-2.5 py-0.5 rounded-full border border-warmBrown hover:bg-blue-200 transition-colors"><i class="fas fa-map-marker-alt mr-1 opacity-70"></i>${item.location}</a>` : ''}
-                            </div>
-                            <p class="text-xs text-gray-400 line-clamp-1 mt-1 font-medium">${item.description || '沒有備註唷'}</p>
-                        </div>
-                        <div class="flex justify-end mt-2">
-                             <label class="flex items-center space-x-2 cursor-pointer bg-white px-3 py-1.5 rounded-full border-2 border-warmBrown transition-all ${item.purchased ? 'bg-gray-100 border-gray-300 text-gray-400' : 'shadow-[2px_2px_0_rgba(92,64,51,0.2)] text-warmBrown'}">
-                                <span class="text-xs font-bold">${item.purchased ? '已購買' : '還沒買'}</span>
-                                <input type="checkbox" class="custom-checkbox w-5 h-5" ${item.purchased ? 'checked' : ''} onchange="window.toggleStatus('${item.id}', this.checked)">
-                            </label>
-                        </div>
-                    </div>
-                `;
+
+                const photo = document.createElement('div');
+                photo.className = 'w-24 h-24 shrink-0 rounded-2xl overflow-hidden bg-shinBg border-2 border-warmBrown cursor-pointer flex items-center justify-center shadow-[2px_2px_0_rgba(92,64,51,0.2)]';
+                photo.addEventListener('click', () => window.openEditModal(item.id));
+                if (photoSrc) {
+                    const image = document.createElement('img');
+                    image.src = photoSrc;
+                    image.className = `w-full h-full object-cover ${item.purchased ? 'grayscale' : ''}`;
+                    image.alt = 'item photo';
+                    photo.appendChild(image);
+                } else {
+                    const photoPlaceholder = document.createElement('i');
+                    photoPlaceholder.className = 'fas fa-gift text-3xl text-pastelOrange';
+                    photo.appendChild(photoPlaceholder);
+                }
+
+                const content = document.createElement('div');
+                content.className = 'flex-1 flex flex-col justify-between overflow-hidden py-1';
+                const details = document.createElement('div');
+                const titleRow = document.createElement('div');
+                titleRow.className = 'flex justify-between items-start mb-1 gap-2';
+                const title = document.createElement('h3');
+                title.className = `font-bold text-warmBrown truncate cursor-pointer text-lg ${item.purchased ? 'line-through text-gray-400' : ''}`;
+                title.textContent = String(item.name ?? '');
+                title.addEventListener('click', () => window.openEditModal(item.id));
+                const deleteButton = document.createElement('button');
+                deleteButton.type = 'button';
+                deleteButton.className = 'text-gray-300 hover:text-pastelPink p-1 -mt-1 -mr-1 transition-colors';
+                const deleteIcon = document.createElement('i');
+                deleteIcon.className = 'fas fa-trash-alt';
+                deleteButton.appendChild(deleteIcon);
+                deleteButton.addEventListener('click', () => window.askDelete(item.id));
+                titleRow.append(title, deleteButton);
+
+                const tags = document.createElement('div');
+                tags.className = 'flex flex-wrap gap-1.5 mb-1.5';
+                const category = document.createElement('span');
+                category.className = 'text-[10px] font-bold bg-pastelOrange text-warmBrown px-2.5 py-0.5 rounded-full border border-warmBrown';
+                const categoryIcon = document.createElement('i');
+                categoryIcon.className = 'fas fa-tag mr-1 opacity-70';
+                const categoryLabel = document.createElement('span');
+                categoryLabel.textContent = String(item.category ?? '');
+                category.append(categoryIcon, categoryLabel);
+                tags.appendChild(category);
+                if (item.location) {
+                    const location = document.createElement('a');
+                    location.href = mapLink;
+                    location.target = '_blank';
+                    location.className = 'text-[10px] font-bold bg-pastelBlue text-warmBrown px-2.5 py-0.5 rounded-full border border-warmBrown hover:bg-blue-200 transition-colors';
+                    const locationIcon = document.createElement('i');
+                    locationIcon.className = 'fas fa-map-marker-alt mr-1 opacity-70';
+                    const locationLabel = document.createElement('span');
+                    locationLabel.textContent = String(item.location);
+                    location.append(locationIcon, locationLabel);
+                    tags.appendChild(location);
+                }
+
+                const description = document.createElement('p');
+                description.className = 'text-xs text-gray-400 line-clamp-1 mt-1 font-medium';
+                description.textContent = String(item.description || '沒有備註唷');
+                details.append(titleRow, tags, description);
+
+                const controls = document.createElement('div');
+                controls.className = 'flex justify-end mt-2';
+                const purchaseLabel = document.createElement('label');
+                purchaseLabel.className = `flex items-center space-x-2 cursor-pointer bg-white px-3 py-1.5 rounded-full border-2 border-warmBrown transition-all ${item.purchased ? 'bg-gray-100 border-gray-300 text-gray-400' : 'shadow-[2px_2px_0_rgba(92,64,51,0.2)] text-warmBrown'}`;
+                const purchaseText = document.createElement('span');
+                purchaseText.className = 'text-xs font-bold';
+                purchaseText.textContent = item.purchased ? '已購買' : '還沒買';
+                const purchaseCheckbox = document.createElement('input');
+                purchaseCheckbox.type = 'checkbox';
+                purchaseCheckbox.className = 'custom-checkbox w-5 h-5';
+                purchaseCheckbox.checked = Boolean(item.purchased);
+                purchaseCheckbox.addEventListener('change', () => window.toggleStatus(item.id, purchaseCheckbox.checked));
+                purchaseLabel.append(purchaseText, purchaseCheckbox);
+                controls.appendChild(purchaseLabel);
+
+                content.append(details, controls);
+                card.append(photo, content);
                 listContainer.appendChild(card);
             });
         }
