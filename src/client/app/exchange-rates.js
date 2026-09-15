@@ -4,6 +4,7 @@ export const FX_CACHE_KEY = 'shopping-list:fx:v1:TWD';
 const DAY_MS = 24 * 60 * 60 * 1000;
 const VERY_STALE_MS = 7 * DAY_MS;
 const PROVIDER = 'ExchangeRate-API';
+const CONVERSION_PRECISION = 1e10;
 
 function clean(value) {
   return String(value ?? '').trim();
@@ -12,6 +13,10 @@ function clean(value) {
 function finitePositive(value) {
   const number = Number(value);
   return Number.isFinite(number) && number > 0 ? number : null;
+}
+
+function stableConversion(value) {
+  return Math.round(value * CONVERSION_PRECISION) / CONVERSION_PRECISION;
 }
 
 function validRates(value) {
@@ -91,7 +96,7 @@ export function convertLocalToTwd(amount, localCode, rateTable) {
   if (code === 'TWD') return value;
   const rate = finitePositive(rateTable[code]);
   if (!rate) return null;
-  return value / rate;
+  return stableConversion(value / rate);
 }
 
 export function createExchangeRateService({
