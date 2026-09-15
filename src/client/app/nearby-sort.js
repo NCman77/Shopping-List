@@ -32,6 +32,33 @@ function notify(title, message, type = 'warning') {
   else console[type === 'error' ? 'error' : 'warn'](`${title}: ${message}`);
 }
 
+export function nearbySortStateChanged(previous, next) {
+  const previousEnabled = Boolean(previous?.enabled);
+  const nextEnabled = Boolean(next?.enabled);
+  if (!previous) return nextEnabled;
+  if (previousEnabled !== nextEnabled) return true;
+  if (!nextEnabled) return false;
+
+  const previousOrigin = previous?.origin || null;
+  const nextOrigin = next?.origin || null;
+  if (!previousOrigin || !nextOrigin) return previousOrigin !== nextOrigin;
+  if (Number(previousOrigin.lat) !== Number(nextOrigin.lat) || Number(previousOrigin.lng) !== Number(nextOrigin.lng)) {
+    return true;
+  }
+
+  const previousDistances = previous?.distancesByItemId || {};
+  const nextDistances = next?.distancesByItemId || {};
+  const previousKeys = Object.keys(previousDistances).sort();
+  const nextKeys = Object.keys(nextDistances).sort();
+  if (previousKeys.length !== nextKeys.length) return true;
+  for (let index = 0; index < previousKeys.length; index += 1) {
+    const previousKey = previousKeys[index];
+    const nextKey = nextKeys[index];
+    if (previousKey !== nextKey || Number(previousDistances[previousKey]) !== Number(nextDistances[nextKey])) return true;
+  }
+  return false;
+}
+
 export async function initNearbySort() {
   if (typeof window === 'undefined' || typeof document === 'undefined') return;
   if (window.__shoppingListNearbySortInitialized) return;
@@ -59,7 +86,8 @@ export async function initNearbySort() {
     items: new Map(),
     attemptedResolution: new Set(),
     resolving: false,
-    starting: false
+    starting: false,
+    lastPublishedState: null
   };
 
   function settingsRef() {
@@ -81,12 +109,16 @@ export async function initNearbySort() {
   }
 
   function publish() {
-    window.shoppingListNearbySort = {
+    const nextPublicState = {
       enabled: Boolean(state.enabled && state.origin),
       origin: state.origin ? { ...state.origin } : null,
       distancesByItemId: distancesForOrigin()
     };
+    const changed = nearbySortStateChanged(state.lastPublishedState, nextPublicState);
+    state.lastPublishedState = nextPublicState;
+    window.shoppingListNearbySort = nextPublicState;
     renderControl();
+    if (!changed) return;
     const EventCtor = window.CustomEvent || globalThis.CustomEvent;
     if (typeof EventCtor === 'function') {
       window.dispatchEvent(new EventCtor('shopping-list:nearby-sort-changed', {
