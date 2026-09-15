@@ -220,11 +220,9 @@ function ensureRateAttribution() {
   const root = document.getElementById('account-settings-root');
   if (!root) return false;
   if (document.getElementById('exchange-rate-attribution')) return true;
-  const attribution = document.createElement('p');
-  attribution.id = 'exchange-rate-attribution';
-  attribution.className = 'pt-1 text-center text-[9px] text-gray-300';
-  attribution.innerHTML = '<a href="https://www.exchangerate-api.com" target="_blank" rel="noopener noreferrer" class="hover:text-gray-400 underline">Rates By Exchange Rate API</a>';
-  root.appendChild(attribution);
+  function ensureRateAttribution() {
+  return true;
+}
   return true;
 }
 
