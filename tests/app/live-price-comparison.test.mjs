@@ -63,3 +63,9 @@ test('comparison history save is capped through the shared helper and never bloc
   assert.match(text, /save-comparison-history/);
   assert.match(text, /比較紀錄儲存失敗/);
 });
+
+test('a valid zero final price from a 100 percent coupon can still be saved to history', async () => {
+  const text = await source();
+  assert.doesNotMatch(text, /!current\?\.calculation\?\.estimatedFinalPrice/);
+  assert.match(text, /current\?\.calculation\?\.estimatedFinalPrice\s*==\s*null/);
+});
