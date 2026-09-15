@@ -60,6 +60,19 @@ function emptyPlacePatch() {
   };
 }
 
+export function buildSelectedStorePatch({ storeName = '', place = null, resolvedAt = Date.now() } = {}) {
+  if (!place) return { storeName: clean(storeName), ...emptyPlacePatch() };
+  return {
+    storeName: clean(storeName) || clean(place.displayName),
+    storePlaceId: clean(place.placeId),
+    storeDisplayName: clean(place.displayName),
+    storeAddress: clean(place.address),
+    storeLat: Number(place.lat),
+    storeLng: Number(place.lng),
+    storeResolvedAt: resolvedAt
+  };
+}
+
 export async function initStoreLocationEnhancements() {
   if (typeof window === 'undefined' || typeof document === 'undefined') return;
   if (window.__shoppingListStoreLocationInitialized) return;
@@ -183,7 +196,7 @@ export async function initStoreLocationEnhancements() {
             state.selectedPlace = place;
             state.storeTouched = true;
             state.addressTouched = false;
-            document.getElementById('item-store-name').value = place.displayName || query;
+            document.getElementById('item-store-name').value = query;
             document.getElementById('item-address').value = place.address || '';
             state.sessionToken = null;
             hideSuggestions();
@@ -235,15 +248,7 @@ export async function initStoreLocationEnhancements() {
   function buildStorePatch() {
     const storeName = clean(document.getElementById('item-store-name')?.value);
     if (state.selectedPlace) {
-      return {
-        storeName,
-        storePlaceId: state.selectedPlace.placeId,
-        storeDisplayName: state.selectedPlace.displayName,
-        storeAddress: state.selectedPlace.address,
-        storeLat: state.selectedPlace.lat,
-        storeLng: state.selectedPlace.lng,
-        storeResolvedAt: Date.now()
-      };
+      return buildSelectedStorePatch({ storeName, place: state.selectedPlace, resolvedAt: Date.now() });
     }
     if (state.storeTouched) return { storeName, ...emptyPlacePatch() };
     if (state.addressTouched) return emptyPlacePatch();
