@@ -6,6 +6,7 @@ import {
   createOwnedItemSavePhotoService,
   createItemSaveOperation,
   createItemSaveResult,
+  deleteCapturedItemPhoto,
   isItemSaveOperationCurrent,
   registerItemSaveSnapshotProvider
 } from '../../src/client/app/item-save-operation.js';
@@ -150,9 +151,65 @@ test('enhanced save uses captured Drive and photo subscription ownership', async
   const save = source.slice(start, end);
 
   assert.match(save, /createOwnedItemSavePhotoService/);
+  assert.match(save, /deleteCapturedItemPhoto/);
   assert.match(save, /operation\.existingActivePhotos/);
   assert.match(save, /operation\.removedPhotoDriveFileIds/);
   assert.doesNotMatch(save, /activePhotosForItem/);
   assert.doesNotMatch(save, /state\.photoDocs/);
   assert.doesNotMatch(save, /drivePhotoService\.(?:uploadPhoto|deletePhoto|queueCleanup)/);
+});
+
+test('post-delete user switch still deletes captured metadata without queuing the deleted Drive file', async () => {
+  let currentUserId = 'user-a';
+  const queued = [];
+  const metadataDeletes = [];
+  const operation = createItemSaveOperation({ operationId: 'op-a', userId: 'user-a', itemId: 'item-a' });
+  const photoService = createOwnedItemSavePhotoService(operation, {
+    getCurrentUserId: () => currentUserId,
+    createService: () => ({
+      hasAccessToken: () => true,
+      uploadPhoto: async () => ({ id: 'unused' }),
+      deletePhoto: async () => { currentUserId = 'user-b'; },
+      queueCleanup: (fileId) => { queued.push(fileId); }
+    })
+  });
+  const capturedPhotoRef = { userId: operation.userId, photoId: 'photo-remove' };
+
+  await deleteCapturedItemPhoto({
+    driveFileId: 'drive-remove',
+    photoService,
+    deletePhotoMetadata: async () => { metadataDeletes.push(capturedPhotoRef); },
+    shouldQueueCleanup: () => true
+  });
+
+  assert.deepEqual(queued, []);
+  assert.deepEqual(metadataDeletes, [{ userId: 'user-a', photoId: 'photo-remove' }]);
+});
+
+test('pre-delete user switch still blocks the Drive deletion', async () => {
+  let currentUserId = 'user-b';
+  let driveDeletes = 0;
+  let metadataDeletes = 0;
+  const queued = [];
+  const operation = createItemSaveOperation({ operationId: 'op-a', userId: 'user-a', itemId: 'item-a' });
+  const photoService = createOwnedItemSavePhotoService(operation, {
+    getCurrentUserId: () => currentUserId,
+    createService: () => ({
+      hasAccessToken: () => true,
+      uploadPhoto: async () => ({ id: 'unused' }),
+      deletePhoto: async () => { driveDeletes += 1; },
+      queueCleanup: (fileId) => { queued.push(fileId); }
+    })
+  });
+
+  const deleted = await deleteCapturedItemPhoto({
+    driveFileId: 'drive-remove',
+    photoService,
+    deletePhotoMetadata: async () => { metadataDeletes += 1; }
+  });
+
+  assert.equal(deleted, false);
+  assert.equal(driveDeletes, 0);
+  assert.equal(metadataDeletes, 0);
+  assert.deepEqual(queued, ['drive-remove']);
 });

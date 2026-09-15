@@ -10,6 +10,7 @@ import {
   createOwnedItemSavePhotoService,
   createItemSaveOperation,
   createItemSaveResult,
+  deleteCapturedItemPhoto,
   isItemSaveOperationCurrent
 } from './item-save-operation.js';
 
@@ -669,13 +670,13 @@ export async function initShoppingListEnhancements() {
       for (const photoId of operation.removedPhotoIds) {
         const driveFileId = operation.removedPhotoDriveFileIds[photoId];
         if (!driveFileId) continue;
-        try {
-          await operationPhotoService.deletePhoto(driveFileId);
-          operationPhotoService.assertCurrentUser();
-          await deleteDoc(doc(db, 'artifacts', APP_ID, 'users', operation.userId, 'itemPhotos', photoId));
-        } catch (error) {
-          if (!(error instanceof DriveAuthorizationError)) operationPhotoService.queueCleanup(driveFileId);
-        }
+        const photoRef = doc(db, 'artifacts', APP_ID, 'users', operation.userId, 'itemPhotos', photoId);
+        await deleteCapturedItemPhoto({
+          driveFileId,
+          photoService: operationPhotoService,
+          deletePhotoMetadata: () => deleteDoc(photoRef),
+          shouldQueueCleanup: (error) => !(error instanceof DriveAuthorizationError)
+        });
       }
 
       const result = publishResult(true);

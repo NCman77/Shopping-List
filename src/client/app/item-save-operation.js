@@ -90,6 +90,23 @@ export function createOwnedItemSavePhotoService(operation, options = {}) {
   });
 }
 
+export async function deleteCapturedItemPhoto({
+  driveFileId,
+  photoService,
+  deletePhotoMetadata,
+  shouldQueueCleanup = () => true
+}) {
+  try {
+    await photoService.deletePhoto(driveFileId);
+  } catch (error) {
+    if (shouldQueueCleanup(error)) photoService.queueCleanup(driveFileId);
+    return false;
+  }
+
+  await deletePhotoMetadata();
+  return true;
+}
+
 export function isItemSaveOperationCurrent(operation, current) {
   return Boolean(operation && current
     && operation.userId === current.userId
