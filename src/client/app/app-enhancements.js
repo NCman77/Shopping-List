@@ -95,6 +95,7 @@ export async function initShoppingListEnhancements() {
     sessionStorageImpl: window.sessionStorage,
     getUserId: () => state.userId
   });
+  let driveConnectPromise = null;
 
   function revokeDriveUrls() {
     for (const url of state.driveObjectUrls.values()) URL.revokeObjectURL(url);
@@ -173,25 +174,38 @@ export async function initShoppingListEnhancements() {
   }
 
   async function connectGoogleDrive(interactive = true) {
-    const user = auth.currentUser;
-    if (!user) throw new Error('請先登入 Google 帳號。');
-    const provider = new authSdk.GoogleAuthProvider();
-    provider.addScope(DRIVE_SCOPE);
-    provider.setCustomParameters({ prompt: interactive ? 'consent' : 'select_account' });
-    const result = await authSdk.reauthenticateWithPopup(user, provider);
-    const credential = authSdk.GoogleAuthProvider.credentialFromResult(result);
-    const token = credential?.accessToken || '';
-    if (!token) throw new DriveAuthorizationError('未取得 Google Drive 授權。');
-    drivePhotoService.setAccessToken(token);
-    document.getElementById('drive-connect-btn')?.classList.add('hidden');
-    try { await drivePhotoService.retryQueuedCleanup(); } catch {}
-    return token;
+    if (driveConnectPromise) return driveConnectPromise;
+    const button = document.getElementById('drive-connect-btn');
+    if (button) button.disabled = true;
+
+    driveConnectPromise = (async () => {
+      const user = auth.currentUser;
+      if (!user) throw new Error('請先登入 Google 帳號。');
+      const provider = new authSdk.GoogleAuthProvider();
+      provider.addScope(DRIVE_SCOPE);
+      provider.setCustomParameters({ prompt: interactive ? 'consent' : 'select_account' });
+      const result = await authSdk.reauthenticateWithPopup(user, provider);
+      const credential = authSdk.GoogleAuthProvider.credentialFromResult(result);
+      const token = credential?.accessToken || '';
+      if (!token) throw new DriveAuthorizationError('未取得 Google Drive 授權。');
+      drivePhotoService.setAccessToken(token);
+      document.getElementById('drive-connect-btn')?.classList.add('hidden');
+      try { await drivePhotoService.retryQueuedCleanup(); } catch {}
+      return token;
+    })();
+
+    try {
+      return await driveConnectPromise;
+    } finally {
+      driveConnectPromise = null;
+      if (button) button.disabled = false;
+    }
   }
 
   async function ensureDriveAccess() {
     if (drivePhotoService.hasAccessToken()) return;
     document.getElementById('drive-connect-btn')?.classList.remove('hidden');
-    await connectGoogleDrive(true);
+    throw new DriveAuthorizationError('需要重新連結 Google Drive。');
   }
 
   function activePhotosForItem(itemId) {
