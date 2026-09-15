@@ -25,9 +25,10 @@ test('price form patches the exact item only after the guarded base save succeed
   const source = await readFile(pricingUiPath, 'utf8');
   assert.match(source, /shoppingListLastItemSave/);
   assert.match(source, /succeeded/);
+  assert.match(source, /const locationPatch = locationWritePatch\(state\.selectedLocations\)/);
+  assert.match(source, /return \{ \.\.\.locationPatch, priceResearch \}/);
   assert.match(source, /updateDoc/);
   assert.match(source, /priceResearch/);
-  assert.match(source, /locations/);
 });
 
 test('pricing enhancement bootstraps independently and waits for trip-save wrapper readiness', async () => {
