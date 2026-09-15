@@ -20,22 +20,22 @@ function installDetailViewStyles(documentRef) {
       display: none !important;
     }
     .workflow-view-mode #photo-preview-grid {
-      display: flex !important;
-      flex-direction: column;
-      align-items: stretch;
-      gap: 1rem;
+      display: grid !important;
+      grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+      gap: .5rem !important;
       width: 100%;
     }
     .workflow-view-mode #photo-preview-grid > div {
       display: block !important;
-      width: 100%;
-      max-width: 100%;
-      aspect-ratio: auto !important;
+      position: relative !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      aspect-ratio: 1 / 1 !important;
       height: auto !important;
       min-height: 0 !important;
-      border: 0 !important;
-      border-radius: 0 !important;
-      background: transparent !important;
+      border: 2px solid #5C4033 !important;
+      border-radius: .75rem !important;
+      background: #FAFAFA !important;
       overflow: hidden !important;
     }
     .workflow-view-mode #photo-preview-grid > div[data-detail-image-ready="false"] {
@@ -44,24 +44,24 @@ function installDetailViewStyles(documentRef) {
     .workflow-view-mode #photo-preview-grid > div[data-detail-image-ready="action"] {
       display: block !important;
       position: relative !important;
-      min-height: 8rem !important;
     }
     .workflow-view-mode #photo-preview-grid .fa-image {
       display: none !important;
     }
-    .workflow-view-mode #photo-preview-grid > div > span {
+    .workflow-view-mode #photo-preview-grid > div > span,
+    .workflow-view-mode #photo-preview-grid > div > button {
       display: none !important;
     }
     .workflow-view-mode #photo-preview-grid img {
-      position: static !important;
-      inset: auto !important;
+      position: absolute !important;
+      inset: 0 !important;
       display: block !important;
       width: 100% !important;
-      max-width: 100% !important;
-      height: auto !important;
-      object-fit: contain !important;
-      margin: 0 auto !important;
-      background: transparent !important;
+      max-width: none !important;
+      height: 100% !important;
+      object-fit: cover !important;
+      margin: 0 !important;
+      background: white !important;
     }
   `;
   documentRef.head.appendChild(style);

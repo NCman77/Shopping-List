@@ -12,22 +12,23 @@ test('app photo compression adapter maps normal uploads to the width-bound 1280p
   assert.match(source, /compressImageToWidth/);
 });
 
-test('view mode hides upload UI and renders photos as a full-width natural-ratio column', async () => {
+test('view mode hides upload UI and matches the edit-mode three-column square photo grid', async () => {
   const source = await readFile(detailLayoutPath, 'utf8');
 
   assert.match(source, /\.workflow-view-mode #item-photo-upload-label\s*\{[^}]*display:\s*none\s*!important/s);
   assert.match(source, /\.workflow-view-mode #photo-upload-status[^}]*display:\s*none\s*!important/s);
   assert.match(source, /\.workflow-view-mode #drive-connect-btn[^}]*display:\s*none\s*!important/s);
-  assert.match(source, /\.workflow-view-mode #photo-preview-grid\s*\{[^}]*display:\s*flex\s*!important[^}]*flex-direction:\s*column[^}]*align-items:\s*stretch/s);
-  assert.match(source, /\.workflow-view-mode #photo-preview-grid > div\s*\{[^}]*display:\s*block\s*!important[^}]*width:\s*100%[^}]*aspect-ratio:\s*auto\s*!important[^}]*height:\s*auto\s*!important/s);
-  assert.match(source, /\.workflow-view-mode #photo-preview-grid img\s*\{[^}]*position:\s*static\s*!important[^}]*width:\s*100%\s*!important[^}]*height:\s*auto\s*!important[^}]*object-fit:\s*contain/s);
+  assert.match(source, /\.workflow-view-mode #photo-preview-grid\s*\{[^}]*display:\s*grid\s*!important[^}]*grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)\s*!important/s);
+  assert.match(source, /\.workflow-view-mode #photo-preview-grid > div\s*\{[^}]*display:\s*block\s*!important[^}]*width:\s*100%[^}]*aspect-ratio:\s*1\s*\/\s*1\s*!important/s);
+  assert.match(source, /\.workflow-view-mode #photo-preview-grid img\s*\{[^}]*position:\s*absolute\s*!important[^}]*width:\s*100%\s*!important[^}]*height:\s*100%\s*!important[^}]*object-fit:\s*cover\s*!important/s);
 });
 
-test('edit mode keeps the existing square photo-grid classes because all natural-ratio styling is scoped to workflow-view-mode', async () => {
+test('edit mode and homepage square photo behavior are not rewritten by the view-mode override', async () => {
   const source = await readFile(detailLayoutPath, 'utf8');
 
   assert.match(source, /\.workflow-view-mode #photo-preview-grid/);
-  assert.doesNotMatch(source, /^\s*#photo-preview-grid\s*\{[^}]*display:\s*flex\s*!important/gm);
+  assert.doesNotMatch(source, /^\s*#photo-preview-grid\s*\{[^}]*display:\s*grid\s*!important/gm);
   assert.doesNotMatch(source, /classList\.remove\(['"]aspect-square['"]\)/);
   assert.doesNotMatch(source, /classList\.remove\([^\n]*object-cover/);
+  assert.doesNotMatch(source, /#item-list[^}]*aspect-ratio/);
 });
