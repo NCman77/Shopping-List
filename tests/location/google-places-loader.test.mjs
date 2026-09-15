@@ -1,7 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { buildMapsScriptUrl, loadPlacesLibrary } from '../../src/client/location/google-places-loader.js';
+import {
+  buildMapsScriptUrl,
+  loadPlacesLibrary,
+  loadPlacesLibraryWithFailover
+} from '../../src/client/location/google-places-loader.js';
 
 test('Maps script URL is created only from a supplied browser key and requests Places lazily', () => {
   const url = buildMapsScriptUrl('test-browser-key');
@@ -45,6 +49,91 @@ test('loader rejects missing keys without mutating the document', async () => {
     /API Key/
   );
   assert.equal(created, 0);
+});
+
+test('failover returns primary without touching backup when primary loads successfully', async () => {
+  const calls = [];
+  const result = await loadPlacesLibraryWithFailover({
+    primaryKey: 'primary',
+    backupKey: 'backup',
+    windowImpl: {},
+    loadLibrary: async ({ apiKey }) => {
+      calls.push(apiKey);
+      return { apiKey };
+    }
+  });
+  assert.deepEqual(calls, ['primary']);
+  assert.equal(result.keySlot, 'primary');
+  assert.deepEqual(result.library, { apiKey: 'primary' });
+});
+
+test('credential failure may try backup once before a usable global Maps library exists', async () => {
+  const calls = [];
+  const result = await loadPlacesLibraryWithFailover({
+    primaryKey: 'primary',
+    backupKey: 'backup',
+    windowImpl: {},
+    loadLibrary: async ({ apiKey }) => {
+      calls.push(apiKey);
+      if (apiKey === 'primary') throw new Error('InvalidKeyMapError');
+      return { apiKey };
+    }
+  });
+  assert.deepEqual(calls, ['primary', 'backup']);
+  assert.equal(result.keySlot, 'backup');
+});
+
+test('quota and billing failures never rotate to the backup key', async () => {
+  for (const message of ['OverQuotaMapError', 'BillingNotEnabledMapError']) {
+    const calls = [];
+    await assert.rejects(
+      loadPlacesLibraryWithFailover({
+        primaryKey: 'primary',
+        backupKey: 'backup',
+        windowImpl: {},
+        loadLibrary: async ({ apiKey }) => {
+          calls.push(apiKey);
+          throw new Error(message);
+        }
+      }),
+      new RegExp(message)
+    );
+    assert.deepEqual(calls, ['primary']);
+  }
+});
+
+test('backup is attempted at most once and failover is blocked after Maps global becomes usable', async () => {
+  const backupCalls = [];
+  await assert.rejects(
+    loadPlacesLibraryWithFailover({
+      primaryKey: 'primary',
+      backupKey: 'backup',
+      windowImpl: {},
+      loadLibrary: async ({ apiKey }) => {
+        backupCalls.push(apiKey);
+        throw new Error(apiKey === 'primary' ? 'InvalidKeyMapError' : 'RefererNotAllowedMapError');
+      }
+    }),
+    /RefererNotAllowedMapError/
+  );
+  assert.deepEqual(backupCalls, ['primary', 'backup']);
+
+  const windowImpl = {};
+  const calls = [];
+  await assert.rejects(
+    loadPlacesLibraryWithFailover({
+      primaryKey: 'primary',
+      backupKey: 'backup',
+      windowImpl,
+      loadLibrary: async ({ apiKey }) => {
+        calls.push(apiKey);
+        windowImpl.google = { maps: { importLibrary() {} } };
+        throw new Error('InvalidKeyMapError');
+      }
+    }),
+    /重新載入|reload/i
+  );
+  assert.deepEqual(calls, ['primary']);
 });
 
 test('repository loader source never contains a hard-coded Google browser credential', async () => {
