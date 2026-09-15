@@ -71,6 +71,8 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
             installDriveUploadRollbackFetch(window);
             const { initShoppingListEnhancements } = await import('./app-enhancements.js');
             await initShoppingListEnhancements();
+            const { initHomeLocationDisplay } = await import('./home-location-display.js');
+            initHomeLocationDisplay();
             const { initPhotoThumbnailPersistence } = await import('../photos/photo-thumbnail-persistence.js');
             return initPhotoThumbnailPersistence();
         },
