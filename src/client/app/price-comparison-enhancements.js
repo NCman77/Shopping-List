@@ -1,6 +1,17 @@
-import { currencyCodeForCountry } from '../pricing/country-rules.js';
+import { appendComparisonHistory } from '../pricing/comparison-history.js';
+import {
+  currencyCodeForCountry,
+  resolveCountryPricingRule,
+  taxModeById
+} from '../pricing/country-rules.js';
+import { convertToTwd, fetchRateToTwd } from '../pricing/exchange-rate.js';
 import { resolveItemLocations, locationWritePatch, normalizeLocations } from '../pricing/location-selection.js';
-import { normalizePriceResearch } from '../pricing/price-range.js';
+import { buildTaiwanComparison, calculateLocalPrice } from '../pricing/price-calculator.js';
+import {
+  compareValueToRange,
+  normalizePriceRange,
+  normalizePriceResearch
+} from '../pricing/price-range.js';
 
 const APP_ID = 'japan-shopping-app';
 
@@ -29,6 +40,51 @@ function notify(title, message, type = 'warning') {
   else console[type === 'error' ? 'error' : 'warn'](`${title}: ${message}`);
 }
 
+function numeric(value) {
+  if (value === null || value === undefined || (typeof value === 'string' && !value.trim())) return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function formatPercent(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? `${Math.abs(number).toFixed(1)}%` : '—';
+}
+
+function formatMoney(value, currencyCode = '') {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return '—';
+  const currency = clean(currencyCode).toUpperCase();
+  const digits = ['JPY', 'KRW'].includes(currency) ? 0 : 2;
+  const rounded = number.toLocaleString('zh-TW', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: digits
+  });
+  if (currency === 'TWD') return `NT$${rounded}`;
+  if (currency === 'JPY') return `¥${rounded}`;
+  return currency ? `${currency} ${rounded}` : rounded;
+}
+
+function formatDateTime(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number <= 0) return '';
+  try {
+    return new Intl.DateTimeFormat('zh-TW', {
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit'
+    }).format(new Date(number));
+  } catch {
+    return '';
+  }
+}
+
+function cardItemId(card) {
+  const enhanced = clean(card?.dataset?.enhancedItemId);
+  if (enhanced) return enhanced;
+  const source = card?.querySelector?.('[onclick*="openEditModal"]')?.getAttribute?.('onclick') || '';
+  return source.match(/openEditModal\(['"]([^'"]+)['"]\)/)?.[1] || '';
+}
+
 function installStyles() {
   if (document.getElementById('price-comparison-styles')) return;
   const style = document.createElement('style');
@@ -39,6 +95,8 @@ function installStyles() {
     #location-filters .loc-btn.multi-location-filter-selected { background: #D5E5F2 !important; color: #5C4033 !important; box-shadow: 2px 2px 0 rgba(92,64,51,1) !important; }
     #location-filters .loc-btn.multi-location-filter-unselected { background: white !important; color: #6b7280 !important; box-shadow: none !important; }
     .workflow-view-mode .multi-location-choice:disabled { opacity: .65; cursor: default; }
+    .price-compare-action { white-space: nowrap; }
+    #price-comparison-modal input:focus, #price-comparison-modal select:focus { outline: none; box-shadow: 0 0 0 2px rgba(92,64,51,.15); }
   `;
   document.head.appendChild(style);
 }
@@ -98,6 +156,66 @@ function ensureMultiLocationField() {
   return field;
 }
 
+function ensureComparisonModal() {
+  let modal = document.getElementById('price-comparison-modal');
+  if (modal) return modal;
+  modal = document.createElement('div');
+  modal.id = 'price-comparison-modal';
+  modal.className = 'fixed inset-0 z-[110] hidden bg-warmBrown/50 backdrop-blur-sm px-3 py-4 items-end sm:items-center justify-center';
+  modal.innerHTML = `
+    <div class="w-full max-w-md max-h-[92vh] overflow-y-auto bg-shinBg border-4 border-warmBrown rounded-[2rem] shadow-[8px_8px_0_rgba(92,64,51,.28)]">
+      <div class="sticky top-0 z-10 flex items-center justify-between gap-3 bg-pastelYellow border-b-4 border-warmBrown px-5 py-4 rounded-t-[1.7rem]">
+        <div class="min-w-0">
+          <p class="text-[10px] uppercase tracking-wider font-bold text-warmBrown/60">現場比價</p>
+          <h2 id="compare-item-name" class="font-bold text-warmBrown truncate">商品比價</h2>
+        </div>
+        <button id="close-price-comparison" type="button" class="shrink-0 w-9 h-9 rounded-full bg-white border-2 border-warmBrown text-warmBrown"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="p-5 space-y-5 bg-white">
+        <section class="rounded-2xl border-2 border-warmBrown/20 bg-pastelBlue/15 p-4 space-y-2">
+          <h3 class="text-sm font-bold text-warmBrown">價格功課</h3>
+          <div id="compare-research-summary" class="text-xs text-gray-600 space-y-1"></div>
+        </section>
+
+        <section class="space-y-3">
+          <h3 class="text-sm font-bold text-warmBrown">現場比價</h3>
+          <div class="grid grid-cols-2 gap-3">
+            <label class="text-xs font-bold text-warmBrown">目前店價
+              <input id="compare-store-price" type="number" min="0" step="any" inputmode="decimal" class="mt-1 w-full rounded-xl border-2 border-warmBrown bg-shinBg px-3 py-2.5" placeholder="1480">
+            </label>
+            <label class="text-xs font-bold text-warmBrown">優惠券 %
+              <input id="compare-coupon-percent" type="number" min="0" max="100" step="any" inputmode="decimal" class="mt-1 w-full rounded-xl border-2 border-warmBrown bg-shinBg px-3 py-2.5" placeholder="10">
+            </label>
+          </div>
+          <label id="compare-tax-mode-wrap" class="block text-xs font-bold text-warmBrown">免稅／退稅方式
+            <select id="compare-tax-mode" class="mt-1 w-full rounded-xl border-2 border-warmBrown bg-shinBg px-3 py-2.5"></select>
+          </label>
+          <p id="compare-tax-notice" class="text-[11px] leading-relaxed text-gray-500"></p>
+          <p class="text-[10px] leading-relaxed text-gray-400">免稅試算僅供估算；Refund Method 旅程則為退稅試算僅供估算。品牌排除、優惠券併用、店家 rounding 與實際資格仍以現場結帳為準。</p>
+        </section>
+
+        <section class="rounded-[1.5rem] border-4 border-warmBrown bg-pastelGreen/25 p-4 text-center">
+          <p class="text-xs font-bold text-warmBrown/65">預估到手價</p>
+          <div id="compare-final-local" class="mt-1 text-3xl font-black text-warmBrown">—</div>
+          <div id="compare-final-twd" class="mt-1 text-lg font-bold text-warmBrown/80">—</div>
+          <div id="compare-headline" class="mt-3 text-sm font-black text-warmBrown"></div>
+        </section>
+
+        <section id="compare-details" class="rounded-2xl border-2 border-warmBrown/20 p-4 text-xs text-gray-600 space-y-1"></section>
+
+        <section class="rounded-2xl border-2 border-warmBrown/15 bg-gray-50 p-3">
+          <div id="compare-fx-status" class="text-[11px] text-gray-500"></div>
+          <a id="compare-fx-attribution" href="https://www.exchangerate-api.com" target="_blank" rel="noopener noreferrer" class="hidden mt-1 text-[10px] underline text-gray-400">Rates By Exchange Rate API</a>
+        </section>
+
+        <button id="save-comparison-history" type="button" class="w-full py-3 rounded-xl bg-pastelPink border-2 border-warmBrown text-warmBrown font-bold shadow-[3px_3px_0_rgba(92,64,51,.22)] disabled:opacity-40 disabled:shadow-none">保存這次比價紀錄</button>
+        <p id="compare-history-status" class="min-h-4 text-center text-[11px] text-gray-500"></p>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  return modal;
+}
+
 function inputValue(id) {
   return document.getElementById(id)?.value ?? '';
 }
@@ -132,11 +250,18 @@ export async function initPriceComparisonEnhancements() {
     itemUnsub: null,
     selectedLocations: [],
     locationFilter: 'all',
-    normalizingBaseFilter: false
+    normalizingBaseFilter: false,
+    compareItemId: '',
+    compareRule: null,
+    compareFx: null,
+    compareFxLoading: false,
+    compareRequestId: 0,
+    lastCalculation: null
   };
 
   ensureMultiLocationField();
   ensureResearchFields();
+  const compareModal = ensureComparisonModal();
 
   function availableLocations() {
     const select = document.getElementById('item-location');
@@ -234,6 +359,216 @@ export async function initPriceComparisonEnhancements() {
     return { ...locationPatch, priceResearch };
   }
 
+  function compareCurrency(item) {
+    return clean(state.compareRule?.currencyCode || item?.priceResearch?.currencyCode || currencyCodeForCountry(item?.country));
+  }
+
+  function effectiveTripDate() {
+    return clean(window.shoppingListActiveTrip?.startDate) || new Date().toISOString().slice(0, 10);
+  }
+
+  function renderResearch(item) {
+    const root = document.getElementById('compare-research-summary');
+    if (!root) return;
+    const research = item?.priceResearch || {};
+    const tw = normalizePriceRange(research.taiwanMinTwd, research.taiwanMaxTwd);
+    const local = normalizePriceRange(research.localMin, research.localMax);
+    const currency = compareCurrency(item);
+    const twText = tw.low == null
+      ? '未設定'
+      : tw.low === tw.high ? formatMoney(tw.low, 'TWD') : `${formatMoney(tw.low, 'TWD')} ～ ${formatMoney(tw.high, 'TWD')}`;
+    const localText = local.low == null
+      ? '未設定'
+      : local.low === local.high ? formatMoney(local.low, currency) : `${formatMoney(local.low, currency)} ～ ${formatMoney(local.high, currency)}`;
+    root.innerHTML = `
+      <div><span class="font-bold text-warmBrown">台灣參考：</span>${twText}</div>
+      <div><span class="font-bold text-warmBrown">當地參考：</span>${localText}</div>`;
+  }
+
+  function renderTaxModes() {
+    const select = document.getElementById('compare-tax-mode');
+    const wrap = document.getElementById('compare-tax-mode-wrap');
+    const notice = document.getElementById('compare-tax-notice');
+    if (!select || !wrap || !notice) return;
+    const modes = Array.isArray(state.compareRule?.taxModes) ? state.compareRule.taxModes : [];
+    if (!modes.length) {
+      select.innerHTML = '<option value="none">此國家未設定旅客免稅規則</option>';
+      select.disabled = true;
+      wrap.classList.add('opacity-60');
+    } else {
+      select.disabled = false;
+      wrap.classList.remove('opacity-60');
+      select.innerHTML = modes.map((mode) => `<option value="${mode.id}">${mode.label}</option>`).join('');
+    }
+    notice.textContent = state.compareRule?.notice || '此國家目前只提供折扣與匯率換算，不套用未驗證的旅客免稅規則。';
+  }
+
+  function renderFxStatus() {
+    const status = document.getElementById('compare-fx-status');
+    const attribution = document.getElementById('compare-fx-attribution');
+    if (!status || !attribution) return;
+    if (state.compareFxLoading) {
+      status.textContent = '正在取得最新匯率…';
+      attribution.classList.add('hidden');
+      return;
+    }
+    const fx = state.compareFx;
+    if (!fx?.rateToTwd) {
+      status.textContent = '匯率暫時無法取得；仍可使用當地幣別比價。';
+      attribution.classList.add('hidden');
+      return;
+    }
+    if (fx.source === 'stale-cache') {
+      status.textContent = `目前使用快取匯率${formatDateTime(fx.updatedAt) ? `（來源更新 ${formatDateTime(fx.updatedAt)}）` : ''}，可能已超過 24 小時。`;
+    } else {
+      status.textContent = `匯率：1 ${fx.currencyCode} ≈ ${Number(fx.rateToTwd).toFixed(4)} TWD${formatDateTime(fx.updatedAt) ? ` · 更新 ${formatDateTime(fx.updatedAt)}` : ''}`;
+    }
+    attribution.classList.remove('hidden');
+  }
+
+  function comparisonLine(label, percent) {
+    const number = Number(percent);
+    if (!Number.isFinite(number)) return '';
+    if (Math.abs(number) < 0.05) return `${label}：幾乎相同`;
+    return `${label}：${number > 0 ? '便宜' : '貴'} ${formatPercent(number)}`;
+  }
+
+  function calculateAndRender() {
+    const item = state.items.get(state.compareItemId);
+    if (!item) return null;
+    const currency = compareCurrency(item);
+    const taxSelect = document.getElementById('compare-tax-mode');
+    const selectedMode = taxModeById(state.compareRule, taxSelect?.value);
+    const calculation = calculateLocalPrice({
+      storePrice: inputValue('compare-store-price'),
+      couponPercent: inputValue('compare-coupon-percent'),
+      taxRate: selectedMode?.taxRate ?? null
+    });
+    const estimatedTwd = calculation.estimatedFinalPrice == null
+      ? null
+      : convertToTwd(calculation.estimatedFinalPrice, state.compareFx?.rateToTwd);
+    const taiwan = buildTaiwanComparison({ estimatedTwd, research: item.priceResearch || {} });
+    const localRange = normalizePriceRange(item?.priceResearch?.localMin, item?.priceResearch?.localMax);
+    const localComparison = calculation.estimatedFinalPrice == null
+      ? null
+      : compareValueToRange(calculation.estimatedFinalPrice, localRange);
+
+    const localOutput = document.getElementById('compare-final-local');
+    const twdOutput = document.getElementById('compare-final-twd');
+    const headline = document.getElementById('compare-headline');
+    const details = document.getElementById('compare-details');
+    const saveButton = document.getElementById('save-comparison-history');
+
+    if (localOutput) localOutput.textContent = calculation.estimatedFinalPrice == null ? '—' : formatMoney(calculation.estimatedFinalPrice, currency);
+    if (twdOutput) twdOutput.textContent = estimatedTwd == null ? '約合台幣 —' : `≈ ${formatMoney(estimatedTwd, 'TWD')}`;
+    if (headline) {
+      if (!taiwan) headline.textContent = estimatedTwd == null ? '' : '未設定台灣參考價';
+      else if (taiwan.direction === 'same') headline.textContent = '與台灣常見價幾乎相同';
+      else headline.textContent = `比台灣常見價${taiwan.direction === 'cheaper' ? '便宜' : '貴'} ${formatPercent(taiwan.percentDifference)}`;
+    }
+
+    const detailLines = [];
+    if (calculation.postCouponPrice != null) detailLines.push(`優惠後：${formatMoney(calculation.postCouponPrice, currency)}`);
+    if (taiwan) {
+      detailLines.push(comparisonLine('比台灣最低價', taiwan.versusLowPercent));
+      detailLines.push(comparisonLine('比台灣最高價', taiwan.versusHighPercent));
+    }
+    if (localComparison) {
+      detailLines.push(comparisonLine('比當地參考最低價', localComparison.versusLowPercent));
+      detailLines.push(comparisonLine('比當地參考最高價', localComparison.versusHighPercent));
+    }
+    if (details) details.innerHTML = detailLines.filter(Boolean).map((line) => `<div>${line}</div>`).join('') || '<div class="text-gray-400">輸入目前店價後會自動計算。</div>';
+    if (saveButton) saveButton.disabled = calculation.estimatedFinalPrice == null;
+
+    state.lastCalculation = {
+      item,
+      currency,
+      selectedMode,
+      calculation,
+      estimatedTwd,
+      taiwan,
+      localComparison
+    };
+    renderFxStatus();
+    return state.lastCalculation;
+  }
+
+  function closeComparisonModal() {
+    state.compareRequestId += 1;
+    state.compareItemId = '';
+    state.compareRule = null;
+    state.compareFx = null;
+    state.compareFxLoading = false;
+    state.lastCalculation = null;
+    compareModal.classList.add('hidden');
+    compareModal.classList.remove('flex');
+  }
+
+  async function openComparisonModal(itemId) {
+    const item = state.items.get(clean(itemId));
+    if (!item) {
+      notify('無法比價', '找不到這個商品的最新資料。', 'error');
+      return;
+    }
+    const country = clean(item.country || window.shoppingListActiveTrip?.country);
+    state.compareItemId = item.id;
+    state.compareRule = resolveCountryPricingRule(country, effectiveTripDate());
+    state.compareFx = null;
+    state.compareFxLoading = true;
+    state.lastCalculation = null;
+    const requestId = ++state.compareRequestId;
+
+    document.getElementById('compare-item-name').textContent = item.name || '商品比價';
+    document.getElementById('compare-store-price').value = '';
+    document.getElementById('compare-coupon-percent').value = '';
+    document.getElementById('compare-history-status').textContent = '';
+    renderResearch(item);
+    renderTaxModes();
+    renderFxStatus();
+    calculateAndRender();
+    compareModal.classList.remove('hidden');
+    compareModal.classList.add('flex');
+
+    const currency = compareCurrency(item);
+    state.compareFx = await fetchRateToTwd({
+      currencyCode: currency,
+      storage: window.localStorage
+    });
+    if (requestId !== state.compareRequestId || state.compareItemId !== item.id) return;
+    state.compareFxLoading = false;
+    calculateAndRender();
+  }
+
+  function ensureCompareAction(card) {
+    const itemId = cardItemId(card);
+    if (!itemId || !state.items.has(itemId)) return;
+    const purchaseLabel = card.querySelector('input.custom-checkbox')?.closest('label');
+    const row = purchaseLabel?.parentElement;
+    if (!row) return;
+    let button = row.querySelector('.price-compare-action');
+    if (!button) {
+      button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'price-compare-action px-3 py-1.5 rounded-full border-2 border-warmBrown bg-pastelBlue text-warmBrown text-xs font-bold shadow-[2px_2px_0_rgba(92,64,51,.16)]';
+      button.innerHTML = '<span>比價</span>';
+      button.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        void openComparisonModal(itemId);
+      });
+      row.insertBefore(button, row.firstChild);
+      row.classList.add('gap-2');
+    }
+  }
+
+  function ensureCompareActions() {
+    const list = document.getElementById('item-list');
+    if (!list) return;
+    for (const card of [...list.children]) {
+      if (!card.id) ensureCompareAction(card);
+    }
+  }
+
   const legacySelect = document.getElementById('item-location');
   if (legacySelect) {
     new MutationObserver(() => renderLocationChoices()).observe(legacySelect, { childList: true });
@@ -324,19 +659,67 @@ export async function initPriceComparisonEnhancements() {
   window.addEventListener('shopping-list:active-trip-changed', () => publishLocationFilter('all'));
   publishLocationFilter('all');
 
+  document.getElementById('close-price-comparison')?.addEventListener('click', closeComparisonModal);
+  compareModal.addEventListener('click', (event) => {
+    if (event.target === compareModal) closeComparisonModal();
+  });
+  document.getElementById('compare-store-price')?.addEventListener('input', calculateAndRender);
+  document.getElementById('compare-coupon-percent')?.addEventListener('input', calculateAndRender);
+  document.getElementById('compare-tax-mode')?.addEventListener('change', calculateAndRender);
+  document.getElementById('save-comparison-history')?.addEventListener('click', async () => {
+    const current = calculateAndRender();
+    if (!current?.calculation?.estimatedFinalPrice || !state.userId || !state.compareItemId) return;
+    const status = document.getElementById('compare-history-status');
+    const item = state.items.get(state.compareItemId);
+    const record = {
+      createdAt: Date.now(),
+      country: clean(item?.country || window.shoppingListActiveTrip?.country),
+      currencyCode: current.currency,
+      storePrice: current.calculation.storePrice,
+      couponPercent: current.calculation.couponPercent,
+      taxMode: current.selectedMode?.id || 'none',
+      taxRate: current.selectedMode?.taxRate ?? null,
+      exchangeRateToTwd: state.compareFx?.rateToTwd ?? null,
+      rateUpdatedAt: state.compareFx?.updatedAt ?? null,
+      postCouponPrice: current.calculation.postCouponPrice,
+      estimatedFinalPrice: current.calculation.estimatedFinalPrice,
+      estimatedTwd: current.estimatedTwd
+    };
+    const priceComparisons = appendComparisonHistory(item?.priceComparisons, record, 20);
+    try {
+      await updateDoc(doc(db, 'artifacts', APP_ID, 'users', state.userId, 'items', state.compareItemId), { priceComparisons });
+      if (status) status.textContent = '已保存這次比價紀錄。';
+    } catch (error) {
+      console.error('Comparison history save failed:', error);
+      if (status) status.textContent = '比較紀錄儲存失敗；目前畫面的計算結果仍可正常使用。';
+    }
+  });
+
+  const itemList = document.getElementById('item-list');
+  if (itemList) {
+    new MutationObserver(() => queueMicrotask(ensureCompareActions)).observe(itemList, { childList: true, subtree: false });
+  }
+
   function subscribeUser(user) {
     state.itemUnsub?.();
     state.itemUnsub = null;
     state.userId = user?.uid || '';
     state.items = new Map();
+    closeComparisonModal();
     if (!user) return;
     const itemsRef = collection(db, 'artifacts', APP_ID, 'users', user.uid, 'items');
     state.itemUnsub = onSnapshot(itemsRef, (snapshot) => {
       if (state.userId !== user.uid) return;
       state.items = new Map(snapshot.docs.map((itemDoc) => [itemDoc.id, { id: itemDoc.id, ...itemDoc.data() }]));
+      queueMicrotask(ensureCompareActions);
+      if (state.compareItemId && state.items.has(state.compareItemId)) {
+        renderResearch(state.items.get(state.compareItemId));
+        calculateAndRender();
+      }
     }, (error) => console.error('Price comparison item listener failed:', error));
   }
 
   authSdk.onAuthStateChanged(auth, subscribeUser);
   renderLocationChoices();
+  ensureCompareActions();
 }
