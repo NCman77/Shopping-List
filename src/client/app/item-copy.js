@@ -1,3 +1,6 @@
+import { locationWritePatch, resolveItemLocations } from '../pricing/location-selection.js';
+import { normalizePriceResearch } from '../pricing/price-range.js';
+
 function clean(value) {
   return String(value ?? '').trim();
 }
@@ -19,10 +22,11 @@ export function buildCopiedItemData({ source = {}, targetTrip = {}, newItemId = 
   if (!targetTripId || !targetCountry) throw new TypeError('目標旅程資料不完整。');
   if (!itemId) throw new TypeError('缺少新商品 ID。');
 
+  const locationPatch = locationWritePatch(resolveItemLocations(source));
   const copied = {
     name: clean(source.name),
     category: clean(source.category),
-    location: clean(source.location),
+    ...locationPatch,
     address: clean(source.address),
     website: clean(source.website),
     description: clean(source.description),
@@ -44,6 +48,10 @@ export function buildCopiedItemData({ source = {}, targetTrip = {}, newItemId = 
     createdAt: now,
     updatedAt: now
   };
+
+  if (source?.priceResearch && typeof source.priceResearch === 'object') {
+    copied.priceResearch = normalizePriceResearch(source.priceResearch);
+  }
 
   return copied;
 }
