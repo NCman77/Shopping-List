@@ -47,6 +47,13 @@ test('selected branch keeps the user brand query for future nearby-branch search
   });
 });
 
+test('post-save metadata uses the stable trip-guard save result after the modal clears item-id', async () => {
+  const source = await readFile(sourcePath, 'utf8');
+  assert.match(source, /shoppingListLastItemSave/);
+  assert.match(source, /const itemId = clean\(window\.shoppingListLastItemSave\?\.itemId\)/);
+  assert.doesNotMatch(source, /const itemId = clean\(document\.getElementById\('item-id'\)\?\.value\)/);
+});
+
 test('homepage distance action coexists with address action and opens a nearby branch modal', async () => {
   const source = await readFile(sourcePath, 'utf8');
   assert.match(source, /nearby-distance-action/);
