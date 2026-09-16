@@ -32,12 +32,42 @@ test('trip save guard blocks new save without active trip and reserves membershi
   assert.match(source, /shoppingListTripContextReady/);
   assert.match(source, /shoppingListActiveTrip/);
   assert.match(source, /請先新增或選擇一趟旅程/);
-  assert.match(source, /await setDoc\(itemRef, membership, \{ merge: true \}\)/);
+  assert.match(source, /reservationOperationId/);
+  assert.match(source, /runTransaction/);
   assert.match(source, /await originalSave/);
-  assert.match(source, /deleteDoc\(itemRef\)/);
-  const reserveIndex = source.indexOf('await setDoc(itemRef, membership');
+  const reserveIndex = source.indexOf('await setDoc(itemRef');
   const saveIndex = source.indexOf('await originalSave');
   assert.ok(reserveIndex >= 0 && saveIndex > reserveIndex);
+});
+
+test('old operation cleanup does not delete a reservation owned by a newer operation', async () => {
+  const module = await import('../../src/client/app/trip-save-guard.js');
+  const action = module.resolveTripSaveReservationAction?.({
+    markerOperationId: 'operation-new',
+    operationId: 'operation-old',
+    succeeded: false
+  });
+  assert.equal(action, 'none');
+});
+
+test('matching failed reservation marker deletes the reserved item', async () => {
+  const module = await import('../../src/client/app/trip-save-guard.js');
+  const action = module.resolveTripSaveReservationAction?.({
+    markerOperationId: 'operation-current',
+    operationId: 'operation-current',
+    succeeded: false
+  });
+  assert.equal(action, 'delete');
+});
+
+test('matching successful reservation marker is cleared without deleting item data', async () => {
+  const module = await import('../../src/client/app/trip-save-guard.js');
+  const action = module.resolveTripSaveReservationAction?.({
+    markerOperationId: 'operation-current',
+    operationId: 'operation-current',
+    succeeded: true
+  });
+  assert.equal(action, 'clear');
 });
 
 test('trip guard captures before getDoc and trusts the explicit base-save result', async () => {

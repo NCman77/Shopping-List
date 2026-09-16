@@ -1,6 +1,7 @@
 import { resolveItemCountry } from './travel-country.js';
 
 const APP_ID = 'japan-shopping-app';
+const RESERVATION_OPERATION_FIELD = '_shoppingListReservationOperationId';
 
 function waitFor(predicate, timeout = 12000) {
   return new Promise((resolve, reject) => {
@@ -40,6 +41,13 @@ export function resolveTripMembershipForSave({ existingItem, activeTrip } = {}) 
   };
 }
 
+export function resolveTripSaveReservationAction({ markerOperationId, operationId, succeeded } = {}) {
+  const marker = clean(markerOperationId);
+  const owner = clean(operationId);
+  if (!marker || !owner || marker !== owner) return 'none';
+  return succeeded ? 'clear' : 'delete';
+}
+
 export async function initTripSaveGuard() {
   if (typeof window === 'undefined' || typeof document === 'undefined') return;
   if (window.__shoppingListTripSaveGuardInitialized) return;
@@ -56,8 +64,25 @@ export async function initTripSaveGuard() {
   const app = appSdk.getApps()[0] || appSdk.getApp();
   const auth = authSdk.getAuth(app);
   const db = firestoreSdk.getFirestore(app);
-  const { deleteDoc, doc, getDoc, setDoc } = firestoreSdk;
+  const { deleteField, doc, getDoc, runTransaction, setDoc } = firestoreSdk;
   const originalSave = window.saveItem;
+
+  async function settleReservation(itemRef, operationId, succeeded) {
+    return runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(itemRef);
+      if (!snapshot.exists()) return 'none';
+      const action = resolveTripSaveReservationAction({
+        markerOperationId: snapshot.data()?.[RESERVATION_OPERATION_FIELD],
+        operationId,
+        succeeded
+      });
+      if (action === 'delete') transaction.delete(itemRef);
+      if (action === 'clear') {
+        transaction.update(itemRef, { [RESERVATION_OPERATION_FIELD]: deleteField() });
+      }
+      return action;
+    });
+  }
 
   window.saveItem = async function(...args) {
     const operation = args[0]?.operationId
@@ -122,11 +147,27 @@ export async function initTripSaveGuard() {
     }
 
     const itemRef = doc(db, 'artifacts', APP_ID, 'users', operation.userId, 'items', operation.itemId);
-    let reservationOperationId = '';
+    const inheritedReservationOperationId = clean(existingItem?.[RESERVATION_OPERATION_FIELD]);
+    const reservationOperationId = generatedNewId || inheritedReservationOperationId
+      ? operation.operationId
+      : '';
+
+    const settleReservationSafely = async (succeeded, errorMessage) => {
+      if (!reservationOperationId) return 'none';
+      try {
+        return await settleReservation(itemRef, reservationOperationId, succeeded);
+      } catch (cleanupError) {
+        console.error(errorMessage, cleanupError);
+        return 'none';
+      }
+    };
+
     try {
-      if (generatedNewId) {
-        await setDoc(itemRef, membership, { merge: true });
-        reservationOperationId = operation.operationId;
+      if (reservationOperationId) {
+        await setDoc(itemRef, {
+          ...(generatedNewId ? membership : {}),
+          [RESERVATION_OPERATION_FIELD]: reservationOperationId
+        }, { merge: true });
       }
 
       const result = await originalSave.apply(this, [operation, ...args.slice(1)]);
@@ -136,18 +177,20 @@ export async function initTripSaveGuard() {
         && result.itemId === operation.itemId
         && result.userId === operation.userId
       );
-      if (!succeeded && reservationOperationId === operation.operationId) {
-        try { await deleteDoc(itemRef); } catch (cleanupError) {
-          console.error('Failed to clean reserved item after unsuccessful save:', cleanupError);
-        }
+      const settlement = await settleReservationSafely(
+        succeeded,
+        'Failed to settle reserved item after save:'
+      );
+      if (settlement === 'delete') {
         if (idInput?.value === operation.itemId) idInput.value = '';
       }
       return result;
     } catch (error) {
-      if (reservationOperationId === operation.operationId) {
-        try { await deleteDoc(itemRef); } catch (cleanupError) {
-          console.error('Failed to clean reserved item after save error:', cleanupError);
-        }
+      const settlement = await settleReservationSafely(
+        false,
+        'Failed to settle reserved item after save error:'
+      );
+      if (settlement === 'delete') {
         if (idInput?.value === operation.itemId) idInput.value = '';
       }
       if (!window.shoppingListLastItemSave
