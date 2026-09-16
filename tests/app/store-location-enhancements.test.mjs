@@ -76,20 +76,20 @@ test('legacy distance search query uses saved store name and only falls back to 
   assert.equal(module.branchSearchQuery({}), '');
 });
 
-test('post-save metadata uses the stable trip-guard save result after the modal clears item-id', async () => {
+test('post-save metadata uses the captured operation after the modal clears item-id', async () => {
   const source = await readFile(sourcePath, 'utf8');
-  assert.match(source, /shoppingListLastItemSave/);
-  assert.match(source, /const itemId = clean\(window\.shoppingListLastItemSave\?\.itemId\)/);
+  assert.match(source, /operation\.extensions\?\.\['store-location'\]/);
+  assert.match(source, /result\.itemId === operation\.itemId/);
+  assert.match(source, /itemRef\(operation\.itemId, operation\.userId\)/);
   assert.doesNotMatch(source, /const itemId = clean\(document\.getElementById\('item-id'\)\?\.value\)/);
 });
 
 test('post-save metadata stays scoped to the account that started the save', async () => {
   const source = await readFile(sourcePath, 'utf8');
-  assert.match(source, /const savingUserId = clean\(auth\.currentUser\?\.uid \|\| state\.userId\)/);
-  assert.match(source, /window\.shoppingListLastItemSave\?\.userId === savingUserId/);
-  assert.match(source, /auth\.currentUser\?\.uid === savingUserId/);
-  assert.match(source, /state\.userId === savingUserId/);
-  assert.match(source, /itemRef\(itemId, savingUserId\)/);
+  assert.match(source, /result\.userId === operation\.userId/);
+  assert.match(source, /auth\.currentUser\?\.uid === operation\.userId/);
+  assert.match(source, /state\.userId === operation\.userId/);
+  assert.match(source, /itemRef\(operation\.itemId, operation\.userId\)/);
 });
 
 test('legacy homepage distance action remains isolated in the retired module', async () => {

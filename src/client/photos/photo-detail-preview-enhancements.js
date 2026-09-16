@@ -77,11 +77,11 @@ export async function initPhotoDetailPreviewEnhancements() {
     return response.blob();
   }
 
-  async function listActivePhotos(itemId, force = false) {
-    if (!itemId) return [];
+  async function listActivePhotos(itemId, force = false, userId = auth.currentUser?.uid || '') {
+    if (!itemId || !userId) return [];
     if (!force && state.photosByItem.has(itemId)) return state.photosByItem.get(itemId);
     const snapshot = await getDocs(query(
-      collection(db, 'artifacts', APP_ID, 'users', auth.currentUser.uid, 'itemPhotos'),
+      collection(db, 'artifacts', APP_ID, 'users', userId, 'itemPhotos'),
       where('itemId', '==', itemId)
     ));
     const photos = sortActivePhotos(snapshot.docs.map((photoDoc) => ({ id: photoDoc.id, ...photoDoc.data() })));
@@ -202,15 +202,15 @@ export async function initPhotoDetailPreviewEnhancements() {
     return result;
   }
 
-  async function cleanupRemovedPreviews(itemId, beforePhotos = []) {
-    if (!itemId || !auth.currentUser || !beforePhotos.length) return;
-    const afterPhotos = await listActivePhotos(itemId, true);
+  async function cleanupRemovedPreviews(itemId, beforePhotos = [], userId = auth.currentUser?.uid || '') {
+    if (!itemId || !userId || !beforePhotos.length) return;
+    const afterPhotos = await listActivePhotos(itemId, true, userId);
     const remaining = new Set(afterPhotos.map((photo) => photo.id));
     const removed = beforePhotos.filter((photo) => !remaining.has(photo.id));
     await Promise.all(removed.map(async (photo) => {
       state.previewCache.delete(photo.id);
       await deleteDoc(doc(
-        db, 'artifacts', APP_ID, 'users', auth.currentUser.uid, 'itemPhotoPreviews', photo.id
+        db, 'artifacts', APP_ID, 'users', userId, 'itemPhotoPreviews', photo.id
       )).catch(() => {});
     }));
   }
@@ -265,16 +265,28 @@ export async function initPhotoDetailPreviewEnhancements() {
 
   const originalSaveItem = window.saveItem;
   window.saveItem = async function(...args) {
-    const itemIdBeforeSave = document.getElementById('item-id')?.value || state.currentItemId || '';
-    const beforePhotos = itemIdBeforeSave ? await listActivePhotos(itemIdBeforeSave, true).catch(() => []) : [];
-    const result = await originalSaveItem.apply(this, args);
-    const userId = auth.currentUser?.uid || '';
-    if (userId && tokenFor(userId)) {
-      try { await backfillMissingDetailPreviews(userId); }
+    const operation = args[0]?.operationId
+      ? args[0]
+      : window.beginShoppingListSaveOperation();
+    if (!operation) return null;
+    const beforePhotos = operation.itemId
+      ? await listActivePhotos(operation.itemId, true, operation.userId).catch(() => [])
+      : [];
+    const result = await originalSaveItem.apply(this, [operation, ...args.slice(1)]);
+    const succeeded = Boolean(
+      result?.succeeded
+      && result.operationId === operation.operationId
+      && result.itemId === operation.itemId
+      && result.userId === operation.userId
+      && auth.currentUser?.uid === operation.userId
+    );
+    if (!succeeded) return result;
+    if (operation.userId && tokenFor(operation.userId)) {
+      try { await backfillMissingDetailPreviews(operation.userId); }
       catch (error) { console.warn('Detail preview persistence after save failed:', error); }
     }
-    if (itemIdBeforeSave) {
-      try { await cleanupRemovedPreviews(itemIdBeforeSave, beforePhotos); }
+    if (operation.itemId) {
+      try { await cleanupRemovedPreviews(operation.itemId, beforePhotos, operation.userId); }
       catch (error) { console.warn('Detail preview cleanup failed:', error); }
     }
     return result;

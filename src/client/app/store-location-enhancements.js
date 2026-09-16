@@ -9,6 +9,7 @@ import {
   classifyMapsError,
   makeNearbyCacheKey
 } from '../location/places-usage-policy.js';
+import { registerItemSaveSnapshotProvider } from './item-save-operation.js';
 
 const APP_ID = 'japan-shopping-app';
 const nearbyCache = new NearbySearchCache();
@@ -345,6 +346,8 @@ export async function initStoreLocationEnhancements() {
     return null;
   }
 
+  registerItemSaveSnapshotProvider('store-location', () => buildStorePatch());
+
   const originalOpenAdd = window.openAddModal;
   window.openAddModal = function(...args) {
     const result = originalOpenAdd.apply(this, args);
@@ -361,25 +364,26 @@ export async function initStoreLocationEnhancements() {
 
   const originalSave = window.saveItem;
   window.saveItem = async function(...args) {
-    const patch = buildStorePatch();
-    const savingUserId = clean(auth.currentUser?.uid || state.userId);
-    const result = await originalSave.apply(this, args);
-    if (!patch || !savingUserId) return result;
-    const modalContent = document.getElementById('add-modal-content');
-    const itemId = clean(window.shoppingListLastItemSave?.itemId);
+    const operation = args[0]?.operationId
+      ? args[0]
+      : window.beginShoppingListSaveOperation();
+    if (!operation) return null;
+    const patch = operation.extensions?.['store-location'];
+    const result = await originalSave.apply(this, [operation, ...args.slice(1)]);
+    if (!patch) return result;
     const baseSaveSucceeded = Boolean(
-      window.shoppingListLastItemSave?.succeeded
-      && window.shoppingListLastItemSave?.userId === savingUserId
-      && auth.currentUser?.uid === savingUserId
-      && state.userId === savingUserId
-      && itemId
-      && modalContent?.classList?.contains('translate-y-full')
+      result?.succeeded
+      && result.operationId === operation.operationId
+      && result.itemId === operation.itemId
+      && result.userId === operation.userId
+      && auth.currentUser?.uid === operation.userId
+      && state.userId === operation.userId
     );
     if (!baseSaveSucceeded) return result;
     try {
-      await updateDoc(itemRef(itemId, savingUserId), patch);
-      const current = state.items.get(itemId) || {};
-      state.items.set(itemId, { ...current, ...patch });
+      await updateDoc(itemRef(operation.itemId, operation.userId), patch);
+      const current = state.items.get(operation.itemId) || {};
+      state.items.set(operation.itemId, { ...current, ...patch });
     } catch (error) {
       console.error('Store metadata save failed:', error);
       notify('商品已儲存，但店家位置未同步', '商品本身已安全儲存；Google 店家資料沒有寫入，可稍後重新編輯再試。');

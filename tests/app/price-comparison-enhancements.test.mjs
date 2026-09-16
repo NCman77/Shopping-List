@@ -21,10 +21,12 @@ test('price enhancement provides pre-trip research and multi-location form contr
   assert.match(source, /normalizePriceResearch/);
 });
 
-test('price form patches the exact item only after the guarded base save succeeds', async () => {
+test('price form snapshots its patch and updates only the successful captured operation', async () => {
   const source = await readFile(pricingUiPath, 'utf8');
-  assert.match(source, /shoppingListLastItemSave/);
-  assert.match(source, /succeeded/);
+  assert.match(source, /registerItemSaveSnapshotProvider\('price-comparison'/);
+  assert.match(source, /operation\.extensions\?\.\['price-comparison'\]/);
+  assert.match(source, /result\.operationId === operation\.operationId/);
+  assert.match(source, /auth\.currentUser\?\.uid === operation\.userId/);
   assert.match(source, /const locationPatch = locationWritePatch\(state\.selectedLocations\)/);
   assert.match(source, /return \{ \.\.\.locationPatch, priceResearch \}/);
   assert.match(source, /updateDoc/);

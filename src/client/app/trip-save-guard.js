@@ -27,11 +27,6 @@ function notify(title, message, type = 'warning') {
   else console[type === 'error' ? 'error' : 'warn'](`${title}: ${message}`);
 }
 
-function makeItemId() {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
-  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
-
 export function resolveTripMembershipForSave({ existingItem, activeTrip } = {}) {
   if (existingItem !== null && existingItem !== undefined) {
     return {
@@ -65,32 +60,52 @@ export async function initTripSaveGuard() {
   const originalSave = window.saveItem;
 
   window.saveItem = async function(...args) {
-    window.shoppingListLastItemSave = { itemId: '', userId: '', succeeded: false };
-    const user = auth.currentUser;
-    if (!user) return originalSave.apply(this, args);
+    const operation = args[0]?.operationId
+      ? args[0]
+      : window.beginShoppingListSaveOperation();
+    if (!operation) return null;
+
+    const failBeforeBaseSave = (reason) => {
+      const result = Object.freeze({
+        operationId: operation.operationId,
+        itemId: operation.itemId,
+        userId: operation.userId,
+        succeeded: false,
+        reason
+      });
+      window.shoppingListLastItemSave = result;
+      window.releaseShoppingListSaveOperation(operation);
+      return result;
+    };
+
+    if (!operation.userId) {
+      return originalSave.apply(this, [operation, ...args.slice(1)]);
+    }
 
     const idInput = document.getElementById('item-id');
-    const modalContent = document.getElementById('add-modal-content');
-    let itemId = clean(idInput?.value);
-    const wasEditing = Boolean(itemId);
-    const generatedNewId = !itemId;
+    const wasEditing = !operation.isNew;
+    const generatedNewId = operation.isNew;
     let existingItem = null;
 
     if (wasEditing) {
-      const existingRef = doc(db, 'artifacts', APP_ID, 'users', user.uid, 'items', itemId);
-      const snapshot = await getDoc(existingRef);
-      existingItem = snapshot.exists() ? snapshot.data() : null;
-      if (!existingItem) {
-        notify('商品資料不存在', '找不到原本的商品資料，請重新整理後再試。', 'error');
-        return;
+      try {
+        const existingRef = doc(db, 'artifacts', APP_ID, 'users', operation.userId, 'items', operation.itemId);
+        const snapshot = await getDoc(existingRef);
+        existingItem = snapshot.exists() ? snapshot.data() : null;
+        if (!existingItem) {
+          notify('商品資料不存在', '找不到原本的商品資料，請重新整理後再試。', 'error');
+          return failBeforeBaseSave('item-not-found');
+        }
+      } catch (error) {
+        failBeforeBaseSave(error.message || 'trip-membership-read-failed');
+        throw error;
       }
     } else {
       if (!window.shoppingListTripContextReady || !window.shoppingListActiveTrip?.id) {
         notify('尚未選擇旅程', '請先新增或選擇一趟旅程，再新增商品。');
-        return;
+        return failBeforeBaseSave('active-trip-required');
       }
-      itemId = makeItemId();
-      if (idInput) idInput.value = itemId;
+      if (idInput) idInput.value = operation.itemId;
     }
 
     const membership = resolveTripMembershipForSave({
@@ -99,42 +114,45 @@ export async function initTripSaveGuard() {
     });
 
     if (!membership.tripId || !membership.country) {
-      if (generatedNewId && idInput?.value === itemId) idInput.value = '';
+      if (generatedNewId && idInput?.value === operation.itemId) idInput.value = '';
       notify('旅程資料尚未完成', wasEditing
         ? '這個舊商品還沒有完成旅程歸檔，請重新整理後再試。'
         : '請先新增或選擇一趟旅程，再新增商品。');
-      return;
+      return failBeforeBaseSave('trip-membership-required');
     }
 
-    const itemRef = doc(db, 'artifacts', APP_ID, 'users', user.uid, 'items', itemId);
-    let reservedNewItem = false;
+    const itemRef = doc(db, 'artifacts', APP_ID, 'users', operation.userId, 'items', operation.itemId);
+    let reservationOperationId = '';
     try {
       if (generatedNewId) {
         await setDoc(itemRef, membership, { merge: true });
-        reservedNewItem = true;
+        reservationOperationId = operation.operationId;
       }
 
-      const result = await originalSave.apply(this, args);
-      const saveSucceeded = Boolean(modalContent?.classList?.contains('translate-y-full'));
-      window.shoppingListLastItemSave = {
-        itemId: saveSucceeded ? itemId : '',
-        userId: saveSucceeded ? user.uid : '',
-        succeeded: saveSucceeded
-      };
-      if (!saveSucceeded && reservedNewItem) {
+      const result = await originalSave.apply(this, [operation, ...args.slice(1)]);
+      const succeeded = Boolean(
+        result && result.succeeded
+        && result.operationId === operation.operationId
+        && result.itemId === operation.itemId
+        && result.userId === operation.userId
+      );
+      if (!succeeded && reservationOperationId === operation.operationId) {
         try { await deleteDoc(itemRef); } catch (cleanupError) {
           console.error('Failed to clean reserved item after unsuccessful save:', cleanupError);
         }
-        if (idInput?.value === itemId) idInput.value = '';
+        if (idInput?.value === operation.itemId) idInput.value = '';
       }
       return result;
     } catch (error) {
-      window.shoppingListLastItemSave = { itemId: '', userId: '', succeeded: false };
-      if (reservedNewItem) {
+      if (reservationOperationId === operation.operationId) {
         try { await deleteDoc(itemRef); } catch (cleanupError) {
           console.error('Failed to clean reserved item after save error:', cleanupError);
         }
-        if (idInput?.value === itemId) idInput.value = '';
+        if (idInput?.value === operation.itemId) idInput.value = '';
+      }
+      if (!window.shoppingListLastItemSave
+        || window.shoppingListLastItemSave.operationId !== operation.operationId) {
+        failBeforeBaseSave(error.message || 'trip-save-guard-failed');
       }
       throw error;
     }

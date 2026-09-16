@@ -12,6 +12,7 @@ import {
   normalizePriceRange,
   normalizePriceResearch
 } from '../pricing/price-range.js';
+import { registerItemSaveSnapshotProvider } from './item-save-operation.js';
 
 const APP_ID = 'japan-shopping-app';
 
@@ -374,6 +375,11 @@ export async function initPriceComparisonEnhancements() {
     return { ...locationPatch, priceResearch };
   }
 
+  registerItemSaveSnapshotProvider('price-comparison', () => {
+    syncLegacyLocation();
+    return buildFormPatch();
+  });
+
   function compareCurrency(item) {
     return clean(state.compareRule?.currencyCode || item?.priceResearch?.currencyCode || currencyCodeForCountry(item?.country));
   }
@@ -604,22 +610,22 @@ export async function initPriceComparisonEnhancements() {
 
   const originalSave = window.saveItem;
   window.saveItem = async function(...args) {
-    syncLegacyLocation();
-    const patch = buildFormPatch();
-    const savingUserId = clean(auth.currentUser?.uid || state.userId);
-    const result = await originalSave.apply(this, args);
-    const lastSave = window.shoppingListLastItemSave;
-    const itemId = clean(lastSave?.itemId);
+    const operation = args[0]?.operationId
+      ? args[0]
+      : window.beginShoppingListSaveOperation();
+    if (!operation) return null;
+    const patch = operation.extensions?.['price-comparison'];
+    const result = await originalSave.apply(this, [operation, ...args.slice(1)]);
     const succeeded = Boolean(
-      lastSave?.succeeded
-      && itemId
-      && savingUserId
-      && lastSave?.userId === savingUserId
-      && auth.currentUser?.uid === savingUserId
+      result?.succeeded
+      && result.operationId === operation.operationId
+      && result.itemId === operation.itemId
+      && result.userId === operation.userId
+      && auth.currentUser?.uid === operation.userId
     );
     if (!succeeded) return result;
     try {
-      await updateDoc(doc(db, 'artifacts', APP_ID, 'users', savingUserId, 'items', itemId), patch);
+      await updateDoc(doc(db, 'artifacts', APP_ID, 'users', operation.userId, 'items', operation.itemId), patch);
     } catch (error) {
       console.error('Price research / multi-location save failed:', error);
       notify('價格資料儲存失敗', '商品本身已儲存，但價格功課或多地點沒有成功同步，請再編輯一次。', 'error');
