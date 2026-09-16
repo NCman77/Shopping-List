@@ -57,6 +57,7 @@ test('copied items preserve all candidate locations and price research', () => {
     source: {
       id: 'source-price',
       name: '護髮',
+      country: '日本',
       location: '新宿',
       locations: ['新宿', '澀谷'],
       priceResearch: {
