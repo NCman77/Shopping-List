@@ -1,8 +1,8 @@
-function legacyLocationLink(card) {
-  return [...(card?.querySelectorAll?.('a[target="_blank"]') || [])].find((link) => {
+function legacyLocationLinks(card) {
+  return [...(card?.querySelectorAll?.('a[target="_blank"]') || [])].filter((link) => {
     const href = link.getAttribute?.('href') || link.href || '';
     return /google\.com\/maps\/search/i.test(href);
-  }) || null;
+  });
 }
 
 function metadataRow(card, legacyLink) {
@@ -31,13 +31,13 @@ function moveLocationActions(card) {
   const buttons = [...actions.querySelectorAll('button[aria-label^="在 Google 地圖搜尋"]')];
   if (!buttons.length) return;
 
-  const legacyLink = legacyLocationLink(card);
-  const metaRow = metadataRow(card, legacyLink);
+  const legacyLinks = legacyLocationLinks(card);
+  const metaRow = metadataRow(card, legacyLinks[0] || null);
   if (!metaRow) return;
   metaRow.classList.add('home-item-meta-row');
 
   for (const existing of [...metaRow.querySelectorAll('.home-location-map-action')]) existing.remove();
-  if (legacyLink) legacyLink.remove();
+  for (const legacyLink of legacyLinks) legacyLink.remove();
   for (const button of buttons) {
     button.classList.add('home-location-map-action', 'bg-pastelBlue');
     button.classList.remove('bg-pastelYellow');

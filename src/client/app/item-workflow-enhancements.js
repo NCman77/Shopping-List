@@ -37,7 +37,7 @@ function notify(title, message, type = 'error') {
 }
 
 function cardItemId(card) {
-  const enhanced = String(card?.dataset?.enhancedItemId || '').trim();
+  const enhanced = String(card?.dataset?.enhancedItemId || card?.dataset?.itemId || '').trim();
   if (enhanced) return enhanced;
   const source = card?.querySelector?.('[onclick*="openEditModal"]')?.getAttribute?.('onclick') || '';
   return source.match(/openEditModal\(['"]([^'"]+)['"]\)/)?.[1] || '';
