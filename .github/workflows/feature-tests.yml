@@ -21,6 +21,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: npm
+      - name: Install E2E dependencies
+        run: npm ci
       - name: Run unit and regression tests
         run: find . -path './.git' -prune -o -name '*.test.mjs' -print0 | xargs -0 node --test
       - name: Syntax checks
@@ -38,7 +41,17 @@ jobs:
           grep -q "appDataFolder" "$DRIVE_FILE"
       - name: Firestore schema guard
         run: |
-          grep -q 'match /artifacts/{appId}/users/{userId}/' firebase/firestore.rules
+          grep -q 'match /artifacts/{appId}/users/{userId}' firebase/firestore.rules
           grep -q 'japan-shopping-app' src/client/app/app-enhancements.js
           grep -q 'japan-shopping-app' src/client/photos/photo-visibility-enhancements.js
           ! grep -q 'match /users/{userId}/' firebase/firestore.rules
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+      - name: Browser E2E smoke test
+        run: npm run test:e2e
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Firestore rules integration test
+        run: npm run test:rules

@@ -38,6 +38,8 @@ test('retired Places mode is no longer bootstrapped even though its compatibilit
 
 test('photo upload placeholder is restored for existing items and desktop photo grid is capped without changing mobile width', async () => {
   const source = await readFile(photoFixUrl, 'utf8');
+  assert.match(source, /getElementById\('add-modal'\)/);
+  assert.doesNotMatch(source, /getElementById\('item-modal'\)/);
   assert.match(source, /photo-placeholder/);
   assert.match(source, /classList\.remove\('hidden'\)/);
   assert.match(source, /photo-preview-grid/);

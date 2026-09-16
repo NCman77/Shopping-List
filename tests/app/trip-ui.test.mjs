@@ -66,7 +66,12 @@ test('trip form validates dates and locks occupied-trip country and delete contr
   assert.match(source, /validateTripDraft/);
   assert.match(source, /canChangeTripCountry/);
   assert.match(source, /canDeleteTrip/);
-  assert.match(source, /deleteDoc/);
+  assert.match(source, /transaction\.delete\(tripRef\)/);
+  assert.match(source, /runTransaction/);
+  assert.match(source, /getDocsFromServer/);
+  assert.match(source, /deletingToken/);
+  assert.match(source, /where\(['"]tripId['"]/);
+  assert.match(source, /limit\(1\)/);
   assert.match(source, /setDoc/);
 });
 

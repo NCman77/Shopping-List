@@ -17,14 +17,15 @@ function waitFor(predicate, timeout = 12000) {
 function repairPhotoUi() {
   const placeholder = document.getElementById('photo-placeholder');
   if (placeholder) {
-    placeholder.classList.remove('hidden');
+    if (placeholder.classList.contains('hidden')) placeholder.classList.remove('hidden');
     if (!placeholder.textContent?.includes('新增照片')) {
       placeholder.innerHTML = '<i class="fas fa-camera text-3xl mb-1"></i><span class="text-sm font-bold">新增照片</span><span class="text-[10px] opacity-60">相簿與相機</span>';
     }
   }
 
   const grid = document.getElementById('photo-preview-grid');
-  if (grid) grid.classList.add('lg:max-w-md', 'lg:mx-auto');
+  if (grid && !grid.classList.contains('lg:max-w-md')) grid.classList.add('lg:max-w-md');
+  if (grid && !grid.classList.contains('lg:mx-auto')) grid.classList.add('lg:mx-auto');
 }
 
 export async function initPhotoUiFixes() {
@@ -32,7 +33,7 @@ export async function initPhotoUiFixes() {
   if (window.__shoppingListPhotoUiFixesInitialized) return;
   window.__shoppingListPhotoUiFixesInitialized = true;
 
-  const modal = await waitFor(() => document.getElementById('item-modal'));
+  const modal = await waitFor(() => document.getElementById('add-modal'));
   repairPhotoUi();
 
   const observer = new MutationObserver(() => repairPhotoUi());

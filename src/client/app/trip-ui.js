@@ -153,7 +153,7 @@ export async function initTripUi() {
   const app = appSdk.getApps()[0] || appSdk.getApp();
   const auth = authSdk.getAuth(app);
   const db = firestoreSdk.getFirestore(app);
-  const { collection, doc, onSnapshot, setDoc, deleteDoc } = firestoreSdk;
+  const { collection, doc, getDocsFromServer, limit, onSnapshot, query, runTransaction, serverTimestamp, setDoc, where } = firestoreSdk;
 
   const state = {
     userId: '',
@@ -391,10 +391,54 @@ export async function initTripUi() {
       return notify('不能刪除', count ? `這趟旅程還有 ${count} 件商品，請先處理商品後再刪除。` : '既有清單不能刪除。', 'warning');
     }
     if (!window.confirm?.(`確定刪除「${tripDisplayTitle(trip)}」？`)) return;
+    const tripRef = doc(db, 'artifacts', APP_ID, 'users', user.uid, 'trips', trip.id);
+    const itemsRef = collection(db, 'artifacts', APP_ID, 'users', user.uid, 'items');
+    const deletionToken = crypto.randomUUID();
+    let locked = false;
     try {
-      await deleteDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'trips', trip.id));
+      await runTransaction(db, async (transaction) => {
+        const snapshot = await transaction.get(tripRef);
+        if (!snapshot.exists()) throw Object.assign(new Error('trip-missing'), { code: 'trip-missing' });
+        const data = snapshot.data();
+        const lockAge = Date.now() - (data.deletingAt?.toMillis?.() || 0);
+        if (data.deleting && lockAge < 60000) {
+          throw Object.assign(new Error('trip-deletion-in-progress'), { code: 'trip-deletion-in-progress' });
+        }
+        transaction.update(tripRef, { deleting: true, deletingToken: deletionToken, deletingAt: serverTimestamp() });
+      });
+      locked = true;
+      const occupied = await getDocsFromServer(query(itemsRef, where('tripId', '==', trip.id), limit(1)));
+      if (!occupied.empty) throw Object.assign(new Error('trip-not-empty'), { code: 'trip-not-empty' });
+      await runTransaction(db, async (transaction) => {
+        const snapshot = await transaction.get(tripRef);
+        if (!snapshot.exists() || snapshot.data().deletingToken !== deletionToken) {
+          throw Object.assign(new Error('trip-deletion-changed'), { code: 'trip-deletion-changed' });
+        }
+        transaction.delete(tripRef);
+      });
+      locked = false;
       renderManage();
     } catch (error) {
+      if (locked) {
+        try {
+          await runTransaction(db, async (transaction) => {
+            const snapshot = await transaction.get(tripRef);
+            if (snapshot.exists() && snapshot.data().deletingToken === deletionToken) {
+              transaction.update(tripRef, { deleting: false, deletingToken: '', deletingAt: null });
+            }
+          });
+        } catch (unlockError) {
+          console.error('Unlock trip after failed deletion:', unlockError);
+        }
+      }
+      if (error?.code === 'trip-not-empty') {
+        notify('不能刪除', '這趟旅程剛剛新增了商品，請先處理商品後再刪除。', 'warning');
+        return;
+      }
+      if (error?.code === 'trip-deletion-in-progress') {
+        notify('正在刪除', '這趟旅程正在另一個視窗刪除，請稍後再試。', 'warning');
+        return;
+      }
       console.error('Delete trip failed:', error);
       notify('刪除失敗', '無法刪除旅程，請稍後再試。');
     }

@@ -1,10 +1,9 @@
+ACTIVE_SKILLS_INDEX.md
 .firebase/
-firebase-debug.log
+.env*
 firestore-debug.log
+firebase-debug.log
 node_modules/
 playwright-report/
 test-results/
-.worktrees/
-
-.vercel
-.env*
+tests/

@@ -38,6 +38,10 @@ export function backgroundKindForMime(mimeType) {
   return String(mimeType || '').toLowerCase().startsWith('video/') ? 'video' : 'image';
 }
 
+export function backgroundLoadKey(userId, preferences = {}) {
+  return `${String(userId || '').trim()}:${normalizePersonalization(preferences).backgroundFileId}`;
+}
+
 export function isSupportedBackgroundFile(file) {
   if (!file) return false;
   const type = String(file.type || '').toLowerCase();
@@ -381,6 +385,8 @@ export async function initBackgroundPersonalization() {
     removeRequested: false,
     objectUrl: '',
     previewObjectUrl: '',
+    loadedBackgroundKey: '',
+    loadingBackgroundKeys: new Set(),
     settingsUnsub: null,
     drag: null
   };
@@ -426,29 +432,47 @@ export async function initBackgroundPersonalization() {
     if (kind === 'video') media.play().catch(() => {});
   }
 
-  async function loadPersistedBackground() {
+  async function loadPersistedBackground({ force = false } = {}) {
     const capturedUserId = state.userId;
-    return runBackgroundDownload({
-      tracker,
-      userId: capturedUserId,
-      preferences: state.preferences,
-      driveService: driveServiceForUser(capturedUserId),
-      createObjectUrl: (blob) => URL.createObjectURL(blob),
-      revokeObjectUrl: (url) => URL.revokeObjectURL(url),
-      clearBackground: () => {
-        revokeObjectUrl('objectUrl');
-        hideLayer();
-      },
-      hideBackground: hideLayer,
-      applyBackground: (objectUrl, preferences) => {
-        revokeObjectUrl('objectUrl');
-        state.objectUrl = objectUrl;
-        applyLayer(objectUrl, preferences);
-      },
-      onError: (error) => {
-        if (!(error instanceof DriveAuthorizationError)) console.error('Background download failed:', error);
+    const loadKey = backgroundLoadKey(capturedUserId, state.preferences);
+    if (!force && loadKey === state.loadedBackgroundKey) {
+      if (state.objectUrl) applyLayer(state.objectUrl, state.preferences);
+      return Object.freeze({ status: 'skipped', loadKey });
+    }
+    if (state.loadingBackgroundKeys.has(loadKey)) {
+      return Object.freeze({ status: 'pending', loadKey });
+    }
+    state.loadingBackgroundKeys.add(loadKey);
+    try {
+      const result = await runBackgroundDownload({
+        tracker,
+        userId: capturedUserId,
+        preferences: state.preferences,
+        driveService: driveServiceForUser(capturedUserId),
+        createObjectUrl: (blob) => URL.createObjectURL(blob),
+        revokeObjectUrl: (url) => URL.revokeObjectURL(url),
+        clearBackground: () => {
+          revokeObjectUrl('objectUrl');
+          hideLayer();
+        },
+        hideBackground: hideLayer,
+        applyBackground: (objectUrl, preferences) => {
+          revokeObjectUrl('objectUrl');
+          state.objectUrl = objectUrl;
+          applyLayer(objectUrl, preferences);
+        },
+        onError: (error) => {
+          if (!(error instanceof DriveAuthorizationError)) console.error('Background download failed:', error);
+        }
+      });
+      if (['applied', 'empty', 'authorization-required'].includes(result.status)
+        && backgroundLoadKey(state.userId, state.preferences) === loadKey) {
+        state.loadedBackgroundKey = loadKey;
       }
-    });
+      return result;
+    } finally {
+      state.loadingBackgroundKeys.delete(loadKey);
+    }
   }
 
   async function connectDrive(operation = tracker.capture(state.userId), capturedDrive = driveServiceForUser(operation.userId)) {
@@ -468,7 +492,7 @@ export async function initBackgroundPersonalization() {
     driveNote.classList.add('hidden');
     try { await capturedDrive.retryQueuedCleanup(); } catch {}
     if (!tracker.isSessionCurrent(operation, state.userId)) throw new Error('登入狀態已變更，請重新操作。');
-    await loadPersistedBackground();
+    await loadPersistedBackground({ force: true });
     return token;
   }
 
@@ -659,7 +683,7 @@ export async function initBackgroundPersonalization() {
         afterCommit: async (next) => {
           state.preferences = next;
           closeEditor();
-          await loadPersistedBackground();
+          await loadPersistedBackground({ force: true });
         },
         onError: (error) => {
           console.error('Background save failed:', error);
@@ -675,7 +699,7 @@ export async function initBackgroundPersonalization() {
   document.getElementById('cancel-background-personalization').addEventListener('click', closeEditor);
   modal.addEventListener('click', (event) => { if (event.target === modal) closeEditor(); });
   window.addEventListener('shopping-list:open-personalization', openEditor);
-  window.addEventListener('shopping-list:drive-token-ready', () => loadPersistedBackground());
+  window.addEventListener('shopping-list:drive-token-ready', () => loadPersistedBackground({ force: true }));
 
   authSdk.onAuthStateChanged(auth, (user) => {
     const operation = resetBackgroundSessionUi({
@@ -689,6 +713,8 @@ export async function initBackgroundPersonalization() {
     state.settingsUnsub = null;
     revokeObjectUrl('objectUrl');
     revokeObjectUrl('previewObjectUrl');
+    state.loadedBackgroundKey = '';
+    state.loadingBackgroundKeys.clear();
     state.userId = user?.uid || '';
     state.preferences = normalizePersonalization();
     if (!user) {

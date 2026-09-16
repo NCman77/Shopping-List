@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import {
   backgroundKindForMime,
+  backgroundLoadKey,
   isSupportedBackgroundFile,
   resetBackgroundSessionUi,
   runBackgroundDownload,
@@ -30,6 +31,13 @@ test('background accepts common images, GIF, MP4 and WebM only', () => {
   assert.equal(isSupportedBackgroundFile({ type: 'text/plain', name: 'a.txt' }), false);
   assert.equal(backgroundKindForMime('video/mp4'), 'video');
   assert.equal(backgroundKindForMime('image/gif'), 'image');
+});
+
+test('background load key changes only when the account or persisted file changes', () => {
+  assert.equal(backgroundLoadKey('user-a', { backgroundFileId: 'file-1' }), 'user-a:file-1');
+  assert.equal(backgroundLoadKey('user-a', { backgroundFileId: 'file-1', backgroundScale: 2 }), 'user-a:file-1');
+  assert.notEqual(backgroundLoadKey('user-a', { backgroundFileId: 'file-1' }), backgroundLoadKey('user-a', { backgroundFileId: 'file-2' }));
+  assert.notEqual(backgroundLoadKey('user-a', { backgroundFileId: 'file-1' }), backgroundLoadKey('user-b', { backgroundFileId: 'file-1' }));
 });
 
 test('background editor contains non-destructive framing and pan controls', async () => {

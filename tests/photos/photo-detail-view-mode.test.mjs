@@ -19,7 +19,8 @@ test('view mode keeps the edit-mode desktop thumbnail width without forcing phot
     readFile(photoUiFixesPath, 'utf8')
   ]);
 
-  assert.match(photoUiFixes, /grid\.classList\.add\('lg:max-w-md',\s*'lg:mx-auto'\)/);
+  assert.match(photoUiFixes, /grid\.classList\.add\('lg:max-w-md'\)/);
+  assert.match(photoUiFixes, /grid\.classList\.add\('lg:mx-auto'\)/);
   assert.match(source, /\.workflow-view-mode #item-photo-upload-label\s*\{[^}]*display:\s*none\s*!important/s);
   assert.match(source, /\.workflow-view-mode #photo-upload-status[^}]*display:\s*none\s*!important/s);
   assert.match(source, /\.workflow-view-mode #drive-connect-btn[^}]*display:\s*none\s*!important/s);
