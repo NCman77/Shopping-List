@@ -65,6 +65,10 @@ function installStyles(documentRef) {
       display: inline-flex;
     }
 
+    .workflow-add-mode .item-inline-add-label {
+      padding-right: 4rem;
+    }
+
     .workflow-edit-mode #item-edit-form-scroll {
       display: flex !important;
       flex-direction: column;
@@ -81,7 +85,7 @@ function installStyles(documentRef) {
     .workflow-edit-mode #item-edit-photo-field { order: 1; }
     .workflow-edit-mode #item-edit-photo-controls { order: 2; }
     .workflow-edit-mode #item-edit-name-field { order: 3; }
-    .workflow-edit-mode #item-edit-purchase-card { order: 4; }
+    .workflow-edit-mode .item-edit-purchase-card { order: 4; }
     .workflow-edit-mode #item-multi-location-chips-row { order: 5; }
     .workflow-edit-mode #price-research-section { order: 6; }
     .workflow-edit-mode #item-edit-address-field { order: 7; }
@@ -91,7 +95,7 @@ function installStyles(documentRef) {
     .workflow-edit-mode #item-edit-photo-field,
     .workflow-edit-mode #item-edit-photo-controls,
     .workflow-edit-mode #item-edit-name-field,
-    .workflow-edit-mode #item-edit-purchase-card,
+    .workflow-edit-mode .item-edit-purchase-card,
     .workflow-edit-mode #price-research-section,
     .workflow-edit-mode #item-edit-address-field,
     .workflow-edit-mode #item-edit-website-field,
@@ -105,7 +109,7 @@ function installStyles(documentRef) {
 
     .workflow-edit-mode #item-edit-photo-field,
     .workflow-edit-mode #item-edit-name-field { background: #fff !important; }
-    .workflow-edit-mode #item-edit-purchase-card,
+    .workflow-edit-mode .item-edit-purchase-card,
     .workflow-edit-mode #item-multi-location-chips-row { background: rgba(213, 229, 242, 0.34) !important; }
     .workflow-edit-mode #price-research-section { background: rgba(255, 241, 185, 0.32) !important; }
     .workflow-edit-mode #item-edit-address-field { background: rgba(252, 213, 206, 0.28) !important; }
@@ -127,7 +131,7 @@ function installStyles(documentRef) {
       width: 100%;
     }
 
-    .workflow-edit-mode #item-edit-purchase-card {
+    .workflow-edit-mode .item-edit-purchase-card {
       column-gap: 0.75rem !important;
     }
 
@@ -178,12 +182,12 @@ function addInlineCreateButton(documentRef, {
   const control = documentRef.getElementById(controlId);
   const field = controlId === 'item-multi-location-options'
     ? documentRef.getElementById('item-multi-location-field')
-    : formFieldFor(control);
+    : control?.closest?.('.flex-1') || formFieldFor(control);
   const label = field?.querySelector?.('label');
   if (!field || !label) return;
 
   field.style.position = 'relative';
-  label.style.paddingRight = '4rem';
+  label.classList.add('item-inline-add-label');
   const button = documentRef.createElement('button');
   button.id = buttonId;
   button.type = 'button';
@@ -264,7 +268,7 @@ function syncEditFormHooks(documentRef) {
 
   if (name?.parentElement) name.parentElement.id = 'item-edit-name-field';
   const purchase = documentRef.getElementById('item-purchase-meta-row');
-  if (purchase) purchase.id = 'item-edit-purchase-card';
+  purchase?.classList?.add?.('item-edit-purchase-card');
 
   const address = formFieldFor(documentRef.getElementById('item-address'));
   if (address) address.id = 'item-edit-address-field';
