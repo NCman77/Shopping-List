@@ -226,6 +226,7 @@ export async function initItemWorkflowEnhancements() {
   const nextButton = pagination.querySelector('#workflow-next-page');
   const pageLabel = pagination.querySelector('#workflow-page-label');
   const confirmModal = document.getElementById('not-wanted-confirm-modal');
+  let listObserver = null;
 
   function closeNotWantedModal() {
     state.pendingNotWantedId = '';
@@ -336,6 +337,7 @@ export async function initItemWorkflowEnhancements() {
     state.scheduled = false;
     if (state.applying) return;
     state.applying = true;
+    listObserver?.disconnect();
     try {
       ensureStatusFilterButton();
       ensureDetailEditUi();
@@ -391,6 +393,7 @@ export async function initItemWorkflowEnhancements() {
       styleActiveStatus(state.filter);
     } finally {
       state.applying = false;
+      listObserver?.observe(list, { childList: true, subtree: false });
     }
   }
 
@@ -534,7 +537,7 @@ export async function initItemWorkflowEnhancements() {
   const previewGrid = document.getElementById('photo-preview-grid');
   if (previewGrid) detailObserver.observe(previewGrid, { childList: true });
 
-  const listObserver = new MutationObserver(scheduleApply);
+  listObserver = new MutationObserver(scheduleApply);
   listObserver.observe(list, { childList: true, subtree: false });
 
   function subscribeUser(user) {
