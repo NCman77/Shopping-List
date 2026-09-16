@@ -56,8 +56,170 @@ function installStyles(documentRef) {
       border-top: 2px solid rgba(92, 64, 51, 0.18);
       z-index: 30;
     }
+
+    #item-inline-add-category,
+    #item-inline-add-location { display: none; }
+
+    .workflow-add-mode #item-inline-add-category,
+    .workflow-add-mode #item-inline-add-location {
+      display: inline-flex;
+    }
+
+    .workflow-add-mode .item-inline-add-label {
+      padding-right: 4rem;
+    }
+
+    .workflow-edit-mode #item-edit-form-scroll {
+      display: flex !important;
+      flex-direction: column;
+      gap: 0.75rem;
+      padding: 1rem !important;
+      background: #FAFAFA !important;
+    }
+
+    .workflow-edit-mode #item-edit-form-scroll > * {
+      margin-top: 0 !important;
+      margin-bottom: 0 !important;
+    }
+
+    .workflow-edit-mode #item-edit-photo-field { order: 1; }
+    .workflow-edit-mode #item-edit-photo-controls { order: 2; }
+    .workflow-edit-mode #item-edit-name-field { order: 3; }
+    .workflow-edit-mode .item-edit-purchase-card { order: 4; }
+    .workflow-edit-mode #item-multi-location-chips-row { order: 5; }
+    .workflow-edit-mode #price-research-section { order: 6; }
+    .workflow-edit-mode #item-edit-address-field { order: 7; }
+    .workflow-edit-mode #item-edit-website-field { order: 8; }
+    .workflow-edit-mode #item-edit-notes-field { order: 9; }
+
+    .workflow-edit-mode #item-edit-photo-field,
+    .workflow-edit-mode #item-edit-photo-controls,
+    .workflow-edit-mode #item-edit-name-field,
+    .workflow-edit-mode .item-edit-purchase-card,
+    .workflow-edit-mode #price-research-section,
+    .workflow-edit-mode #item-edit-address-field,
+    .workflow-edit-mode #item-edit-website-field,
+    .workflow-edit-mode #item-edit-notes-field,
+    .workflow-edit-mode #item-multi-location-chips-row {
+      border: 2px solid #5C4033 !important;
+      border-radius: 1.25rem !important;
+      padding: 0.75rem !important;
+      box-shadow: 2px 2px 0 rgba(92, 64, 51, 0.12);
+    }
+
+    .workflow-edit-mode #item-edit-photo-field,
+    .workflow-edit-mode #item-edit-name-field { background: #fff !important; }
+    .workflow-edit-mode .item-edit-purchase-card,
+    .workflow-edit-mode #item-multi-location-chips-row { background: rgba(213, 229, 242, 0.34) !important; }
+    .workflow-edit-mode #price-research-section { background: rgba(255, 241, 185, 0.32) !important; }
+    .workflow-edit-mode #item-edit-address-field { background: rgba(252, 213, 206, 0.28) !important; }
+    .workflow-edit-mode #item-edit-website-field { background: rgba(208, 240, 192, 0.28) !important; }
+    .workflow-edit-mode #item-edit-notes-field { background: #fff !important; }
+
+    .workflow-edit-mode #item-edit-photo-field label[for="item-photo"] {
+      margin-left: auto;
+      margin-right: auto;
+      width: 10rem !important;
+      height: 10rem !important;
+      border-radius: 1.5rem !important;
+      background: rgba(213, 229, 242, 0.25) !important;
+    }
+
+    .workflow-edit-mode #item-edit-photo-controls #photo-preview-grid {
+      margin-left: auto;
+      margin-right: auto;
+      width: 100%;
+    }
+
+    .workflow-edit-mode .item-edit-purchase-card {
+      column-gap: 0.75rem !important;
+    }
+
+    .workflow-edit-mode #item-edit-form-scroll input,
+    .workflow-edit-mode #item-edit-form-scroll select,
+    .workflow-edit-mode #item-edit-form-scroll textarea {
+      background: #fff !important;
+    }
   `;
   documentRef.head.appendChild(style);
+}
+
+function setClassState(element, className, enabled) {
+  if (!element?.classList) return;
+  if (element.classList.contains(className) !== enabled) element.classList.toggle(className, enabled);
+}
+
+function formFieldFor(control) {
+  if (!control) return null;
+  if (control.id === 'item-address') return control.parentElement?.parentElement || null;
+  return control.parentElement || null;
+}
+
+function setUnifiedLabels(documentRef) {
+  const name = documentRef.getElementById('item-name');
+  const nameLabel = name?.parentElement?.querySelector?.('label');
+  if (nameLabel && nameLabel.dataset.itemUnifiedLabel !== 'name') {
+    nameLabel.innerHTML = '商品名稱 <span class="text-red-400">*</span>';
+    nameLabel.dataset.itemUnifiedLabel = 'name';
+  }
+
+  const notes = documentRef.getElementById('item-desc');
+  const notesLabel = notes?.parentElement?.querySelector?.('label');
+  if (notesLabel && notesLabel.dataset.itemUnifiedLabel !== 'notes') {
+    notesLabel.textContent = '我的筆記';
+    notesLabel.dataset.itemUnifiedLabel = 'notes';
+  }
+}
+
+function addInlineCreateButton(documentRef, {
+  controlId,
+  buttonId,
+  title,
+  placeholder,
+  handlerName
+}) {
+  if (documentRef.getElementById(buttonId)) return;
+  const control = documentRef.getElementById(controlId);
+  const field = controlId === 'item-multi-location-options'
+    ? documentRef.getElementById('item-multi-location-field')
+    : control?.closest?.('.flex-1') || formFieldFor(control);
+  const label = field?.querySelector?.('label');
+  if (!field || !label) return;
+
+  field.style.position = 'relative';
+  label.classList.add('item-inline-add-label');
+  const button = documentRef.createElement('button');
+  button.id = buttonId;
+  button.type = 'button';
+  button.className = 'absolute right-0 top-0 items-center justify-center px-2 py-0.5 rounded-full border border-warmBrown bg-white text-[10px] font-bold text-warmBrown shadow-[1px_1px_0_rgba(92,64,51,.16)]';
+  button.textContent = '＋新增';
+  button.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const view = documentRef.defaultView || (typeof window !== 'undefined' ? window : null);
+    const handler = view?.[handlerName];
+    if (typeof view?.openInputModal === 'function' && typeof handler === 'function') {
+      view.openInputModal(title, placeholder, handler);
+    }
+  });
+  field.appendChild(button);
+}
+
+function ensureInlineCreateButtons(documentRef) {
+  addInlineCreateButton(documentRef, {
+    controlId: 'item-category',
+    buttonId: 'item-inline-add-category',
+    title: '新增分類',
+    placeholder: '輸入新分類...',
+    handlerName: 'handleAddCategory'
+  });
+  addInlineCreateButton(documentRef, {
+    controlId: 'item-multi-location-options',
+    buttonId: 'item-inline-add-location',
+    title: '新增地點',
+    placeholder: '輸入新地點...',
+    handlerName: 'handleAddLocation'
+  });
 }
 
 export function syncItemFormColumns(documentRef = typeof document !== 'undefined' ? document : null) {
@@ -89,6 +251,40 @@ export function syncItemFormColumns(documentRef = typeof document !== 'undefined
   }
   if (chips.parentElement !== chipsRow) chipsRow.appendChild(chips);
   return true;
+}
+
+function syncEditFormHooks(documentRef) {
+  const name = documentRef.getElementById('item-name');
+  const scroll = name?.parentElement?.parentElement;
+  if (scroll) scroll.id = 'item-edit-form-scroll';
+
+  const photoInput = documentRef.getElementById('item-photo');
+  const photoField = photoInput?.closest?.('label')?.parentElement;
+  if (photoField) photoField.id = 'item-edit-photo-field';
+
+  const driveButton = documentRef.getElementById('drive-connect-btn');
+  const photoControls = driveButton?.closest?.('.w-full');
+  if (photoControls) photoControls.id = 'item-edit-photo-controls';
+
+  if (name?.parentElement) name.parentElement.id = 'item-edit-name-field';
+  const purchase = documentRef.getElementById('item-purchase-meta-row');
+  purchase?.classList?.add?.('item-edit-purchase-card');
+
+  const address = formFieldFor(documentRef.getElementById('item-address'));
+  if (address) address.id = 'item-edit-address-field';
+  const website = formFieldFor(documentRef.getElementById('item-website'));
+  if (website) website.id = 'item-edit-website-field';
+  const notes = formFieldFor(documentRef.getElementById('item-desc'));
+  if (notes) notes.id = 'item-edit-notes-field';
+}
+
+function syncModalMode(documentRef) {
+  const modalContent = documentRef.getElementById('add-modal-content');
+  if (!modalContent) return;
+  const viewMode = modalContent.classList.contains('workflow-view-mode');
+  const existing = Boolean(String(documentRef.getElementById('item-id')?.value || '').trim());
+  setClassState(modalContent, 'workflow-edit-mode', !viewMode && existing);
+  setClassState(modalContent, 'workflow-add-mode', !viewMode && !existing);
 }
 
 function findDetailAction(documentRef, label) {
@@ -145,6 +341,18 @@ export function syncCopyActionFooter(documentRef = typeof document !== 'undefine
   return true;
 }
 
+function wrapOpenAddModal(documentRef, sync) {
+  const view = documentRef.defaultView || (typeof window !== 'undefined' ? window : null);
+  if (!view || view.__shoppingListItemModalLayoutOpenAddWrapped || typeof view.openAddModal !== 'function') return;
+  const original = view.openAddModal;
+  view.openAddModal = function(...args) {
+    const result = original.apply(this, args);
+    queueMicrotask(sync);
+    return result;
+  };
+  view.__shoppingListItemModalLayoutOpenAddWrapped = true;
+}
+
 export async function initItemModalLayout({
   documentRef = typeof document !== 'undefined' ? document : null,
   MutationObserverImpl = typeof MutationObserver !== 'undefined' ? MutationObserver : null
@@ -163,9 +371,13 @@ export async function initItemModalLayout({
 
   let scheduled = false;
   const sync = () => {
+    setUnifiedLabels(documentRef);
     syncItemFormColumns(documentRef);
+    ensureInlineCreateButtons(documentRef);
+    syncEditFormHooks(documentRef);
     syncItemDetailActions(documentRef);
     syncCopyActionFooter(documentRef);
+    syncModalMode(documentRef);
   };
   const schedule = () => {
     if (scheduled) return;
@@ -176,8 +388,14 @@ export async function initItemModalLayout({
     });
   };
 
+  wrapOpenAddModal(documentRef, sync);
   const observer = new MutationObserverImpl(schedule);
-  observer.observe(modalContent, { childList: true, subtree: true });
+  observer.observe(modalContent, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['class']
+  });
   sync();
   return () => observer.disconnect();
 }

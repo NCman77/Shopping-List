@@ -1,4 +1,8 @@
-import { resolveItemLocations } from '../pricing/location-selection.js';
+import { locationWritePatch, resolveItemLocations } from '../pricing/location-selection.js';
+
+function clean(value) {
+  return String(value ?? '').trim();
+}
 
 export function moveOption(values, fromIndex, toIndex) {
   const list = Array.isArray(values) ? [...values] : [];
@@ -11,6 +15,32 @@ export function moveOption(values, fromIndex, toIndex) {
 
 export function removeOption(values, value) {
   return (Array.isArray(values) ? values : []).filter((entry) => entry !== value);
+}
+
+export function renameOption(values, oldValue, newValue) {
+  const oldName = clean(oldValue);
+  const nextName = clean(newValue);
+  const list = Array.isArray(values) ? [...values] : [];
+  if (!oldName || !nextName || oldName === nextName) return list;
+  return list.map((entry) => entry === oldName ? nextName : entry);
+}
+
+export function buildRenameItemPatch(item, kind, oldValue, newValue) {
+  const oldName = clean(oldValue);
+  const nextName = clean(newValue);
+  if (!oldName || !nextName || oldName === nextName) return null;
+
+  if (kind === 'category') {
+    return clean(item?.category) === oldName ? { category: nextName } : null;
+  }
+
+  if (kind === 'location') {
+    const locations = resolveItemLocations(item);
+    if (!locations.includes(oldName)) return null;
+    return locationWritePatch(locations.map((location) => location === oldName ? nextName : location));
+  }
+
+  return null;
 }
 
 export function findItemsUsingOption(items, kind, value) {
