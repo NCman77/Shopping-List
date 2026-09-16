@@ -46,6 +46,137 @@ export function isSupportedBackgroundFile(file) {
   return /\.(jpe?g|png|webp|gif|mp4|webm)$/.test(name);
 }
 
+async function cleanupCapturedDriveFile(driveService, fileId) {
+  if (!fileId) return;
+  try {
+    await driveService.deletePhoto(fileId);
+  } catch {
+    try { await driveService.queueCleanup(fileId); } catch {}
+  }
+}
+
+export async function runBackgroundDownload({
+  tracker,
+  userId,
+  preferences,
+  driveService,
+  createObjectUrl,
+  revokeObjectUrl,
+  clearBackground,
+  hideBackground,
+  applyBackground,
+  onError = () => {}
+}) {
+  const operation = tracker.nextRequest('background-load', userId);
+  const capturedPreferences = normalizePersonalization(preferences);
+  const fileId = capturedPreferences.backgroundFileId;
+  if (!operation.userId || !fileId) {
+    if (tracker.isLatestRequest(operation, userId)) clearBackground();
+    return Object.freeze({ status: 'empty', operation });
+  }
+  if (!driveService.hasAccessToken()) {
+    if (tracker.isLatestRequest(operation, userId)) hideBackground();
+    return Object.freeze({ status: 'authorization-required', operation });
+  }
+  try {
+    const blob = await driveService.downloadPhoto(fileId);
+    const objectUrl = createObjectUrl(blob);
+    if (!tracker.isLatestRequest(operation, userId)) {
+      revokeObjectUrl(objectUrl);
+      return Object.freeze({ status: 'stale', operation });
+    }
+    applyBackground(objectUrl, capturedPreferences);
+    return Object.freeze({ status: 'applied', operation, objectUrl });
+  } catch (error) {
+    if (!tracker.isLatestRequest(operation, userId)) {
+      return Object.freeze({ status: 'stale', operation });
+    }
+    onError(error);
+    hideBackground();
+    return Object.freeze({ status: 'error', operation, error });
+  }
+}
+
+export async function runBackgroundSaveTransaction({
+  tracker,
+  operation,
+  getCurrentUserId,
+  capturedSettingsRef,
+  editorPreferences,
+  pendingFile,
+  removeRequested,
+  oldFileId,
+  driveService,
+  connectDrive,
+  persistSettings,
+  afterCommit,
+  onError = () => {}
+}) {
+  let uploadedFileId = '';
+  let persistenceCommitted = false;
+  let nextPreferences = normalizePersonalization(editorPreferences);
+  const isCurrent = () => tracker.isSessionCurrent(operation, getCurrentUserId());
+  const staleResult = async () => {
+    if (uploadedFileId && !persistenceCommitted) {
+      await cleanupCapturedDriveFile(driveService, uploadedFileId);
+    }
+    return Object.freeze({ status: 'stale', persistenceCommitted, nextPreferences });
+  };
+
+  try {
+    if (pendingFile) {
+      if (!driveService.hasAccessToken()) await connectDrive(operation, driveService);
+      if (!isCurrent()) return staleResult();
+      const uploaded = await driveService.uploadFile({
+        blob: pendingFile,
+        fileName: pendingFile.name || `background-${Date.now()}`,
+        appProperties: { kind: 'background', owner: operation.userId }
+      });
+      uploadedFileId = uploaded.id;
+      if (!isCurrent()) return staleResult();
+      nextPreferences = normalizePersonalization({
+        ...nextPreferences,
+        backgroundFileId: uploaded.id,
+        backgroundFileName: uploaded.name || pendingFile.name,
+        backgroundMimeType: uploaded.mimeType || pendingFile.type
+      });
+    } else if (removeRequested) {
+      nextPreferences = normalizePersonalization({
+        ...nextPreferences,
+        backgroundFileId: '',
+        backgroundFileName: '',
+        backgroundMimeType: ''
+      });
+    }
+
+    if (!isCurrent()) return staleResult();
+    await persistSettings(capturedSettingsRef, nextPreferences);
+    persistenceCommitted = true;
+
+    if (oldFileId && oldFileId !== nextPreferences.backgroundFileId) {
+      await cleanupCapturedDriveFile(driveService, oldFileId);
+    }
+
+    if (!isCurrent()) return staleResult();
+    await afterCommit(nextPreferences);
+    return Object.freeze({ status: 'saved', persistenceCommitted, nextPreferences });
+  } catch (error) {
+    if (uploadedFileId && !persistenceCommitted) {
+      await cleanupCapturedDriveFile(driveService, uploadedFileId);
+    }
+    if (isCurrent()) onError(error);
+    return Object.freeze({ status: 'error', persistenceCommitted, nextPreferences, error });
+  }
+}
+
+export function resetBackgroundSessionUi({ tracker, userId, closeEditor, hideBackground, saveButton }) {
+  tracker.advance(userId);
+  closeEditor();
+  saveButton.disabled = false;
+  hideBackground();
+  return tracker.capture(userId);
+}
+
 function installStyles() {
   if (document.getElementById('background-personalization-styles')) return;
   const style = document.createElement('style');
@@ -240,6 +371,7 @@ export async function initBackgroundPersonalization() {
   const panDirectionInput = document.getElementById('background-pan-direction');
   const panIterationInput = document.getElementById('background-pan-iteration');
   const driveNote = document.getElementById('background-drive-note');
+  const saveButton = document.getElementById('save-background-personalization');
 
   const state = {
     userId: '',
@@ -295,36 +427,28 @@ export async function initBackgroundPersonalization() {
   }
 
   async function loadPersistedBackground() {
-    const operation = tracker.nextRequest('background-load', state.userId);
-    const preferences = normalizePersonalization(state.preferences);
-    const fileId = preferences.backgroundFileId;
-    const capturedDrive = driveServiceForUser(operation.userId);
-    if (!operation.userId || !fileId) {
-      if (!tracker.isLatestRequest(operation, state.userId)) return;
-      revokeObjectUrl('objectUrl');
-      hideLayer();
-      return;
-    }
-    if (!capturedDrive.hasAccessToken()) {
-      if (!tracker.isLatestRequest(operation, state.userId)) return;
-      hideLayer();
-      return;
-    }
-    try {
-      const blob = await capturedDrive.downloadPhoto(fileId);
-      const objectUrl = URL.createObjectURL(blob);
-      if (!tracker.isLatestRequest(operation, state.userId)) {
-        URL.revokeObjectURL(objectUrl);
-        return;
+    const capturedUserId = state.userId;
+    return runBackgroundDownload({
+      tracker,
+      userId: capturedUserId,
+      preferences: state.preferences,
+      driveService: driveServiceForUser(capturedUserId),
+      createObjectUrl: (blob) => URL.createObjectURL(blob),
+      revokeObjectUrl: (url) => URL.revokeObjectURL(url),
+      clearBackground: () => {
+        revokeObjectUrl('objectUrl');
+        hideLayer();
+      },
+      hideBackground: hideLayer,
+      applyBackground: (objectUrl, preferences) => {
+        revokeObjectUrl('objectUrl');
+        state.objectUrl = objectUrl;
+        applyLayer(objectUrl, preferences);
+      },
+      onError: (error) => {
+        if (!(error instanceof DriveAuthorizationError)) console.error('Background download failed:', error);
       }
-      revokeObjectUrl('objectUrl');
-      state.objectUrl = objectUrl;
-      applyLayer(state.objectUrl, preferences);
-    } catch (error) {
-      if (!tracker.isLatestRequest(operation, state.userId)) return;
-      if (!(error instanceof DriveAuthorizationError)) console.error('Background download failed:', error);
-      hideLayer();
-    }
+    });
   }
 
   async function connectDrive(operation = tracker.capture(state.userId), capturedDrive = driveServiceForUser(operation.userId)) {
@@ -518,62 +642,32 @@ export async function initBackgroundPersonalization() {
     const capturedRemoveRequested = state.removeRequested;
     const oldFileId = state.preferences.backgroundFileId;
     const capturedDrive = driveServiceForUser(operation.userId);
-    const button = document.getElementById('save-background-personalization');
-    button.disabled = true;
-    let uploadedFileId = '';
+    saveButton.disabled = true;
     try {
-      let next = capturedEditorPreferences;
-      if (capturedPendingFile) {
-        if (!capturedDrive.hasAccessToken()) await connectDrive(operation, capturedDrive);
-        if (!tracker.isSessionCurrent(operation, state.userId)) throw new Error('登入狀態已變更，請重新操作。');
-        const uploaded = await capturedDrive.uploadFile({
-          blob: capturedPendingFile,
-          fileName: capturedPendingFile.name || `background-${Date.now()}`,
-          appProperties: { kind: 'background', owner: operation.userId }
-        });
-        uploadedFileId = uploaded.id;
-        if (!tracker.isSessionCurrent(operation, state.userId)) throw new Error('登入狀態已變更，請重新操作。');
-        next = normalizePersonalization({
-          ...next,
-          backgroundFileId: uploaded.id,
-          backgroundFileName: uploaded.name || capturedPendingFile.name,
-          backgroundMimeType: uploaded.mimeType || capturedPendingFile.type
-        });
-      } else if (capturedRemoveRequested) {
-        next = normalizePersonalization({
-          ...next,
-          backgroundFileId: '',
-          backgroundFileName: '',
-          backgroundMimeType: ''
-        });
-      }
-
-      if (!tracker.isSessionCurrent(operation, state.userId)) throw new Error('登入狀態已變更，請重新操作。');
-      await setDoc(capturedSettingsRef, { personalization: next }, { merge: true });
-
-      if (oldFileId && oldFileId !== next.backgroundFileId) {
-        try {
-          await capturedDrive.deletePhoto(oldFileId);
-        } catch {
-          try { capturedDrive.queueCleanup(oldFileId); } catch {}
+      await runBackgroundSaveTransaction({
+        tracker,
+        operation,
+        getCurrentUserId: () => state.userId,
+        capturedSettingsRef,
+        editorPreferences: capturedEditorPreferences,
+        pendingFile: capturedPendingFile,
+        removeRequested: capturedRemoveRequested,
+        oldFileId,
+        driveService: capturedDrive,
+        connectDrive,
+        persistSettings: (ref, next) => setDoc(ref, { personalization: next }, { merge: true }),
+        afterCommit: async (next) => {
+          state.preferences = next;
+          closeEditor();
+          await loadPersistedBackground();
+        },
+        onError: (error) => {
+          console.error('Background save failed:', error);
+          window.showMsg?.('儲存失敗', error instanceof DriveAuthorizationError ? '請重新連結 Google Drive 後再試。' : (error.message || '無法儲存背景設定。'), 'error');
         }
-      }
-
-      if (!tracker.isSessionCurrent(operation, state.userId)) return;
-      state.preferences = next;
-      closeEditor();
-      await loadPersistedBackground();
-    } catch (error) {
-      if (uploadedFileId) {
-        try {
-          await capturedDrive.deletePhoto(uploadedFileId);
-        } catch { try { capturedDrive.queueCleanup(uploadedFileId); } catch {} }
-      }
-      if (!tracker.isSessionCurrent(operation, state.userId)) return;
-      console.error('Background save failed:', error);
-      window.showMsg?.('儲存失敗', error instanceof DriveAuthorizationError ? '請重新連結 Google Drive 後再試。' : (error.message || '無法儲存背景設定。'), 'error');
+      });
     } finally {
-      if (tracker.isSessionCurrent(operation, state.userId)) button.disabled = false;
+      if (tracker.isSessionCurrent(operation, state.userId)) saveButton.disabled = false;
     }
   });
 
@@ -584,20 +678,22 @@ export async function initBackgroundPersonalization() {
   window.addEventListener('shopping-list:drive-token-ready', () => loadPersistedBackground());
 
   authSdk.onAuthStateChanged(auth, (user) => {
-    tracker.advance(user?.uid || '');
+    const operation = resetBackgroundSessionUi({
+      tracker,
+      userId: user?.uid || '',
+      closeEditor,
+      hideBackground: hideLayer,
+      saveButton
+    });
     state.settingsUnsub?.();
     state.settingsUnsub = null;
     revokeObjectUrl('objectUrl');
     revokeObjectUrl('previewObjectUrl');
     state.userId = user?.uid || '';
     state.preferences = normalizePersonalization();
-    closeEditor();
-    document.getElementById('save-background-personalization').disabled = false;
-    hideLayer();
     if (!user) {
       return;
     }
-    const operation = tracker.capture(user.uid);
     const ref = settingsRef(operation.userId);
     state.settingsUnsub = onSnapshot(ref, (snapshot) => {
       if (!tracker.isSessionCurrent(operation, state.userId)) return;
