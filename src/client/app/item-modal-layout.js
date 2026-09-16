@@ -19,16 +19,23 @@ function installStyles(documentRef) {
   const style = documentRef.createElement('style');
   style.id = 'item-modal-layout-styles';
   style.textContent = `
-    #item-detail-sticky-actions {
-      position: sticky;
-      bottom: 0;
-      z-index: 30;
-      margin-left: -0.75rem;
-      margin-right: -0.75rem;
-      padding: 0.75rem 0.75rem max(0.75rem, env(safe-area-inset-bottom));
-      background: rgba(255, 255, 255, 0.96);
+    #item-detail-fixed-footer {
+      display: none;
+      flex-shrink: 0;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 0.75rem;
+      padding: 0.75rem 1.5rem max(0.75rem, env(safe-area-inset-bottom));
+      background: rgba(255, 255, 255, 0.98);
       border-top: 2px solid rgba(92, 64, 51, 0.18);
-      backdrop-filter: blur(10px);
+      z-index: 30;
+    }
+
+    .workflow-view-mode #item-detail-fixed-footer {
+      display: grid !important;
+    }
+
+    .workflow-view-mode #item-detail-inline-actions {
+      display: none !important;
     }
 
     #item-multi-location-chips-row {
@@ -84,15 +91,46 @@ export function syncItemFormColumns(documentRef = typeof document !== 'undefined
   return true;
 }
 
-export function syncItemDetailActions(documentRef = typeof document !== 'undefined' ? document : null) {
+function findDetailAction(documentRef, label) {
   const surface = documentRef?.getElementById?.('item-detail-view');
-  if (!surface?.querySelectorAll) return false;
-  const buttons = [...surface.querySelectorAll('button')];
-  const back = buttons.find((button) => String(button.textContent || '').trim() === '返回');
-  const edit = buttons.find((button) => String(button.textContent || '').trim() === '編輯商品');
+  if (!surface?.querySelectorAll) return null;
+  return [...surface.querySelectorAll('button')]
+    .find((button) => String(button.textContent || '').trim() === label) || null;
+}
+
+function ensureItemDetailFixedFooter(documentRef) {
+  const modalContent = documentRef?.getElementById?.('add-modal-content');
+  if (!modalContent) return null;
+  let footer = documentRef.getElementById('item-detail-fixed-footer');
+  if (footer) return footer;
+
+  footer = documentRef.createElement('div');
+  footer.id = 'item-detail-fixed-footer';
+
+  const back = documentRef.createElement('button');
+  back.type = 'button';
+  back.className = 'py-3 rounded-2xl bg-white border-2 border-warmBrown text-warmBrown font-bold shadow-[2px_2px_0_rgba(92,64,51,.14)]';
+  back.textContent = '返回';
+  back.addEventListener('click', () => findDetailAction(documentRef, '返回')?.click());
+
+  const edit = documentRef.createElement('button');
+  edit.type = 'button';
+  edit.className = 'py-3 rounded-2xl bg-pastelBlue border-2 border-warmBrown text-warmBrown font-bold shadow-[2px_2px_0_rgba(92,64,51,.18)]';
+  edit.textContent = '編輯商品';
+  edit.addEventListener('click', () => findDetailAction(documentRef, '編輯商品')?.click());
+
+  footer.append(back, edit);
+  modalContent.appendChild(footer);
+  return footer;
+}
+
+export function syncItemDetailActions(documentRef = typeof document !== 'undefined' ? document : null) {
+  const back = findDetailAction(documentRef, '返回');
+  const edit = findDetailAction(documentRef, '編輯商品');
   const actions = back?.parentElement;
   if (!actions || edit?.parentElement !== actions) return false;
-  actions.id = 'item-detail-sticky-actions';
+  actions.id = 'item-detail-inline-actions';
+  ensureItemDetailFixedFooter(documentRef);
   return true;
 }
 
