@@ -221,9 +221,11 @@ function ensureRateAttribution() {
   const root = document.getElementById('account-settings-root');
   if (!root) return false;
   if (document.getElementById('exchange-rate-attribution')) return true;
-  function ensureRateAttribution() {
-  return true;
-}
+  const attribution = document.createElement('p');
+  attribution.id = 'exchange-rate-attribution';
+  attribution.className = 'px-4 pb-4 text-[10px] leading-relaxed text-gray-500';
+  attribution.textContent = '匯率來源：Rates By Exchange Rate API';
+  root.appendChild(attribution);
   return true;
 }
 

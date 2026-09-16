@@ -48,7 +48,7 @@ test('homepage exposes an always-visible active trip selector and empty onboardi
 });
 
 test('first-trip onboarding makes the trip form modal visible', async () => {
-  const source = await readFile(sourcePath, 'utf8');
+  const source = (await readFile(sourcePath, 'utf8')).replace(/\r\n?/g, '\n');
   const openFormBody = source.match(/function openForm\(trip\) \{([\s\S]*?)\n  \}\n\n  async function saveTrip/)?.[1] || '';
   assert.match(openFormBody, /modal\.classList\.remove\('hidden'\)/);
   assert.match(openFormBody, /modal\.classList\.add\('flex'\)/);

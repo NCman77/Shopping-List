@@ -62,6 +62,9 @@ test('FX conversion stays on demand while attribution is outside the comparison 
   assert.match(text, /匯率暫時無法取得/);
   assert.doesNotMatch(modalSource, /Rates By Exchange Rate API/);
   assert.match(text, /account-settings-root[\s\S]*Rates By Exchange Rate API/);
+  assert.match(text, /function ensureRateAttribution\(\)[\s\S]*const attribution = document\.createElement\('p'\)/);
+  assert.match(text, /attribution\.id = ['"]exchange-rate-attribution['"]/);
+  assert.match(text, /attribution\.textContent = ['"]匯率來源：Rates By Exchange Rate API['"]/);
 });
 
 test('Taiwan and local reference ranges are rendered as detailed comparisons', async () => {
