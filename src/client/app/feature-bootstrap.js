@@ -66,11 +66,15 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       return initItemCopyUi();
     },
     async () => {
+      const { initItemModalLayout } = await import('./item-modal-layout.js');
+      return initItemModalLayout();
+    },
+    async () => {
       const { registerShoppingListServiceWorker } = await import('./pwa-registration.js');
       return registerShoppingListServiceWorker();
     }
   ).then((results) => {
-    const labels = ['錯誤監控', '旅程資料', '國家篩選', '帳號設定', '旅程介面', '旅程篩選選項', '完整篩選選單', '背景個人化', '設定合併保護', '商品旅程儲存', '商品比價', '哪裡買下拉選擇', '商品狀態與分頁', '商品照片介面修復', '商品跨旅程複製', 'PWA 安裝'];
+    const labels = ['錯誤監控', '旅程資料', '國家篩選', '帳號設定', '旅程介面', '旅程篩選選項', '完整篩選選單', '背景個人化', '設定合併保護', '商品旅程儲存', '商品比價', '哪裡買下拉選擇', '商品狀態與分頁', '商品照片介面修復', '商品跨旅程複製', '商品表單固定操作列', 'PWA 安裝'];
     results.forEach((result, index) => {
       if (result.status === 'rejected') {
         console.error(`${labels[index]}功能載入失敗:`, result.reason);
