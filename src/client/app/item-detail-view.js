@@ -193,8 +193,14 @@ export function renderItemDetailView(container, item, {
   purchaseCard.appendChild(iconBadge(documentRef, 'fas fa-map-location-dot', 'bg-pastelGreen'));
   const purchaseText = element(documentRef, 'div', 'flex-1 min-w-0');
   purchaseText.appendChild(element(documentRef, 'p', 'text-sm font-bold mb-1', '哪裡買'));
-  if (model.purchase.storeName) purchaseText.appendChild(element(documentRef, 'p', 'font-bold break-words', model.purchase.storeName));
-  purchaseText.appendChild(element(documentRef, 'p', model.purchase.storeName ? 'text-xs text-warmBrown/70 mt-1 break-words' : 'font-bold break-words', model.purchase.address || model.purchase.storeName || '未設定'));
+  if (model.purchase.storeName) {
+    purchaseText.appendChild(element(documentRef, 'p', 'font-bold break-words', model.purchase.storeName));
+  }
+  if (model.purchase.address) {
+    purchaseText.appendChild(element(documentRef, 'p', model.purchase.storeName ? 'text-xs text-warmBrown/70 mt-1 break-words' : 'font-bold break-words', model.purchase.address));
+  } else if (!model.purchase.storeName) {
+    purchaseText.appendChild(element(documentRef, 'p', 'font-bold break-words', '未設定'));
+  }
   if (model.purchase.mapQuery) purchaseText.appendChild(element(documentRef, 'p', 'text-[11px] text-warmBrown/55 mt-1', '點擊後在 Google Maps 開啟這個地點'));
   purchaseCard.appendChild(purchaseText);
   if (model.purchase.mapQuery) {
