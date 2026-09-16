@@ -288,6 +288,8 @@
     import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, addDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
     import { createAuthSessionController } from "./auth-session.js";
     import { safePersistedImageSource } from "./src/client/app/safe-rendering.js";
+    import { resolveItemLocations } from "./src/client/pricing/location-selection.js";
+    import { createGoogleMapsUrl } from "./src/client/utils/url-utils.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyA36R3soEZPpXwpTc1W9_XvFMglouvxzFw",
@@ -691,7 +693,7 @@
             if (state.filters.status === 'purchased' && !item.purchased) return false;
             if (state.filters.status === 'unpurchased' && item.purchased) return false;
             if (state.filters.category !== 'all' && item.category !== state.filters.category) return false;
-            if (state.filters.location !== 'all' && item.location !== state.filters.location) return false;
+            if (state.filters.location !== 'all' && !resolveItemLocations(item).includes(state.filters.location)) return false;
             return true;
         });
 
@@ -711,11 +713,12 @@
             emptyState.classList.remove('flex');
             
             filteredItems.forEach(item => {
-                const mapLink = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent((item.location || '') + ' 日本')}`;
+                const itemLocations = resolveItemLocations(item);
                 const photoSrc = safePersistedImageSource(item.photoUrl);
 
                 const card = document.createElement('div');
                 card.className = `fade-in bg-white p-3.5 rounded-[1.5rem] mb-4 border-2 border-warmBrown flex gap-3 relative transition-transform hover:-translate-y-1 ${item.purchased ? 'bg-gray-50 opacity-70' : 'shadow-[4px_4px_0_rgba(92,64,51,0.15)]'}`;
+                card.dataset.itemId = String(item.id);
 
                 const photo = document.createElement('div');
                 photo.className = 'w-24 h-24 shrink-0 rounded-2xl overflow-hidden bg-shinBg border-2 border-warmBrown cursor-pointer flex items-center justify-center shadow-[2px_2px_0_rgba(92,64,51,0.2)]';
@@ -760,15 +763,16 @@
                 categoryLabel.textContent = String(item.category ?? '');
                 category.append(categoryIcon, categoryLabel);
                 tags.appendChild(category);
-                if (item.location) {
+                for (const itemLocation of itemLocations) {
                     const location = document.createElement('a');
-                    location.href = mapLink;
+                    location.href = createGoogleMapsUrl(itemLocation);
                     location.target = '_blank';
+                    location.rel = 'noopener noreferrer';
                     location.className = 'text-[10px] font-bold bg-pastelBlue text-warmBrown px-2.5 py-0.5 rounded-full border border-warmBrown hover:bg-blue-200 transition-colors';
                     const locationIcon = document.createElement('i');
                     locationIcon.className = 'fas fa-map-marker-alt mr-1 opacity-70';
                     const locationLabel = document.createElement('span');
-                    locationLabel.textContent = String(item.location);
+                    locationLabel.textContent = itemLocation;
                     location.append(locationIcon, locationLabel);
                     tags.appendChild(location);
                 }

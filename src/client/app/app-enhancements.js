@@ -347,9 +347,11 @@ export async function initShoppingListEnhancements() {
   }
 
   function getCardItemId(card) {
-    const clickable = card.querySelector('[onclick*="openEditModal"]');
-    const source = clickable?.getAttribute('onclick') || '';
-    const match = source.match(/openEditModal\(['"]([^'"]+)['"]\)/);
+    const direct = String(card?.dataset?.itemId || card?.dataset?.enhancedItemId || '').trim();
+    if (direct) return direct;
+    const clickable = card?.querySelector?.('[onclick*=\"openEditModal\"]');
+    const source = clickable?.getAttribute?.('onclick') || '';
+    const match = source.match(/openEditModal\(['\"]([^'\"]+)['\"]\)/);
     return match?.[1] || '';
   }
 
