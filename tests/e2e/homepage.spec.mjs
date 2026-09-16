@@ -17,5 +17,19 @@ test('homepage shell and photo interface repair load without browser exceptions'
   });
   expect(await page.locator('#photo-placeholder').evaluate((element) => element.classList.contains('hidden'))).toBe(false);
   await expect(page.locator('#photo-placeholder')).toContainText('新增照片');
+  await page.evaluate(async () => {
+    const preview = document.getElementById('photo-preview');
+    const placeholder = document.getElementById('photo-placeholder');
+    preview.src = 'data:image/gif;base64,R0lGODlhAQABAAAAACw=';
+    preview.classList.remove('hidden');
+    placeholder.classList.add('hidden');
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  });
+  expect(await page.locator('#photo-placeholder').evaluate((element) => element.classList.contains('hidden'))).toBe(true);
+  await page.evaluate(async () => {
+    document.getElementById('photo-preview').classList.add('hidden');
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  });
+  expect(await page.locator('#photo-placeholder').evaluate((element) => element.classList.contains('hidden'))).toBe(false);
   expect(pageErrors).toEqual([]);
 });

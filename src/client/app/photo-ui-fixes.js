@@ -17,7 +17,11 @@ function waitFor(predicate, timeout = 12000) {
 function repairPhotoUi() {
   const placeholder = document.getElementById('photo-placeholder');
   if (placeholder) {
-    if (placeholder.classList.contains('hidden')) placeholder.classList.remove('hidden');
+    const preview = document.getElementById('photo-preview');
+    const shouldHide = Boolean(preview && !preview.classList.contains('hidden'));
+    if (placeholder.classList.contains('hidden') !== shouldHide) {
+      placeholder.classList.toggle('hidden', shouldHide);
+    }
     if (!placeholder.textContent?.includes('新增照片')) {
       placeholder.innerHTML = '<i class="fas fa-camera text-3xl mb-1"></i><span class="text-sm font-bold">新增照片</span><span class="text-[10px] opacity-60">相簿與相機</span>';
     }

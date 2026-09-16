@@ -41,7 +41,6 @@ test('photo upload placeholder is restored for existing items and desktop photo 
   assert.match(source, /getElementById\('add-modal'\)/);
   assert.doesNotMatch(source, /getElementById\('item-modal'\)/);
   assert.match(source, /photo-placeholder/);
-  assert.match(source, /classList\.remove\('hidden'\)/);
   assert.match(source, /photo-preview-grid/);
   assert.match(source, /lg:max-w-md/);
   assert.match(source, /lg:mx-auto/);
