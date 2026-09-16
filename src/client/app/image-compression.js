@@ -1,7 +1,7 @@
 export {
   calculateContainedSize,
   calculateWidthBoundSize,
+  compressImage,
   compressImageToWidth,
-  compressImageToWidth as compressImage,
   revokeCompressedImage
 } from '../photos/image-compression.js';
