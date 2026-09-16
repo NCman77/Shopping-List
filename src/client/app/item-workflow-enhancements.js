@@ -11,6 +11,7 @@ import {
 import { itemMatchesActiveTrip } from './travel-trip.js';
 import { formatDistance, sortItemsByStatusAndDistanceMap } from '../location/distance.js';
 import { itemMatchesLocation } from '../pricing/location-selection.js';
+import { ensureItemDetailViewSurface, renderItemDetailView } from './item-detail-view.js';
 
 const APP_ID = 'japan-shopping-app';
 const PAGE_SIZE = 10;
@@ -56,6 +57,10 @@ function installStyles() {
     .workflow-view-mode textarea,
     .workflow-view-mode select { background: #f7f7f7 !important; color: #5C4033 !important; opacity: 1 !important; }
     .workflow-view-mode #item-photo-upload-label { opacity: .55; }
+    .workflow-view-mode #item-detail-view { display: block !important; }
+    .workflow-view-mode #item-detail-view ~ * { display: none !important; }
+    .workflow-view-mode #copy-item-trip-action-wrap { display: none !important; }
+    .workflow-view-mode #edit-item-btn { display: none !important; }
   `;
   document.head.appendChild(style);
 }
@@ -158,6 +163,7 @@ function setDetailMode(mode, { existing = false } = {}) {
   const title = document.getElementById('modal-title');
   const view = mode === 'view';
 
+  ensureItemDetailViewSurface(document);
   modal?.classList.toggle('workflow-view-mode', view);
   const fieldIds = ['item-name', 'item-category', 'item-location', 'item-store-name', 'item-address', 'item-website', 'item-desc', 'item-photo'];
   fieldIds.forEach((id) => {
@@ -174,8 +180,8 @@ function setDetailMode(mode, { existing = false } = {}) {
 
   if (view) {
     save?.classList.add('hidden');
-    edit?.classList.remove('hidden');
-    if (title) title.textContent = '商品詳情 👀';
+    edit?.classList.add('hidden');
+    if (title) title.textContent = '商品檢視';
   } else {
     save?.classList.remove('hidden');
     edit?.classList.add('hidden');
@@ -226,6 +232,7 @@ export async function initItemWorkflowEnhancements() {
   const nextButton = pagination.querySelector('#workflow-next-page');
   const pageLabel = pagination.querySelector('#workflow-page-label');
   const confirmModal = document.getElementById('not-wanted-confirm-modal');
+  const detailSurface = ensureItemDetailViewSurface(document);
   let listObserver = null;
 
   function closeNotWantedModal() {
@@ -409,6 +416,11 @@ export async function initItemWorkflowEnhancements() {
     scheduleApply();
   }
 
+  function enterDetailEditMode() {
+    state.detailMode = 'edit';
+    setDetailMode('edit', { existing: true });
+  }
+
   const notWantedButton = ensureStatusFilterButton();
   document.querySelectorAll('#status-filters [data-status="all"], #status-filters [data-status="unpurchased"], #status-filters [data-status="purchased"]').forEach((button) => {
     button.addEventListener('click', () => {
@@ -510,6 +522,13 @@ export async function initItemWorkflowEnhancements() {
   const originalOpenEdit = window.openEditModal;
   window.openEditModal = function(itemId, ...args) {
     const result = originalOpenEdit.call(this, itemId, ...args);
+    const item = state.items.get(itemId);
+    if (detailSurface && item) {
+      renderItemDetailView(detailSurface, item, {
+        onBack: () => window.closeAddModal?.(),
+        onEdit: enterDetailEditMode
+      });
+    }
     state.detailMode = 'view';
     setDetailMode('view', { existing: true });
     return result;
@@ -524,10 +543,7 @@ export async function initItemWorkflowEnhancements() {
   };
 
   const editButton = ensureDetailEditUi();
-  editButton?.addEventListener('click', () => {
-    state.detailMode = 'edit';
-    setDetailMode('edit', { existing: true });
-  });
+  editButton?.addEventListener('click', enterDetailEditMode);
 
   const detailObserver = new MutationObserver(() => {
     if (state.detailMode === 'view' && !document.getElementById('add-modal')?.classList.contains('hidden')) {
