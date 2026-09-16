@@ -1,4 +1,4 @@
-const DEFAULTS = { maxEdge: 1600, quality: 0.82 };
+const DEFAULTS = { maxEdge: 1280, quality: 0.82 };
 
 export function calculateContainedSize(width, height, maxEdge = DEFAULTS.maxEdge) {
   if (![width, height, maxEdge].every(Number.isFinite) || width <= 0 || height <= 0 || maxEdge <= 0) {

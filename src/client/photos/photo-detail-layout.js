@@ -21,9 +21,12 @@ function installDetailViewStyles(documentRef) {
     }
     .workflow-view-mode #photo-preview-grid {
       display: grid !important;
-      grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-      gap: .5rem !important;
-      width: 100%;
+      grid-template-columns: minmax(0, 1fr) !important;
+      gap: .75rem !important;
+      width: 100% !important;
+      max-width: 1280px !important;
+      margin-left: auto !important;
+      margin-right: auto !important;
     }
     .workflow-view-mode #photo-preview-grid > div {
       display: block !important;

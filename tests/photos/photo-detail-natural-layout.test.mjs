@@ -20,14 +20,15 @@ function fakeClassList(initial = []) {
   };
 }
 
-test('detail view keeps the edit-mode three-column footprint while preserving each photo aspect ratio', async () => {
+test('detail view uses a large single-column layout while preserving each photo aspect ratio', async () => {
   const mod = await loadModule();
   const source = await readFile(new URL('../../src/client/photos/photo-detail-layout.js', import.meta.url), 'utf8');
 
   assert.equal(typeof mod.DETAIL_PHOTO_CARD_CLASS, 'string');
   assert.equal(typeof mod.DETAIL_PHOTO_IMAGE_CLASS, 'string');
   assert.match(source, /\.workflow-view-mode #photo-preview-grid\s*\{[\s\S]*display:\s*grid\s*!important/);
-  assert.match(source, /grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)\s*!important/);
+  assert.match(source, /grid-template-columns:\s*minmax\(0,\s*1fr\)\s*!important/);
+  assert.match(source, /max-width:\s*1280px\s*!important/);
   assert.doesNotMatch(source, /\.workflow-view-mode #photo-preview-grid > div\s*\{[^}]*aspect-ratio:\s*1\s*\/\s*1\s*!important/s);
   assert.match(source, /\.workflow-view-mode #photo-preview-grid img\s*\{[^}]*position:\s*static\s*!important[^}]*height:\s*auto\s*!important[^}]*object-fit:\s*contain\s*!important/s);
   assert.doesNotMatch(source, /#item-list[\s\S]*aspect-ratio/);
