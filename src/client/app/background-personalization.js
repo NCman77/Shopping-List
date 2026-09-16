@@ -1,5 +1,6 @@
 import { createDrivePhotoService, DriveAuthorizationError } from '../photos/drive-photo-service.js';
 import { normalizePersonalization, positionPreset, buildPanStyle } from './personalization-preferences.js';
+import { createSessionOperationTracker } from './session-operation.js';
 
 const APP_ID = 'japan-shopping-app';
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
@@ -252,15 +253,16 @@ export async function initBackgroundPersonalization() {
     drag: null
   };
 
-  const drive = createDrivePhotoService({
+  const tracker = createSessionOperationTracker();
+  const driveServiceForUser = (userId) => createDrivePhotoService({
     fetchImpl: window.fetch.bind(window),
     sessionStorageImpl: window.sessionStorage,
-    getUserId: () => state.userId
+    getUserId: () => userId
   });
 
-  function settingsRef() {
-    if (!state.userId) return null;
-    return doc(db, 'artifacts', APP_ID, 'users', state.userId, 'settings', 'preferences');
+  function settingsRef(userId = state.userId) {
+    if (!userId) return null;
+    return doc(db, 'artifacts', APP_ID, 'users', userId, 'settings', 'preferences');
   }
 
   function revokeObjectUrl(key) {
@@ -293,40 +295,55 @@ export async function initBackgroundPersonalization() {
   }
 
   async function loadPersistedBackground() {
-    const preferences = state.preferences;
-    if (!state.userId || !preferences.backgroundFileId) {
+    const operation = tracker.nextRequest('background-load', state.userId);
+    const preferences = normalizePersonalization(state.preferences);
+    const fileId = preferences.backgroundFileId;
+    const capturedDrive = driveServiceForUser(operation.userId);
+    if (!operation.userId || !fileId) {
+      if (!tracker.isLatestRequest(operation, state.userId)) return;
       revokeObjectUrl('objectUrl');
       hideLayer();
       return;
     }
-    if (!drive.hasAccessToken()) {
+    if (!capturedDrive.hasAccessToken()) {
+      if (!tracker.isLatestRequest(operation, state.userId)) return;
       hideLayer();
       return;
     }
     try {
-      const blob = await drive.downloadPhoto(preferences.backgroundFileId);
+      const blob = await capturedDrive.downloadPhoto(fileId);
+      const objectUrl = URL.createObjectURL(blob);
+      if (!tracker.isLatestRequest(operation, state.userId)) {
+        URL.revokeObjectURL(objectUrl);
+        return;
+      }
       revokeObjectUrl('objectUrl');
-      state.objectUrl = URL.createObjectURL(blob);
+      state.objectUrl = objectUrl;
       applyLayer(state.objectUrl, preferences);
     } catch (error) {
+      if (!tracker.isLatestRequest(operation, state.userId)) return;
       if (!(error instanceof DriveAuthorizationError)) console.error('Background download failed:', error);
       hideLayer();
     }
   }
 
-  async function connectDrive() {
+  async function connectDrive(operation = tracker.capture(state.userId), capturedDrive = driveServiceForUser(operation.userId)) {
     const user = auth.currentUser;
-    if (!user) throw new Error('請先登入 Google 帳號。');
+    if (!user || user.uid !== operation.userId || !tracker.isSessionCurrent(operation, state.userId)) {
+      throw new Error('登入狀態已變更，請重新操作。');
+    }
     const provider = new authSdk.GoogleAuthProvider();
     provider.addScope(DRIVE_SCOPE);
     provider.setCustomParameters({ prompt: 'consent' });
     const result = await authSdk.reauthenticateWithPopup(user, provider);
+    if (!tracker.isSessionCurrent(operation, state.userId)) throw new Error('登入狀態已變更，請重新操作。');
     const credential = authSdk.GoogleAuthProvider.credentialFromResult(result);
     const token = credential?.accessToken || '';
     if (!token) throw new DriveAuthorizationError('未取得 Google Drive 授權。');
-    drive.setAccessToken(token);
+    capturedDrive.setAccessToken(token);
     driveNote.classList.add('hidden');
-    try { await drive.retryQueuedCleanup(); } catch {}
+    try { await capturedDrive.retryQueuedCleanup(); } catch {}
+    if (!tracker.isSessionCurrent(operation, state.userId)) throw new Error('登入狀態已變更，請重新操作。');
     await loadPersistedBackground();
     return token;
   }
@@ -368,7 +385,8 @@ export async function initBackgroundPersonalization() {
     state.pendingFile = null;
     state.removeRequested = false;
     revokeObjectUrl('previewObjectUrl');
-    driveNote.classList.toggle('hidden', !(state.preferences.backgroundFileId && !drive.hasAccessToken()));
+    const activeDrive = driveServiceForUser(state.userId);
+    driveNote.classList.toggle('hidden', !(state.preferences.backgroundFileId && !activeDrive.hasAccessToken()));
     renderEditorPreview();
     modal.classList.remove('hidden');
     modal.classList.add('flex');
@@ -480,33 +498,48 @@ export async function initBackgroundPersonalization() {
   preview.addEventListener('pointercancel', finishDrag);
 
   document.getElementById('background-drive-connect').addEventListener('click', async () => {
-    try { await connectDrive(); renderEditorPreview(); }
-    catch (error) { console.error('Drive reconnect failed:', error); window.showMsg?.('連結失敗', '無法重新連結 Google Drive。', 'error'); }
+    const operation = tracker.capture(state.userId);
+    try {
+      await connectDrive(operation, driveServiceForUser(operation.userId));
+      if (tracker.isSessionCurrent(operation, state.userId)) renderEditorPreview();
+    } catch (error) {
+      if (!tracker.isSessionCurrent(operation, state.userId)) return;
+      console.error('Drive reconnect failed:', error);
+      window.showMsg?.('連結失敗', '無法重新連結 Google Drive。', 'error');
+    }
   });
 
   document.getElementById('save-background-personalization').addEventListener('click', async () => {
     if (!state.userId) return;
+    const operation = tracker.capture(state.userId);
+    const capturedSettingsRef = settingsRef(operation.userId);
+    const capturedEditorPreferences = normalizePersonalization(state.editorPreferences);
+    const capturedPendingFile = state.pendingFile;
+    const capturedRemoveRequested = state.removeRequested;
+    const oldFileId = state.preferences.backgroundFileId;
+    const capturedDrive = driveServiceForUser(operation.userId);
     const button = document.getElementById('save-background-personalization');
     button.disabled = true;
-    const oldFileId = state.preferences.backgroundFileId;
     let uploadedFileId = '';
     try {
-      let next = normalizePersonalization(state.editorPreferences);
-      if (state.pendingFile) {
-        if (!drive.hasAccessToken()) await connectDrive();
-        const uploaded = await drive.uploadFile({
-          blob: state.pendingFile,
-          fileName: state.pendingFile.name || `background-${Date.now()}`,
-          appProperties: { kind: 'background', owner: state.userId }
+      let next = capturedEditorPreferences;
+      if (capturedPendingFile) {
+        if (!capturedDrive.hasAccessToken()) await connectDrive(operation, capturedDrive);
+        if (!tracker.isSessionCurrent(operation, state.userId)) throw new Error('登入狀態已變更，請重新操作。');
+        const uploaded = await capturedDrive.uploadFile({
+          blob: capturedPendingFile,
+          fileName: capturedPendingFile.name || `background-${Date.now()}`,
+          appProperties: { kind: 'background', owner: operation.userId }
         });
         uploadedFileId = uploaded.id;
+        if (!tracker.isSessionCurrent(operation, state.userId)) throw new Error('登入狀態已變更，請重新操作。');
         next = normalizePersonalization({
           ...next,
           backgroundFileId: uploaded.id,
-          backgroundFileName: uploaded.name || state.pendingFile.name,
-          backgroundMimeType: uploaded.mimeType || state.pendingFile.type
+          backgroundFileName: uploaded.name || capturedPendingFile.name,
+          backgroundMimeType: uploaded.mimeType || capturedPendingFile.type
         });
-      } else if (state.removeRequested) {
+      } else if (capturedRemoveRequested) {
         next = normalizePersonalization({
           ...next,
           backgroundFileId: '',
@@ -515,31 +548,32 @@ export async function initBackgroundPersonalization() {
         });
       }
 
-      await setDoc(settingsRef(), { personalization: next }, { merge: true });
-      state.preferences = next;
+      if (!tracker.isSessionCurrent(operation, state.userId)) throw new Error('登入狀態已變更，請重新操作。');
+      await setDoc(capturedSettingsRef, { personalization: next }, { merge: true });
 
       if (oldFileId && oldFileId !== next.backgroundFileId) {
         try {
-          if (!drive.hasAccessToken()) drive.queueCleanup(oldFileId);
-          else await drive.deletePhoto(oldFileId);
+          await capturedDrive.deletePhoto(oldFileId);
         } catch {
-          try { drive.queueCleanup(oldFileId); } catch {}
+          try { capturedDrive.queueCleanup(oldFileId); } catch {}
         }
       }
 
+      if (!tracker.isSessionCurrent(operation, state.userId)) return;
+      state.preferences = next;
       closeEditor();
       await loadPersistedBackground();
     } catch (error) {
       if (uploadedFileId) {
         try {
-          if (drive.hasAccessToken()) await drive.deletePhoto(uploadedFileId);
-          else drive.queueCleanup(uploadedFileId);
-        } catch { try { drive.queueCleanup(uploadedFileId); } catch {} }
+          await capturedDrive.deletePhoto(uploadedFileId);
+        } catch { try { capturedDrive.queueCleanup(uploadedFileId); } catch {} }
       }
+      if (!tracker.isSessionCurrent(operation, state.userId)) return;
       console.error('Background save failed:', error);
       window.showMsg?.('儲存失敗', error instanceof DriveAuthorizationError ? '請重新連結 Google Drive 後再試。' : (error.message || '無法儲存背景設定。'), 'error');
     } finally {
-      button.disabled = false;
+      if (tracker.isSessionCurrent(operation, state.userId)) button.disabled = false;
     }
   });
 
@@ -550,23 +584,28 @@ export async function initBackgroundPersonalization() {
   window.addEventListener('shopping-list:drive-token-ready', () => loadPersistedBackground());
 
   authSdk.onAuthStateChanged(auth, (user) => {
+    tracker.advance(user?.uid || '');
     state.settingsUnsub?.();
     state.settingsUnsub = null;
     revokeObjectUrl('objectUrl');
     revokeObjectUrl('previewObjectUrl');
     state.userId = user?.uid || '';
     state.preferences = normalizePersonalization();
+    closeEditor();
+    document.getElementById('save-background-personalization').disabled = false;
+    hideLayer();
     if (!user) {
-      hideLayer();
-      closeEditor();
       return;
     }
-    const ref = settingsRef();
+    const operation = tracker.capture(user.uid);
+    const ref = settingsRef(operation.userId);
     state.settingsUnsub = onSnapshot(ref, (snapshot) => {
-      if (state.userId !== user.uid) return;
+      if (!tracker.isSessionCurrent(operation, state.userId)) return;
       const data = snapshot.exists() ? snapshot.data() : {};
       state.preferences = normalizePersonalization(data.personalization);
       loadPersistedBackground();
-    }, (error) => console.error('Background settings listener failed:', error));
+    }, (error) => {
+      if (tracker.isSessionCurrent(operation, state.userId)) console.error('Background settings listener failed:', error);
+    });
   });
 }

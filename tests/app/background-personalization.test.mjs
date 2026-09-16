@@ -40,3 +40,15 @@ test('video backgrounds are muted inline and Drive replacement is saved before o
   assert.match(source, /shopping-list:open-personalization/);
   assert.match(source, /shopping-list:drive-token-ready/);
 });
+
+test('background downloads and saves use captured auth operations and references', async () => {
+  const source = await readFile(new URL('../../src/client/app/background-personalization.js', import.meta.url), 'utf8');
+  assert.match(source, /createSessionOperationTracker/);
+  assert.match(source, /tracker\.advance\(user\?\.uid\s*\|\|\s*''\)/);
+  assert.match(source, /tracker\.nextRequest/);
+  assert.match(source, /tracker\.isSessionCurrent/);
+  assert.match(source, /tracker\.isLatestRequest/);
+  assert.match(source, /const capturedSettingsRef/);
+  assert.match(source, /driveServiceForUser/);
+  assert.doesNotMatch(source, /await setDoc\(settingsRef\(\)/);
+});
