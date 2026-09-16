@@ -548,11 +548,12 @@ export async function initPriceComparisonEnhancements() {
     compareModal.classList.add('flex');
 
     const currency = compareCurrency(item);
-    state.compareFx = await fetchRateToTwd({
+    const fx = await fetchRateToTwd({
       currencyCode: currency,
       storage: window.localStorage
     });
     if (requestId !== state.compareRequestId || state.compareItemId !== item.id) return;
+    state.compareFx = fx;
     state.compareFxLoading = false;
     calculateAndRender();
   }

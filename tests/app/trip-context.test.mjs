@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { buildLegacyMigrationPlan } from '../../src/client/app/trip-context.js';
+import { buildLegacyMigrationPlan, chunkWriteOperations } from '../../src/client/app/trip-context.js';
 import { legacyTripIdForCountry } from '../../src/client/app/travel-trip.js';
 
 const contextPath = new URL('../../src/client/app/trip-context.js', import.meta.url);
@@ -25,6 +25,13 @@ test('legacy migration plan is deterministic and ignores items already assigned 
   assert.equal(jp.trip.startDate, null);
   assert.equal(kr.tripId, legacyTripIdForCountry('韓國'));
   assert.deepEqual(kr.itemIds, ['kr-1']);
+});
+
+test('legacy migration operations can be committed in Firestore-safe chunks', () => {
+  const operations = Array.from({ length: 1001 }, (_, index) => ({ id: index }));
+  const chunks = chunkWriteOperations(operations, 450);
+  assert.deepEqual(chunks.map((chunk) => chunk.length), [450, 450, 101]);
+  assert.deepEqual(chunks.flat(), operations);
 });
 
 test('manual legacy selection remains active for the current session while startup defaults stay smart', async () => {

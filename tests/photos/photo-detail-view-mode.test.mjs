@@ -38,3 +38,9 @@ test('edit mode and homepage photo behavior are not rewritten by the view-mode o
   assert.doesNotMatch(source, /classList\.remove\([^\n]*object-cover/);
   assert.doesNotMatch(source, /#item-list[^}]*aspect-ratio/);
 });
+
+test('view mode keeps the Drive reconnect/load action visible', async () => {
+  const source = await readFile(detailLayoutPath, 'utf8');
+  assert.match(source, /button:not\(\[data-detail-load-action\]\)/);
+  assert.match(source, /button\[data-detail-load-action\][^{]*\{[^}]*display:\s*flex\s*!important/s);
+});

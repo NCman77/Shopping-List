@@ -76,6 +76,14 @@ test('nearby sort events reset pagination to the first page before reapplying vi
   assert.match(source, /scheduleApply\(\)/);
 });
 
+test('pagination keeps only the current page in the DOM and caches other cards', async () => {
+  const source = await readFile(enhancementPath, 'utf8');
+  assert.match(source, /cardCache/);
+  assert.match(source, /card\.remove\(\)/);
+  assert.match(source, /list\.appendChild\(card\)/);
+  assert.match(source, /visibleIds/);
+});
+
 test('feature bootstrap loads item workflow independently', async () => {
   const source = await readFile(bootstrapPath, 'utf8');
   assert.match(source, /item-workflow-enhancements\.js/);

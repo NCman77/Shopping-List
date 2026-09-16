@@ -298,15 +298,19 @@ export async function initShoppingListEnhancements() {
     state.pendingPhotos.forEach((photo, index) => {
       const card = document.createElement('div');
       card.className = 'relative aspect-square rounded-xl overflow-hidden border-2 border-warmBrown bg-shinBg';
+      const removePendingPhoto = () => {
+        const pendingIndex = state.pendingPhotos.indexOf(photo);
+        if (pendingIndex < 0) return;
+        const [removed] = state.pendingPhotos.splice(pendingIndex, 1);
+        revokeCompressedImage(removed);
+        renderPhotoGrid();
+      };
       if (photo.error) {
-        card.innerHTML = `<div class="absolute inset-0 p-2 flex items-center justify-center text-center text-[10px] text-red-500 font-bold">${escapeHtml(photo.error)}</div>`;
+        card.innerHTML = `<div class="absolute inset-0 p-2 flex items-center justify-center text-center text-[10px] text-red-500 font-bold">${escapeHtml(photo.error)}</div><button type="button" class="absolute top-1 right-1 z-10 w-7 h-7 rounded-full bg-white border border-warmBrown text-warmBrown" aria-label="移除待上傳照片"><i class="fas fa-times text-xs"></i></button>`;
+        card.querySelector('button').addEventListener('click', removePendingPhoto);
       } else {
         card.innerHTML = `<img src="${photo.previewUrl}" class="absolute inset-0 w-full h-full object-cover"><button type="button" class="absolute top-1 right-1 z-10 w-7 h-7 rounded-full bg-white border border-warmBrown text-warmBrown" aria-label="移除待上傳照片"><i class="fas fa-times text-xs"></i></button>${existing.length === 0 && index === 0 ? '<span class="absolute left-1 bottom-1 z-10 text-[9px] bg-pastelYellow border border-warmBrown rounded-full px-1.5 font-bold">封面</span>' : ''}`;
-        card.querySelector('button').addEventListener('click', () => {
-          const [removed] = state.pendingPhotos.splice(index, 1);
-          revokeCompressedImage(removed);
-          renderPhotoGrid();
-        });
+        card.querySelector('button').addEventListener('click', removePendingPhoto);
       }
       grid.appendChild(card);
     });

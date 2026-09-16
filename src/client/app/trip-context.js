@@ -40,6 +40,21 @@ export function buildLegacyMigrationPlan(items = []) {
   });
 }
 
+export function chunkWriteOperations(operations = [], maxOperations = 450) {
+  const limit = Math.max(1, Math.floor(Number(maxOperations) || 450));
+  const chunks = [];
+  let current = [];
+  for (const operation of Array.isArray(operations) ? operations : []) {
+    if (current.length >= limit) {
+      chunks.push(current);
+      current = [];
+    }
+    current.push(operation);
+  }
+  if (current.length) chunks.push(current);
+  return chunks;
+}
+
 export function hasUnassignedItems(items = []) {
   return (Array.isArray(items) ? items : []).some((item) => item && !String(item.tripId || '').trim());
 }
@@ -178,25 +193,38 @@ export async function initTripContext() {
     window.shoppingListTripContextReady = false;
     try {
       const now = Date.now();
-      const batch = writeBatch(db);
+      const operations = [];
       for (const entry of plan) {
-        const tripRef = userRootDoc('trips', entry.tripId);
-        batch.set(tripRef, {
-          title: entry.trip.title,
-          country: entry.country,
-          startDate: null,
-          endDate: null,
-          kind: 'legacy',
-          createdAt: now,
-          updatedAt: now
-        }, { merge: true });
+        operations.push({
+          type: 'set-trip',
+          tripId: entry.tripId,
+          data: {
+            title: entry.trip.title,
+            country: entry.country,
+            startDate: null,
+            endDate: null,
+            kind: 'legacy',
+            createdAt: now,
+            updatedAt: now
+          }
+        });
         for (const itemId of entry.itemIds) {
           const current = state.items.get(itemId);
           if (!current || String(current.tripId || '').trim()) continue;
-          batch.update(userRootDoc('items', itemId), { tripId: entry.tripId });
+          operations.push({ type: 'assign-item', itemId, tripId: entry.tripId });
         }
       }
-      await batch.commit();
+      for (const chunk of chunkWriteOperations(operations)) {
+        const batch = writeBatch(db);
+        for (const operation of chunk) {
+          if (operation.type === 'set-trip') {
+            batch.set(userRootDoc('trips', operation.tripId), operation.data, { merge: true });
+          } else if (operation.type === 'assign-item') {
+            batch.update(userRootDoc('items', operation.itemId), { tripId: operation.tripId });
+          }
+        }
+        await batch.commit();
+      }
     } catch (error) {
       console.error('Legacy trip migration failed:', error);
       dispatch(window, 'shopping-list:trip-context-error', { stage: 'migration', error });

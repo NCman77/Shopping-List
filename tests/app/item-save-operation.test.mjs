@@ -266,3 +266,12 @@ test('Drive reconnect retries persisted deleting photo metadata after a reload',
   assert.match(source, /queueCleanup\(photo\.driveFileId, photo\.id\)/);
   assert.match(source, /await retryPendingPhotoDeletes\(\)/);
 });
+
+test('failed compressed photo cards expose a removal action', async () => {
+  const source = await readFile(new URL('../../src/client/app/app-enhancements.js', import.meta.url), 'utf8');
+  const errorBranch = source.match(/if \(photo\.error\) \{([\s\S]*?)\} else \{/i)?.[1] || '';
+  assert.match(errorBranch, /移除待上傳照片/);
+  assert.match(errorBranch, /removePendingPhoto/);
+  assert.match(source, /pendingPhotos\.splice/);
+  assert.match(source, /revokeCompressedImage/);
+});

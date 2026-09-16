@@ -4,7 +4,6 @@ import {
   nextPageForSwipe,
   paginateItems,
   resolveShoppingStatus,
-  shouldReorderIds,
   shouldShowWorkflowEmpty,
   sortForHomepage,
   statusWritePatch
@@ -209,6 +208,7 @@ export async function initItemWorkflowEnhancements() {
   const state = {
     userId: '',
     items: new Map(),
+    cardCache: new Map(),
     itemsLoaded: false,
     filter: 'all',
     page: 1,
@@ -256,9 +256,7 @@ export async function initItemWorkflowEnhancements() {
     if (!window.shoppingListTripContextReady || !window.shoppingListActiveTrip?.id) return [];
     const result = [];
     const locationFilter = window.shoppingListMultiLocationFilter || 'all';
-    for (const card of [...list.children]) {
-      if (card.id) continue;
-      const itemId = cardItemId(card);
+    for (const [itemId, card] of state.cardCache) {
       const item = state.items.get(itemId);
       if (!item || !itemMatchesActiveTrip(item, window.shoppingListActiveTrip)) continue;
       if (!itemMatchesLocation(item, locationFilter)) continue;
@@ -267,6 +265,19 @@ export async function initItemWorkflowEnhancements() {
       result.push({ card, item });
     }
     return result;
+  }
+
+  function syncCardCache() {
+    for (const card of [...list.children]) {
+      if (card.id) continue;
+      const itemId = cardItemId(card);
+      if (itemId) state.cardCache.set(itemId, card);
+    }
+    if (state.itemsLoaded) {
+      for (const itemId of state.cardCache.keys()) {
+        if (!state.items.has(itemId)) state.cardCache.delete(itemId);
+      }
+    }
   }
 
   function ensureCardAction(card, item) {
@@ -332,6 +343,7 @@ export async function initItemWorkflowEnhancements() {
       baseEmpty?.classList.add('hidden');
       baseEmpty?.classList.remove('flex');
 
+      syncCardCache();
       const candidates = eligibleCards();
       const candidateItems = candidates.map(({ item }) => item);
       const nearbyState = window.shoppingListNearbySort;
@@ -341,32 +353,11 @@ export async function initItemWorkflowEnhancements() {
           ? sortForHomepage(candidateItems)
           : [...candidateItems].sort((a, b) => Number(b?.createdAt || 0) - Number(a?.createdAt || 0));
       const cardById = new Map(candidates.map(({ card, item }) => [item.id, card]));
-      const currentIds = candidates.map(({ item }) => item.id);
-      const desiredIds = sortedItems.map((item) => item.id);
-
-      if (shouldReorderIds(currentIds, desiredIds)) {
-        for (const item of sortedItems) {
-          const card = cardById.get(item.id);
-          if (card) list.appendChild(card);
-        }
-      }
 
       const pageData = paginateItems(sortedItems, state.page, PAGE_SIZE);
       state.page = pageData.page;
       state.totalPages = pageData.totalPages;
       const visibleIds = new Set(pageData.items.map((item) => item.id));
-
-      for (const card of [...list.children]) {
-        if (card.id) continue;
-        const itemId = cardItemId(card);
-        const item = state.items.get(itemId);
-        const candidate = item && cardById.has(itemId);
-        card.classList.toggle('workflow-page-hidden', !candidate || !visibleIds.has(itemId));
-        if (item) {
-          ensureCardAction(card, item);
-          ensureDistanceLabel(card, item);
-        }
-      }
 
       let empty = document.getElementById('workflow-empty-state');
       if (!empty) {
@@ -374,8 +365,19 @@ export async function initItemWorkflowEnhancements() {
         empty.id = 'workflow-empty-state';
         empty.className = 'hidden py-10 text-center text-sm font-bold text-gray-400';
         empty.textContent = '這個分類目前沒有商品';
-        list.appendChild(empty);
       }
+      for (const card of state.cardCache.values()) {
+        if (card.parentElement === list) card.remove();
+      }
+      for (const item of pageData.items) {
+        const card = cardById.get(item.id);
+        if (!card) continue;
+        card.classList.remove('workflow-page-hidden');
+        ensureCardAction(card, item);
+        ensureDistanceLabel(card, item);
+        list.appendChild(card);
+      }
+      list.appendChild(empty);
       const showEmpty = shouldShowWorkflowEmpty({
         loaded: state.itemsLoaded && Boolean(window.shoppingListTripContextReady),
         count: sortedItems.length
@@ -540,6 +542,7 @@ export async function initItemWorkflowEnhancements() {
     state.itemUnsub = null;
     state.userId = user?.uid || '';
     state.items = new Map();
+    state.cardCache.clear();
     state.itemsLoaded = false;
     state.page = 1;
     if (!user) return scheduleApply();

@@ -67,6 +67,14 @@ test('FX conversion stays on demand while attribution is outside the comparison 
   assert.match(text, /attribution\.textContent = ['"]匯率來源：Rates By Exchange Rate API['"]/);
 });
 
+test('stale FX responses are rejected before mutating comparison state', async () => {
+  const text = await source();
+  const assignment = text.indexOf('state.compareFx = fx;');
+  const fetch = text.indexOf('const fx = await fetchRateToTwd');
+  const guard = text.indexOf('if (requestId !== state.compareRequestId || state.compareItemId !== item.id) return;');
+  assert.ok(fetch >= 0 && assignment >= 0 && guard >= 0 && fetch < guard && guard < assignment, 'request identity must be checked before compareFx assignment');
+});
+
 test('Taiwan and local reference ranges are rendered as detailed comparisons', async () => {
   const text = await source();
   assert.match(text, /compareValueToRange/);

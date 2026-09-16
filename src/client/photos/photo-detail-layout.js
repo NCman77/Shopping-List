@@ -49,8 +49,11 @@ function installDetailViewStyles(documentRef) {
       display: none !important;
     }
     .workflow-view-mode #photo-preview-grid > div > span,
-    .workflow-view-mode #photo-preview-grid > div > button {
+    .workflow-view-mode #photo-preview-grid > div > button:not([data-detail-load-action]) {
       display: none !important;
+    }
+    .workflow-view-mode #photo-preview-grid > div > button[data-detail-load-action] {
+      display: flex !important;
     }
     .workflow-view-mode #photo-preview-grid img {
       position: static !important;

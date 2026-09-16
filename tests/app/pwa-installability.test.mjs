@@ -40,6 +40,11 @@ test('service worker is network-first for same-origin assets so new deployments 
   );
 });
 
+test('service worker only removes caches owned by this app', async () => {
+  const source = await text('sw.js');
+  assert.match(source, /key\.startsWith\(['"]shopping-list-shell-/);
+});
+
 test('192 and 512 PNG app icons exist and are non-empty', async () => {
   const icon192 = await stat(new URL('icons/icon-192.png', root));
   const icon512 = await stat(new URL('icons/icon-512.png', root));
