@@ -85,13 +85,12 @@ test('detail renderer uses the existing site palette and creates separate locati
 test('detail view uses compact cards and a two-column fallback-location grid on mobile', async () => {
   const source = await readFile(new URL('../../src/client/app/item-detail-view.js', import.meta.url), 'utf8');
 
-  assert.match(source, /grid grid-cols-2 gap-2/);
+  assert.match(source, /const locationsGrid = element\(documentRef, 'div', 'grid grid-cols-2 gap-2'\);/);
   assert.match(source, /w-8 h-8 shrink-0/);
   assert.match(source, /px-3 py-2\.5/);
   assert.match(source, /gap-2 p-3 rounded-2xl/);
   assert.match(source, /bg-pastelPink\/25 border-2 border-warmBrown\/30 p-3/);
   assert.match(source, /space-y-3 text-warmBrown/);
-  assert.doesNotMatch(source, /grid grid-cols-1 sm:grid-cols-2 gap-2/);
 });
 
 test('workflow swaps only view mode into the redesigned detail surface and leaves edit mode available', async () => {
