@@ -51,7 +51,9 @@ export function createDrivePhotoService({ fetchImpl = fetch, sessionStorageImpl 
     }
     if (!response.ok) {
       const detail = await readGoogleError(response);
-      throw new Error(`Google Drive API ${response.status}${detail ? `: ${detail}` : ''}`);
+      const error = new Error(`Google Drive API ${response.status}${detail ? `: ${detail}` : ''}`);
+      error.status = response.status;
+      throw error;
     }
     return response;
   }
@@ -81,14 +83,40 @@ export function createDrivePhotoService({ fetchImpl = fetch, sessionStorageImpl 
     return response.json();
   }
 
-  function getQueuedCleanup() {
+  function normalizeCleanupJob(entry) {
+    if (typeof entry === 'string') {
+      return /^[A-Za-z0-9_-]+$/.test(entry) ? { fileId: entry, metadataId: '' } : null;
+    }
+    if (!entry || typeof entry !== 'object' || !/^[A-Za-z0-9_-]+$/.test(entry.fileId || '')) return null;
+    return {
+      fileId: String(entry.fileId),
+      metadataId: String(entry.metadataId || '').trim()
+    };
+  }
+
+  function getQueuedCleanupJobs() {
     requireUser();
     try {
       const value = JSON.parse(sessionStorageImpl.getItem(cleanupKey()) || '[]');
-      return Array.isArray(value) ? [...new Set(value.filter((id) => /^[A-Za-z0-9_-]+$/.test(id)))] : [];
+      if (!Array.isArray(value)) return [];
+      const jobs = new Map();
+      for (const entry of value) {
+        const job = normalizeCleanupJob(entry);
+        if (!job) continue;
+        const previous = jobs.get(job.fileId);
+        jobs.set(job.fileId, {
+          fileId: job.fileId,
+          metadataId: job.metadataId || previous?.metadataId || ''
+        });
+      }
+      return [...jobs.values()];
     } catch {
       return [];
     }
+  }
+
+  function getQueuedCleanup() {
+    return getQueuedCleanupJobs().map((job) => job.fileId);
   }
 
   return {
@@ -119,24 +147,37 @@ export function createDrivePhotoService({ fetchImpl = fetch, sessionStorageImpl 
     },
     async deletePhoto(fileId) {
       const id = assertFileId(fileId);
-      await checkedFetch(`https://www.googleapis.com/drive/v3/files/${id}`, { method: 'DELETE' });
+      try {
+        await checkedFetch(`https://www.googleapis.com/drive/v3/files/${id}`, { method: 'DELETE' });
+      } catch (error) {
+        if (error?.status === 404) return;
+        throw error;
+      }
     },
-    queueCleanup(fileId) {
+    queueCleanup(fileId, metadataId = '') {
       const id = assertFileId(fileId);
-      const queued = getQueuedCleanup();
-      if (!queued.includes(id)) queued.push(id);
+      const metadata = String(metadataId || '').trim();
+      const queued = getQueuedCleanupJobs();
+      const existing = queued.find((job) => job.fileId === id);
+      if (existing) {
+        if (!existing.metadataId && metadata) existing.metadataId = metadata;
+      } else {
+        queued.push({ fileId: id, metadataId: metadata });
+      }
       sessionStorageImpl.setItem(cleanupKey(), JSON.stringify(queued));
     },
     getQueuedCleanup,
-    async retryQueuedCleanup() {
-      const queued = getQueuedCleanup();
+    async retryQueuedCleanup({ onDeleted } = {}) {
+      const queued = getQueuedCleanupJobs();
       const remaining = [];
-      for (const id of queued) {
+      for (const job of queued) {
         try {
-          await this.deletePhoto(id);
+          await this.deletePhoto(job.fileId);
+          const handled = typeof onDeleted === 'function' ? await onDeleted(job) : true;
+          if (handled === false) remaining.push(job);
         } catch (error) {
           if (error instanceof DriveAuthorizationError) throw error;
-          remaining.push(id);
+          remaining.push(job);
         }
       }
       if (remaining.length) sessionStorageImpl.setItem(cleanupKey(), JSON.stringify(remaining));

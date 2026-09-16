@@ -159,6 +159,17 @@ test('enhanced save uses captured Drive and photo subscription ownership', async
   assert.doesNotMatch(save, /drivePhotoService\.(?:uploadPhoto|deletePhoto|queueCleanup)/);
 });
 
+test('photo selection drops compression results after the editor generation changes', async () => {
+  const source = await readFile(new URL('../../src/client/app/app-enhancements.js', import.meta.url), 'utf8');
+  const start = source.indexOf('async function handlePhotoSelection');
+  const end = source.indexOf('\n  function getCardItemId', start);
+  const selection = source.slice(start, end);
+  assert.match(selection, /const selectionGeneration = state\.modalGeneration/);
+  assert.match(selection, /acceptCompressedPhoto/);
+  assert.match(selection, /revoke: revokeCompressedImage/);
+  assert.match(selection, /if \(selectionGeneration !== state\.modalGeneration\) break/);
+});
+
 test('enhanced item save commits through the high-level photo transaction', async () => {
   const source = await readFile(new URL('../../src/client/app/app-enhancements.js', import.meta.url), 'utf8');
   const start = source.indexOf('window.saveItem = async function');
@@ -222,4 +233,36 @@ test('pre-delete user switch still blocks the Drive deletion', async () => {
   assert.equal(driveDeletes, 0);
   assert.equal(metadataDeletes, 0);
   assert.deepEqual(queued, ['drive-remove']);
+});
+
+test('failed photo deletion queues its metadata id for durable retry', async () => {
+  const queued = [];
+  const operation = createItemSaveOperation({ operationId: 'op-a', userId: 'user-a', itemId: 'item-a' });
+  const photoService = createOwnedItemSavePhotoService(operation, {
+    getCurrentUserId: () => 'user-a',
+    createService: () => ({
+      hasAccessToken: () => true,
+      uploadPhoto: async () => ({ id: 'unused' }),
+      deletePhoto: async () => { throw new Error('authorization required'); },
+      queueCleanup: (fileId, metadataId) => { queued.push({ fileId, metadataId }); }
+    })
+  });
+
+  const deleted = await deleteCapturedItemPhoto({
+    driveFileId: 'drive-remove',
+    cleanupMetadataId: 'photo-remove',
+    photoService,
+    deletePhotoMetadata: async () => {}
+  });
+
+  assert.equal(deleted, false);
+  assert.deepEqual(queued, [{ fileId: 'drive-remove', metadataId: 'photo-remove' }]);
+});
+
+test('Drive reconnect retries persisted deleting photo metadata after a reload', async () => {
+  const source = await readFile(new URL('../../src/client/app/app-enhancements.js', import.meta.url), 'utf8');
+  assert.match(source, /async function retryPendingPhotoDeletes/);
+  assert.match(source, /photo\.status === ['"]deleting['"]/);
+  assert.match(source, /queueCleanup\(photo\.driveFileId, photo\.id\)/);
+  assert.match(source, /await retryPendingPhotoDeletes\(\)/);
 });

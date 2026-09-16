@@ -84,14 +84,15 @@ export function createOwnedItemSavePhotoService(operation, options = {}) {
       assertCurrentUser();
       return service.deletePhoto(fileId);
     },
-    queueCleanup(fileId) {
-      return service.queueCleanup(fileId);
+    queueCleanup(fileId, metadataId) {
+      return service.queueCleanup(fileId, metadataId);
     }
   });
 }
 
 export async function deleteCapturedItemPhoto({
   driveFileId,
+  cleanupMetadataId = '',
   photoService,
   deletePhotoMetadata,
   shouldQueueCleanup = () => true
@@ -99,7 +100,7 @@ export async function deleteCapturedItemPhoto({
   try {
     await photoService.deletePhoto(driveFileId);
   } catch (error) {
-    if (shouldQueueCleanup(error)) photoService.queueCleanup(driveFileId);
+    if (shouldQueueCleanup(error)) photoService.queueCleanup(driveFileId, cleanupMetadataId);
     return false;
   }
 

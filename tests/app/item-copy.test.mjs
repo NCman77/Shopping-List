@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { buildCopiedItemData, findExistingCopy } from '../../src/client/app/item-copy.js';
+import { buildCopiedItemData, findExistingCopy, normalizeCopiedPriceResearch } from '../../src/client/app/item-copy.js';
 
 const uiPath = new URL('../../src/client/app/item-copy-ui.js', import.meta.url);
 const bootstrapPath = new URL('../../src/client/app/feature-bootstrap.js', import.meta.url);
@@ -77,6 +77,47 @@ test('copying an item without resolved store metadata keeps missing numeric fiel
   assert.equal(copied.storeLat, null);
   assert.equal(copied.storeLng, null);
   assert.equal(copied.storeResolvedAt, null);
+});
+
+test('cross-country copies retain Taiwan reference prices but clear local currency values', () => {
+  const copied = normalizeCopiedPriceResearch({
+    sourceResearch: {
+      taiwanMinTwd: 500,
+      taiwanMaxTwd: 800,
+      localMin: 1200,
+      localMax: 1800,
+      currencyCode: 'JPY',
+      updatedAt: 123456
+    },
+    sourceCountry: '日本',
+    targetCountry: '美國'
+  });
+
+  assert.deepEqual(copied, {
+    taiwanMinTwd: 500,
+    taiwanMaxTwd: 800,
+    localMin: null,
+    localMax: null,
+    currencyCode: '',
+    updatedAt: 123456
+  });
+});
+
+test('same-country copies retain normalized local price research', () => {
+  const copied = normalizeCopiedPriceResearch({
+    sourceResearch: { localMin: 1800, localMax: 1200, currencyCode: 'jpy' },
+    sourceCountry: '日本',
+    targetCountry: '日本'
+  });
+
+  assert.deepEqual(copied, {
+    taiwanMinTwd: null,
+    taiwanMaxTwd: null,
+    localMin: 1200,
+    localMax: 1800,
+    currencyCode: 'JPY',
+    updatedAt: null
+  });
 });
 
 test('duplicate detection is scoped to source item plus target trip', () => {

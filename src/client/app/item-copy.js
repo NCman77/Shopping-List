@@ -50,10 +50,25 @@ export function buildCopiedItemData({ source = {}, targetTrip = {}, newItemId = 
   };
 
   if (source?.priceResearch && typeof source.priceResearch === 'object') {
-    copied.priceResearch = normalizePriceResearch(source.priceResearch);
+    copied.priceResearch = normalizeCopiedPriceResearch({
+      sourceResearch: source.priceResearch,
+      sourceCountry: source.country,
+      targetCountry
+    });
   }
 
   return copied;
+}
+
+export function normalizeCopiedPriceResearch({ sourceResearch = {}, sourceCountry = '', targetCountry = '' } = {}) {
+  const normalized = normalizePriceResearch(sourceResearch);
+  if (clean(sourceCountry) === clean(targetCountry)) return normalized;
+  return {
+    ...normalized,
+    localMin: null,
+    localMax: null,
+    currencyCode: ''
+  };
 }
 
 export function findExistingCopy(items = [], sourceItemId = '', targetTripId = '') {

@@ -1,5 +1,6 @@
 import { normalizeWebsiteUrl, createGoogleMapsUrl } from './url-utils.js';
 import { compressImage, revokeCompressedImage } from './image-compression.js';
+import { acceptCompressedPhoto } from '../photos/photo-selection.js';
 import { createDrivePhotoService, DriveAuthorizationError } from './drive-photo-service.js';
 import { groupActivePhotosByItem } from './photo-metadata.js';
 import { createLightweightThumbnail } from '../photos/photo-thumbnail-persistence.js';
@@ -179,6 +180,20 @@ export async function initShoppingListEnhancements() {
     }
   }
 
+  async function retryPendingPhotoDeletes() {
+    const pending = state.photoDocs.filter((photo) => (
+      photo.status === 'deleting' && photo.driveFileId && photo.id
+    ));
+    for (const photo of pending) {
+      try {
+        await drivePhotoService.deletePhoto(photo.driveFileId);
+        await deleteDoc(doc(db, 'artifacts', APP_ID, 'users', state.userId, 'itemPhotos', photo.id));
+      } catch {
+        try { drivePhotoService.queueCleanup(photo.driveFileId, photo.id); } catch {}
+      }
+    }
+  }
+
   async function connectGoogleDrive(interactive = true) {
     if (driveConnectPromise) return driveConnectPromise;
     const button = document.getElementById('drive-connect-btn');
@@ -196,7 +211,22 @@ export async function initShoppingListEnhancements() {
       if (!token) throw new DriveAuthorizationError('未取得 Google Drive 授權。');
       drivePhotoService.setAccessToken(token);
       document.getElementById('drive-connect-btn')?.classList.add('hidden');
-      try { await drivePhotoService.retryQueuedCleanup(); } catch {}
+      try {
+        await drivePhotoService.retryQueuedCleanup({
+          onDeleted: async ({ fileId, metadataId }) => {
+            const candidates = state.photoDocs.filter((photo) => (
+              photo.status === 'deleting' && photo.driveFileId === fileId
+            ));
+            const metadataIds = metadataId ? [metadataId] : candidates.map((photo) => photo.id);
+            if (!metadataIds.length) return false;
+            for (const photoId of metadataIds) {
+              await deleteDoc(doc(db, 'artifacts', APP_ID, 'users', state.userId, 'itemPhotos', photoId));
+            }
+            return true;
+          }
+        });
+      } catch {}
+      await retryPendingPhotoDeletes();
       return token;
     })();
 
@@ -286,18 +316,30 @@ export async function initShoppingListEnhancements() {
     const files = [...(event.target.files || [])];
     event.target.value = '';
     if (!files.length) return;
+    const selectionGeneration = state.modalGeneration;
     const status = document.getElementById('photo-upload-status');
     if (status) status.textContent = `正在壓縮 ${files.length} 張照片…`;
     for (const file of files) {
       try {
         const compressed = await compressImage(file);
-        state.pendingPhotos.push({ ...compressed, originalName: file.name, clientId: crypto.randomUUID?.() || `${Date.now()}-${Math.random()}` });
+        const accepted = acceptCompressedPhoto({
+          selectionGeneration,
+          currentGeneration: state.modalGeneration,
+          compressed,
+          revoke: revokeCompressedImage
+        });
+        if (!accepted) break;
+        state.pendingPhotos.push({ ...accepted, originalName: file.name, clientId: crypto.randomUUID?.() || `${Date.now()}-${Math.random()}` });
       } catch (error) {
+        if (selectionGeneration !== state.modalGeneration) break;
         state.pendingPhotos.push({ error: error.message || '照片處理失敗', originalName: file.name });
       }
+      if (selectionGeneration !== state.modalGeneration) break;
       renderPhotoGrid();
     }
-    if (status) status.textContent = `${state.pendingPhotos.filter((p) => !p.error).length} 張新照片準備上傳`;
+    if (selectionGeneration === state.modalGeneration && status) {
+      status.textContent = `${state.pendingPhotos.filter((p) => !p.error).length} 張新照片準備上傳`;
+    }
   }
 
   function getCardItemId(card) {
@@ -670,9 +712,9 @@ export async function initShoppingListEnhancements() {
         const photoRef = doc(db, 'artifacts', APP_ID, 'users', operation.userId, 'itemPhotos', photoId);
         await deleteCapturedItemPhoto({
           driveFileId,
+          cleanupMetadataId: photoId,
           photoService: operationPhotoService,
-          deletePhotoMetadata: () => deleteDoc(photoRef),
-          shouldQueueCleanup: (error) => !(error instanceof DriveAuthorizationError)
+          deletePhotoMetadata: () => deleteDoc(photoRef)
         });
       }
 

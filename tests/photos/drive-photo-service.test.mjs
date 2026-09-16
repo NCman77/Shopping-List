@@ -95,6 +95,26 @@ test('keeps cleanup IDs per user and retries them', async () => {
   assert.deepEqual(service.getQueuedCleanup(), []);
 });
 
+test('retries cleanup jobs with photo metadata ownership', async () => {
+  const deleted = [];
+  const completed = [];
+  const service = createDrivePhotoService({
+    fetchImpl: async (url) => { deleted.push(url); return new Response(null, { status: 204 }); },
+    sessionStorageImpl: memoryStorage(),
+    getUserId: () => 'uid-1'
+  });
+  service.setAccessToken('token');
+  service.queueCleanup('orphan-1', 'photo-1');
+
+  await service.retryQueuedCleanup({
+    onDeleted: (job) => { completed.push(job); }
+  });
+
+  assert.equal(deleted.length, 1);
+  assert.deepEqual(completed, [{ fileId: 'orphan-1', metadataId: 'photo-1' }]);
+  assert.deepEqual(service.getQueuedCleanup(), []);
+});
+
 test('403 also requires Drive authorization', async () => {
   const service = createDrivePhotoService({
     fetchImpl: async () => new Response('', { status: 403 }),
