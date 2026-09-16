@@ -28,12 +28,13 @@ test('selected where-to-buy chips span the full row below both form columns', as
   assert.match(source, /width:\s*100%/);
 });
 
-test('product detail back and edit actions stay pinned to the bottom while detail content scrolls', async () => {
+test('product detail back and edit actions live in a true fixed modal footer outside the scrolling area', async () => {
   const source = await readLayoutSource();
 
-  assert.match(source, /item-detail-sticky-actions/);
-  assert.match(source, /position:\s*sticky/);
-  assert.match(source, /bottom:\s*0/);
+  assert.match(source, /item-detail-fixed-footer/);
+  assert.match(source, /workflow-view-mode #item-detail-fixed-footer/);
+  assert.match(source, /modalContent\.appendChild\(footer\)/);
+  assert.match(source, /item-detail-inline-actions/);
   assert.match(source, /返回/);
   assert.match(source, /編輯商品/);
 });
