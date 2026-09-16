@@ -115,4 +115,3 @@ After focused tests pass, run the complete Node test suite, syntax-check every t
 - Background work cannot cross authentication generations.
 - Every Drive file uploaded by a failed item or background save is either deleted or durably queued for cleanup under its originating user.
 - All new regression tests pass, and no previously passing test regresses.
-
