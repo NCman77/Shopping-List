@@ -43,6 +43,11 @@ test('trip save guard blocks new save without active trip and reserves membershi
 test('old operation cleanup does not delete a reservation owned by a newer operation', async () => {
   const module = await import('../../src/client/app/trip-save-guard.js');
   const action = module.resolveTripSaveReservationAction?.({
+    documentData: {
+      tripId: 'trip-a',
+      country: '日本',
+      _shoppingListReservationOperationId: 'operation-new'
+    },
     markerOperationId: 'operation-new',
     operationId: 'operation-old',
     succeeded: false
@@ -53,6 +58,11 @@ test('old operation cleanup does not delete a reservation owned by a newer opera
 test('matching failed reservation marker deletes the reserved item', async () => {
   const module = await import('../../src/client/app/trip-save-guard.js');
   const action = module.resolveTripSaveReservationAction?.({
+    documentData: {
+      tripId: 'trip-a',
+      country: '日本',
+      _shoppingListReservationOperationId: 'operation-current'
+    },
     markerOperationId: 'operation-current',
     operationId: 'operation-current',
     succeeded: false
@@ -63,9 +73,33 @@ test('matching failed reservation marker deletes the reserved item', async () =>
 test('matching successful reservation marker is cleared without deleting item data', async () => {
   const module = await import('../../src/client/app/trip-save-guard.js');
   const action = module.resolveTripSaveReservationAction?.({
+    documentData: {
+      name: '完整商品',
+      updatedAt: 123,
+      _shoppingListReservationOperationId: 'operation-current'
+    },
     markerOperationId: 'operation-current',
     operationId: 'operation-current',
     succeeded: true
+  });
+  assert.equal(action, 'clear');
+});
+
+test('failed edit cannot delete complete item left with a stale reservation marker', async () => {
+  const module = await import('../../src/client/app/trip-save-guard.js');
+  const action = module.resolveTripSaveReservationAction?.({
+    documentData: {
+      name: '已成功儲存的商品',
+      category: '藥妝',
+      tripId: 'trip-a',
+      country: '日本',
+      createdAt: 100,
+      updatedAt: 200,
+      _shoppingListReservationOperationId: 'later-edit-operation'
+    },
+    markerOperationId: 'later-edit-operation',
+    operationId: 'later-edit-operation',
+    succeeded: false
   });
   assert.equal(action, 'clear');
 });

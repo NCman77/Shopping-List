@@ -2,6 +2,11 @@ import { resolveItemCountry } from './travel-country.js';
 
 const APP_ID = 'japan-shopping-app';
 const RESERVATION_OPERATION_FIELD = '_shoppingListReservationOperationId';
+const RESERVATION_PLACEHOLDER_FIELDS = new Set([
+  'tripId',
+  'country',
+  RESERVATION_OPERATION_FIELD
+]);
 
 function waitFor(predicate, timeout = 12000) {
   return new Promise((resolve, reject) => {
@@ -41,11 +46,23 @@ export function resolveTripMembershipForSave({ existingItem, activeTrip } = {}) 
   };
 }
 
-export function resolveTripSaveReservationAction({ markerOperationId, operationId, succeeded } = {}) {
+function isDisposableTripSaveReservation(documentData) {
+  if (!documentData || typeof documentData !== 'object') return false;
+  const fields = Object.keys(documentData);
+  return fields.length > 0 && fields.every((field) => RESERVATION_PLACEHOLDER_FIELDS.has(field));
+}
+
+export function resolveTripSaveReservationAction({
+  documentData,
+  markerOperationId,
+  operationId,
+  succeeded
+} = {}) {
   const marker = clean(markerOperationId);
   const owner = clean(operationId);
   if (!marker || !owner || marker !== owner) return 'none';
-  return succeeded ? 'clear' : 'delete';
+  if (succeeded) return 'clear';
+  return isDisposableTripSaveReservation(documentData) ? 'delete' : 'clear';
 }
 
 export async function initTripSaveGuard() {
@@ -71,8 +88,10 @@ export async function initTripSaveGuard() {
     return runTransaction(db, async (transaction) => {
       const snapshot = await transaction.get(itemRef);
       if (!snapshot.exists()) return 'none';
+      const documentData = snapshot.data();
       const action = resolveTripSaveReservationAction({
-        markerOperationId: snapshot.data()?.[RESERVATION_OPERATION_FIELD],
+        documentData,
+        markerOperationId: documentData?.[RESERVATION_OPERATION_FIELD],
         operationId,
         succeeded
       });
