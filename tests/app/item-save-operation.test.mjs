@@ -159,6 +159,16 @@ test('enhanced save uses captured Drive and photo subscription ownership', async
   assert.doesNotMatch(save, /drivePhotoService\.(?:uploadPhoto|deletePhoto|queueCleanup)/);
 });
 
+test('enhanced item save commits through the high-level photo transaction', async () => {
+  const source = await readFile(new URL('../../src/client/app/app-enhancements.js', import.meta.url), 'utf8');
+  const start = source.indexOf('window.saveItem = async function');
+  const end = source.indexOf('const originalAskDelete', start);
+  const save = source.slice(start, end);
+  assert.match(save, /runPhotoUploadTransaction/);
+  assert.match(save, /persist:\s*async/);
+  assert.match(save, /await batch\.commit\(\)/);
+});
+
 test('post-delete user switch still deletes captured metadata without queuing the deleted Drive file', async () => {
   let currentUserId = 'user-a';
   const queued = [];

@@ -3,7 +3,11 @@ export async function rollbackUploadedFiles(fileIds, deletePhoto, queueCleanup) 
     try {
       await deletePhoto(fileId);
     } catch {
-      queueCleanup(fileId);
+      try {
+        await queueCleanup(fileId);
+      } catch {
+        // Rollback is best-effort; callers must retain the triggering error.
+      }
     }
   }
 }
@@ -49,4 +53,20 @@ export async function uploadPhotosWithRollback({
 
   await rollbackUploadedFiles(uploadedFileIds, deletePhoto, queueCleanup);
   throw failed;
+}
+
+export async function runPhotoUploadTransaction(options) {
+  const { persist, deletePhoto, queueCleanup } = options;
+  if (typeof persist !== 'function') throw new TypeError('persist is required.');
+  const uploads = await uploadPhotosWithRollback(options);
+  try {
+    return await persist(uploads);
+  } catch (error) {
+    await rollbackUploadedFiles(
+      uploads.map((entry) => entry?.id).filter(Boolean),
+      deletePhoto,
+      queueCleanup
+    );
+    throw error;
+  }
 }

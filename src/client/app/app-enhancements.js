@@ -3,6 +3,7 @@ import { compressImage, revokeCompressedImage } from './image-compression.js';
 import { createDrivePhotoService, DriveAuthorizationError } from './drive-photo-service.js';
 import { groupActivePhotosByItem } from './photo-metadata.js';
 import { createLightweightThumbnail } from '../photos/photo-thumbnail-persistence.js';
+import { runPhotoUploadTransaction } from '../photos/photo-upload-transaction.js';
 import { resolvePhotoPersistenceForSave } from '../photos/photo-visibility-state.js';
 import { resolveItemLocations } from '../pricing/location-selection.js';
 import {
@@ -50,19 +51,6 @@ function escapeHtml(value) {
 function safeFileName(name, mimeType) {
   const stem = String(name || 'photo').replace(/\.[^.]+$/, '').replace(/[^\w\-\u4e00-\u9fff]+/g, '-').slice(0, 80) || 'photo';
   return `${stem}.${mimeType === 'image/webp' ? 'webp' : 'jpg'}`;
-}
-
-async function mapWithConcurrency(values, limit, worker) {
-  const results = new Array(values.length);
-  let cursor = 0;
-  async function run() {
-    while (cursor < values.length) {
-      const index = cursor++;
-      results[index] = await worker(values[index], index);
-    }
-  }
-  await Promise.all(Array.from({ length: Math.min(limit, values.length) }, run));
-  return results;
 }
 
 export async function initShoppingListEnhancements() {
@@ -596,76 +584,85 @@ export async function initShoppingListEnhancements() {
       }
 
       let completed = 0;
-      const uploaded = await mapWithConcurrency(pending, 2, async (photo, index) => {
-        const fileName = safeFileName(photo.originalName, photo.mimeType);
-        const driveFile = await operationPhotoService.uploadPhoto({
-          blob: photo.blob,
-          fileName,
-          itemId: operation.itemId
-        });
-        completed += 1;
-        if (isItemSaveOperationCurrent(operation, currentOperationState())) {
-          document.getElementById('photo-upload-status').textContent = `正在上傳 ${completed}/${pending.length}…`;
+      await runPhotoUploadTransaction({
+        photos: pending,
+        concurrency: 2,
+        uploadPhoto: async (photo, index) => {
+          const fileName = safeFileName(photo.originalName, photo.mimeType);
+          const driveFile = await operationPhotoService.uploadPhoto({
+            blob: photo.blob,
+            fileName,
+            itemId: operation.itemId
+          });
+          completed += 1;
+          if (isItemSaveOperationCurrent(operation, currentOperationState())) {
+            document.getElementById('photo-upload-status').textContent = `正在上傳 ${completed}/${pending.length}…`;
+          }
+          return {
+            id: driveFile.id,
+            photo,
+            driveFile,
+            order: operation.existingActivePhotos.length + index
+          };
+        },
+        deletePhoto: (fileId) => operationPhotoService.deletePhoto(fileId),
+        queueCleanup: (fileId) => operationPhotoService.queueCleanup(fileId),
+        persist: async (uploaded) => {
+          const batch = writeBatch(db);
+          const existingActive = operation.existingActivePhotos;
+          const newPhotoIds = [];
+          for (const entry of uploaded) {
+            const photoRef = doc(collection(db, 'artifacts', APP_ID, 'users', operation.userId, 'itemPhotos'));
+            newPhotoIds.push(photoRef.id);
+            batch.set(photoRef, {
+              itemId: operation.itemId,
+              driveFileId: entry.driveFile.id,
+              fileName: entry.driveFile.name || safeFileName(entry.photo.originalName, entry.photo.mimeType),
+              mimeType: entry.photo.mimeType,
+              width: entry.photo.width,
+              height: entry.photo.height,
+              size: entry.photo.size,
+              order: entry.order,
+              status: 'active',
+              createdAt: Date.now()
+            });
+          }
+
+          const uploadedForPersistence = newPhotoIds.map((photoId) => ({ id: photoId, thumbnailDataUrl: '' }));
+          if (!existingActive.length && uploaded[0] && uploadedForPersistence[0]) {
+            uploadedForPersistence[0].thumbnailDataUrl = await createLightweightThumbnail(uploaded[0].photo.blob);
+          }
+          const photoPersistence = resolvePhotoPersistenceForSave({
+            existingItem: existing || {},
+            existingActivePhotos: existingActive,
+            uploadedPhotos: uploadedForPersistence
+          });
+
+          for (const photoId of operation.removedPhotoIds) {
+            const photoRef = doc(db, 'artifacts', APP_ID, 'users', operation.userId, 'itemPhotos', photoId);
+            batch.update(photoRef, { status: 'deleting' });
+          }
+
+          const itemData = {
+            name,
+            category: String(operation.fields['item-category'] || ''),
+            location: String(operation.fields['item-location'] || ''),
+            address: String(operation.fields['item-address'] || '').trim(),
+            website,
+            description: String(operation.fields['item-desc'] || '').trim(),
+            purchased: Boolean(operation.fields['item-status']),
+            photoUrl: photoPersistence.photoUrl,
+            photoThumbCoverId: photoPersistence.photoThumbCoverId,
+            coverPhotoId: photoPersistence.coverPhotoId,
+            createdAt: existing?.createdAt || Date.now(),
+            updatedAt: Date.now()
+          };
+          batch.set(itemRef, itemData, { merge: true });
+          operationPhotoService.assertCurrentUser();
+          await batch.commit();
+          return uploaded;
         }
-        return {
-          photo,
-          driveFile,
-          order: operation.existingActivePhotos.length + index
-        };
       });
-
-      const batch = writeBatch(db);
-      const existingActive = operation.existingActivePhotos;
-      const newPhotoIds = [];
-      for (const entry of uploaded) {
-        const photoRef = doc(collection(db, 'artifacts', APP_ID, 'users', operation.userId, 'itemPhotos'));
-        newPhotoIds.push(photoRef.id);
-        batch.set(photoRef, {
-          itemId: operation.itemId,
-          driveFileId: entry.driveFile.id,
-          fileName: entry.driveFile.name || safeFileName(entry.photo.originalName, entry.photo.mimeType),
-          mimeType: entry.photo.mimeType,
-          width: entry.photo.width,
-          height: entry.photo.height,
-          size: entry.photo.size,
-          order: entry.order,
-          status: 'active',
-          createdAt: Date.now()
-        });
-      }
-
-      const uploadedForPersistence = newPhotoIds.map((photoId) => ({ id: photoId, thumbnailDataUrl: '' }));
-      if (!existingActive.length && uploaded[0] && uploadedForPersistence[0]) {
-        uploadedForPersistence[0].thumbnailDataUrl = await createLightweightThumbnail(uploaded[0].photo.blob);
-      }
-      const photoPersistence = resolvePhotoPersistenceForSave({
-        existingItem: existing || {},
-        existingActivePhotos: existingActive,
-        uploadedPhotos: uploadedForPersistence
-      });
-
-      for (const photoId of operation.removedPhotoIds) {
-        const photoRef = doc(db, 'artifacts', APP_ID, 'users', operation.userId, 'itemPhotos', photoId);
-        batch.update(photoRef, { status: 'deleting' });
-      }
-
-      const itemData = {
-        name,
-        category: String(operation.fields['item-category'] || ''),
-        location: String(operation.fields['item-location'] || ''),
-        address: String(operation.fields['item-address'] || '').trim(),
-        website,
-        description: String(operation.fields['item-desc'] || '').trim(),
-        purchased: Boolean(operation.fields['item-status']),
-        photoUrl: photoPersistence.photoUrl,
-        photoThumbCoverId: photoPersistence.photoThumbCoverId,
-        coverPhotoId: photoPersistence.coverPhotoId,
-        createdAt: existing?.createdAt || Date.now(),
-        updatedAt: Date.now()
-      };
-      batch.set(itemRef, itemData, { merge: true });
-      operationPhotoService.assertCurrentUser();
-      await batch.commit();
 
       for (const photoId of operation.removedPhotoIds) {
         const driveFileId = operation.removedPhotoDriveFileIds[photoId];
