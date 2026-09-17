@@ -13,19 +13,22 @@ test('add and edit forms use the unified 商品名稱 and 我的筆記 labels at
   assert.match(layout, /notesLabel\.textContent = '我的筆記'/);
 });
 
-test('existing-item edit mode has view-style cards while new-item mode stays distinct', async () => {
+test('existing-item edit mode builds one real detail-style editable card while new-item mode stays distinct', async () => {
   const layout = await readFile(modalLayoutPath, 'utf8');
 
   assert.match(layout, /workflow-edit-mode/);
   assert.match(layout, /workflow-add-mode/);
-  assert.match(layout, /item-edit-purchase-card/);
-  assert.match(layout, /price-research-section/);
-  assert.match(layout, /item-address/);
-  assert.match(layout, /item-website/);
-  assert.match(layout, /item-desc/);
-  assert.match(layout, /order:\s*7/);
-  assert.match(layout, /order:\s*8/);
-  assert.match(layout, /order:\s*9/);
+  assert.match(layout, /item-edit-detail-card/);
+  assert.match(layout, /export function applyItemEditDetailStyle/);
+  assert.match(layout, /documentRef\.getElementById\('item-edit-name-field'\)/);
+  assert.match(layout, /documentRef\.getElementById\('item-purchase-meta-row'\)/);
+  assert.match(layout, /documentRef\.getElementById\('item-multi-location-chips-row'\)/);
+  assert.match(layout, /documentRef\.getElementById\('price-research-section'\)/);
+  assert.match(layout, /documentRef\.getElementById\('item-edit-address-field'\)/);
+  assert.match(layout, /documentRef\.getElementById\('item-edit-website-field'\)/);
+  assert.match(layout, /documentRef\.getElementById\('item-edit-notes-field'\)/);
+  assert.match(layout, /card\.appendChild\(node\)/);
+  assert.match(layout, /restoreItemEditDetailStyle/);
 });
 
 test('new-item form can add category and location inline through the existing handlers', async () => {
