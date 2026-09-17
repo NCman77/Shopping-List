@@ -36,9 +36,9 @@ test('maps language priority prefers local language and never promotes Chinese',
   assert.equal(mapLanguagePriorityForCountry('日本').includes('中文'), false);
 });
 
-test('Japanese mixed input is split into English and Japanese aliases', () => {
+test('Japanese mixed input is split into English and Japanese aliases without changing entered text', () => {
   assert.deepEqual(inferAliasesFromLocation('Matsumoto Kiyoshi マツモトキヨシ', '日本'), [
-    { language: '英文', value: 'MatsumotoKiyoshi' },
+    { language: '英文', value: 'Matsumoto Kiyoshi' },
     { language: '日文', value: 'マツモトキヨシ' }
   ]);
 });
