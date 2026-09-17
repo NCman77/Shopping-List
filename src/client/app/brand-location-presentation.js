@@ -115,8 +115,20 @@ export async function initBrandLocationPresentation({
     queueMicrotask(apply);
   }
 
+  function openResolvedMap(event) {
+    const button = event.target?.closest?.('button[data-brand-map-search]');
+    if (!button) return;
+    const query = clean(button.dataset.brandMapSearch);
+    if (!query) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    const url = mapsUrl(query);
+    if (url) windowRef.open(url, '_blank', 'noopener,noreferrer');
+  }
+
   const observer = new MutationObserverImpl(schedule);
   observer.observe(documentRef.body, { childList: true, subtree: true });
+  documentRef.addEventListener('click', openResolvedMap, true);
   windowRef.addEventListener('shopping-list:active-trip-changed', schedule);
   windowRef.addEventListener('shopping-list:active-country-changed', schedule);
 
@@ -153,6 +165,7 @@ export async function initBrandLocationPresentation({
   schedule();
   return () => {
     observer.disconnect();
+    documentRef.removeEventListener('click', openResolvedMap, true);
     state.brandsUnsub?.();
     state.settingsUnsub?.();
   };
