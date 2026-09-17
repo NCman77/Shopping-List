@@ -93,3 +93,10 @@ test('legacy selected locations remain visible as removable chips but are never 
   assert.match(source, /remove\.dataset\.location = location/);
   assert.match(source, /#item-multi-location-options \{ display: none !important; \}/);
 });
+
+test('visible dropdown renders the multilingual label carried by the source location choice', async () => {
+  const source = await readFile(pickerPath, 'utf8');
+  assert.match(source, /brandLocationPickerLabel/);
+  assert.match(source, /option\.textContent\s*=\s*[^;]*brandLocationPickerLabel|pickerLabelForLocation/);
+  assert.match(source, /data-brand-location-picker-label/);
+});
