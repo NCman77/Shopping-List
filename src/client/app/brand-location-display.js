@@ -65,9 +65,12 @@ function updateManagementLocations(documentRef, brands, country) {
     if (!raw) return;
     row.dataset.manageValue = raw;
     const display = displayLocation(raw, brands, country);
-    label.textContent = display;
+    if (clean(label.textContent) !== display) label.textContent = display;
     const renameButton = row.querySelector('.rename-option');
-    if (renameButton) renameButton.setAttribute('aria-label', `重新命名地點${display}`);
+    const renameLabel = `重新命名地點${display}`;
+    if (renameButton && renameButton.getAttribute('aria-label') !== renameLabel) {
+      renameButton.setAttribute('aria-label', renameLabel);
+    }
   });
 }
 
@@ -80,7 +83,8 @@ function updateVisibleLocationPicker(documentRef, brands, country) {
   documentRef.querySelectorAll('#item-multi-location-select option[value]').forEach((option) => {
     const raw = clean(option.value);
     if (!raw) return;
-    option.textContent = displayLocation(raw, brands, country);
+    const display = displayLocation(raw, brands, country);
+    if (clean(option.textContent) !== display) option.textContent = display;
   });
 
   documentRef.querySelectorAll('#item-multi-location-chips .multi-location-remove[data-location]').forEach((removeButton) => {
@@ -91,8 +95,10 @@ function updateVisibleLocationPicker(documentRef, brands, country) {
     const sourceChoice = findLocationChoice(documentRef, raw);
     const isOld = sourceChoice && clean(sourceChoice.textContent) === `${raw}（舊）`;
     const display = displayLocation(raw, brands, country);
-    label.textContent = isOld ? `${display}（舊）` : display;
-    removeButton.setAttribute('aria-label', `移除${display}`);
+    const visibleLabel = isOld ? `${display}（舊）` : display;
+    if (clean(label.textContent) !== visibleLabel) label.textContent = visibleLabel;
+    const removeLabel = `移除${display}`;
+    if (removeButton.getAttribute('aria-label') !== removeLabel) removeButton.setAttribute('aria-label', removeLabel);
   });
 }
 
@@ -141,7 +147,7 @@ function updateItemDetailLocations(documentRef, brands, country) {
     const mapQuery = resolveLocationMapQuery(raw, brands, country) || raw;
     button.dataset.brandLocationRaw = raw;
     button.dataset.brandLocationMapQuery = mapQuery;
-    label.textContent = display;
+    if (clean(label.textContent) !== display) label.textContent = display;
   });
 }
 
@@ -161,9 +167,12 @@ function updateFilterDeleteWarning(documentRef, brands, country) {
   const display = displayLocation(raw, brands, country);
   title.dataset.brandLocationRaw = raw;
   title.dataset.brandLocationDisplay = display;
-  title.textContent = `刪除地點「${display}」？`;
+  const titleText = `刪除地點「${display}」？`;
+  if (current !== titleText) title.textContent = titleText;
   const note = modal.querySelector('#filter-delete-retain-note');
-  if (note && raw !== display) note.textContent = note.textContent.replaceAll(raw, display);
+  if (note && raw !== display && note.textContent.includes(raw)) {
+    note.textContent = note.textContent.replaceAll(raw, display);
+  }
 }
 
 function updateRenameSummary(documentRef, brands, country) {
@@ -174,7 +183,8 @@ function updateRenameSummary(documentRef, brands, country) {
   const raw = clean(input?.value);
   if (!raw || !summary) return;
   const display = displayLocation(raw, brands, country);
-  summary.textContent = `「${display}」會同步更新所有已新增商品。`;
+  const summaryText = `「${display}」會同步更新所有已新增商品。`;
+  if (clean(summary.textContent) !== summaryText) summary.textContent = summaryText;
 }
 
 function updateDuplicateWarning(documentRef, brands, country) {
@@ -183,7 +193,8 @@ function updateDuplicateWarning(documentRef, brands, country) {
   if (!modal || !title) return;
   const raw = clean(title.dataset?.brandLocationRaw);
   if (!raw) return;
-  title.textContent = `可能已存在「${displayLocation(raw, brands, country)}」`;
+  const titleText = `可能已存在「${displayLocation(raw, brands, country)}」`;
+  if (clean(title.textContent) !== titleText) title.textContent = titleText;
 }
 
 export function installBrandLocationMapButtonHandler({
