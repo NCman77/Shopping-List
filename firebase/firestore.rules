@@ -43,6 +43,10 @@ service cloud.firestore {
         allow read, write: if isOwner();
       }
 
+      match /brands/{brandId} {
+        allow read, write: if isOwner();
+      }
+
       match /itemPhotos/{photoId} {
         allow read, write: if isOwner();
       }
