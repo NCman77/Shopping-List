@@ -19,6 +19,7 @@ test('country language templates differ by travel country and retain other', () 
 
 test('other alias input can contain multiple names without altering display text', () => {
   assert.deepEqual(parseAliasValues('Donki, ドンキ、DON QUIJOTE\n驚安殿堂'), ['Donki', 'ドンキ', 'DON QUIJOTE', '驚安殿堂']);
+  assert.deepEqual(parseAliasValues('Ｍａｔｓｕｍｏｔｏ　Ｋｉｙｏｓｈｉ'), ['Ｍａｔｓｕｍｏｔｏ　Ｋｉｙｏｓｈｉ']);
 });
 
 test('same-country brand alias conflicts are detected but other countries remain independent', () => {
@@ -34,6 +35,13 @@ test('same-country brand alias conflicts are detected but other countries remain
 test('certain duplicate matching ignores case, width, punctuation and bilingual order', () => {
   assert.equal(detectLocationDuplicate({
     input: 'matsumoto   kiyoshi',
+    existingLocations: ['Matsumoto Kiyoshi'],
+    brands: [],
+    country: '日本'
+  }).kind, 'exact');
+
+  assert.equal(detectLocationDuplicate({
+    input: 'Ｍａｔｓｕｍｏｔｏ　Ｋｉｙｏｓｈｉ',
     existingLocations: ['Matsumoto Kiyoshi'],
     brands: [],
     country: '日本'
