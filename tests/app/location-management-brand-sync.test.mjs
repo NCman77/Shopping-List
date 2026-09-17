@@ -53,24 +53,20 @@ test('brand deletion removes every raw item location matching any alias and pres
   });
 });
 
-test('main location management is sorting-only while category management retains rename/delete controls', async () => {
-  const home = await readFile(new URL('../../src/client/app/home-ui-enhancements.js', import.meta.url), 'utf8');
-  const rename = await readFile(new URL('../../src/client/app/filter-rename-enhancements.js', import.meta.url), 'utf8');
+test('location management sync module owns sorting-only rows and brand-driven deletion', async () => {
+  const source = await readFile(new URL('../../src/client/app/location-management-brand-sync.js', import.meta.url), 'utf8');
+  const bootstrap = await readFile(new URL('../../src/client/app/feature-bootstrap.js', import.meta.url), 'utf8');
 
-  assert.match(home, /buildManagedLocationValues/);
-  assert.match(home, /kind === 'location'/);
-  assert.match(home, /delete-option/);
-  assert.match(rename, /kind === 'location'/);
-  assert.match(rename, /名稱與刪除請至品牌字典管理/);
-});
-
-test('brand deletion is atomic and does not modify coupon or Maps resolver code paths', async () => {
-  const source = await readFile(new URL('../../src/client/app/brand-dictionary-ui.js', import.meta.url), 'utf8');
+  assert.match(source, /buildManagedLocationValues/);
+  assert.match(source, /mergeManagedLocationOrder/);
   assert.match(source, /buildBrandDeletionLocationPlan/);
+  assert.match(source, /名稱與刪除請至品牌字典管理/);
   assert.match(source, /writeBatch/);
   assert.match(source, /batch\.update\(itemRef, entry\.patch\)/);
   assert.match(source, /locations: plan\.nextConfiguredLocations/);
   assert.match(source, /brands: nextBrands/);
   assert.doesNotMatch(source, /couponDictionary/);
   assert.doesNotMatch(source, /resolveLocationMapQuery/);
+  assert.match(bootstrap, /location-management-brand-sync\.js/);
+  assert.match(bootstrap, /地點品牌同步管理/);
 });
