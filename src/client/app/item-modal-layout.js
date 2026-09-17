@@ -382,6 +382,7 @@ export function applyItemEditDetailStyle(documentRef = typeof document !== 'unde
     documentRef.getElementById('item-edit-name-field'),
     documentRef.getElementById('item-purchase-meta-row'),
     documentRef.getElementById('item-multi-location-chips-row'),
+    documentRef.getElementById('item-coupon-section'),
     documentRef.getElementById('price-research-section'),
     documentRef.getElementById('item-edit-address-field'),
     documentRef.getElementById('item-edit-website-field'),
