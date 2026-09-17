@@ -6,6 +6,7 @@ import {
 } from './brand-location-resolver.js';
 
 const APP_ID = 'japan-shopping-app';
+const mapButtonHandlers = new WeakMap();
 
 function clean(value) {
   return String(value ?? '').trim();
@@ -28,6 +29,15 @@ function rawLocationFromMapsLink(link) {
     // Fall back to visible label below.
   }
   return clean(link?.querySelector?.('span')?.textContent || link?.textContent);
+}
+
+function rawLocationFromMapButton(button) {
+  const saved = clean(button?.dataset?.brandLocationRaw);
+  if (saved) return saved;
+  const aria = clean(button?.getAttribute?.('aria-label'));
+  const match = aria.match(/^在 Google 地圖搜尋(.+?)附近分店$/u);
+  if (match?.[1]) return clean(match[1]);
+  return clean(button?.textContent);
 }
 
 function updateLocationFilters(documentRef, brands, country) {
@@ -56,6 +66,55 @@ function updateItemLocationLinks(documentRef, brands, country) {
   });
 }
 
+function setButtonLabel(button, display) {
+  const icon = button.querySelector('i');
+  if (icon) button.replaceChildren(icon, document.createTextNode(display));
+  else button.textContent = display;
+}
+
+function updateItemLocationButtons(documentRef, brands, country) {
+  documentRef.querySelectorAll('#item-list button[aria-label^="在 Google 地圖搜尋"][aria-label$="附近分店"]').forEach((button) => {
+    const raw = rawLocationFromMapButton(button);
+    if (!raw) return;
+    const display = resolveLocationDisplayName(raw, brands, country) || raw;
+    const mapQuery = resolveLocationMapQuery(raw, brands, country) || raw;
+    button.dataset.brandLocationRaw = raw;
+    button.dataset.brandLocationMapQuery = mapQuery;
+    button.setAttribute('aria-label', `在 Google 地圖搜尋${display}附近分店`);
+    if (clean(button.textContent) !== display) setButtonLabel(button, display);
+  });
+}
+
+export function installBrandLocationMapButtonHandler({
+  documentRef = typeof document !== 'undefined' ? document : null,
+  windowRef = typeof window !== 'undefined' ? window : null
+} = {}) {
+  if (!documentRef || !windowRef) return () => {};
+  const existing = mapButtonHandlers.get(documentRef);
+  if (existing) return existing.cleanup;
+
+  const handler = (event) => {
+    const target = event.target;
+    const button = target?.closest?.('#item-list button[data-brand-location-map-query]');
+    if (!button) return;
+    const query = clean(button.dataset?.brandLocationMapQuery);
+    if (!query) return;
+    const url = createGoogleMapsUrl(query);
+    if (!url) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    windowRef.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  const cleanup = () => {
+    documentRef.removeEventListener('click', handler, true);
+    mapButtonHandlers.delete(documentRef);
+  };
+  documentRef.addEventListener('click', handler, true);
+  mapButtonHandlers.set(documentRef, { handler, cleanup });
+  return cleanup;
+}
+
 export function applyBrandLocationDisplay({
   documentRef = typeof document !== 'undefined' ? document : null,
   windowRef = typeof window !== 'undefined' ? window : null,
@@ -65,6 +124,7 @@ export function applyBrandLocationDisplay({
   const country = activeCountry(windowRef);
   updateLocationFilters(documentRef, brands, country);
   updateItemLocationLinks(documentRef, brands, country);
+  updateItemLocationButtons(documentRef, brands, country);
 }
 
 export async function initBrandLocationDisplay({
@@ -85,6 +145,7 @@ export async function initBrandLocationDisplay({
   const auth = authSdk.getAuth(app);
   const db = firestoreSdk.getFirestore(app);
   const { doc, onSnapshot } = firestoreSdk;
+  const removeMapButtonHandler = installBrandLocationMapButtonHandler({ documentRef, windowRef });
 
   const state = {
     userId: '',
@@ -141,6 +202,7 @@ export async function initBrandLocationDisplay({
   return () => {
     state.dictionaryUnsub?.();
     observers.forEach((observer) => observer.disconnect());
+    removeMapButtonHandler();
     windowRef.removeEventListener('shopping-list:active-trip-changed', schedule);
     windowRef.removeEventListener('shopping-list:trips-changed', schedule);
   };
