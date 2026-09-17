@@ -3,6 +3,29 @@ function numericZIndex(value) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function waitForMessageDependencies(documentRef, windowRef, timeout = 12000) {
+  return new Promise((resolve, reject) => {
+    const started = Date.now();
+    const check = () => {
+      const modal = documentRef.getElementById?.('msg-modal');
+      const showMsg = windowRef.showMsg;
+      if (modal && typeof showMsg === 'function') {
+        resolve({ modal, showMsg });
+        return true;
+      }
+      if (Date.now() - started > timeout) {
+        reject(new Error('等待系統訊息視窗初始化逾時。'));
+        return true;
+      }
+      return false;
+    };
+    if (check()) return;
+    const timer = setInterval(() => {
+      if (check()) clearInterval(timer);
+    }, 40);
+  });
+}
+
 export function highestVisibleOverlayZIndex({ documentRef, windowRef, excluded = null } = {}) {
   if (!documentRef?.querySelectorAll || typeof windowRef?.getComputedStyle !== 'function') return 0;
   let highest = 0;
@@ -20,15 +43,13 @@ export function nextSystemMessageZIndex({ documentRef, windowRef, excluded = nul
   return Math.max(200, highestVisibleOverlayZIndex({ documentRef, windowRef, excluded }) + 10);
 }
 
-export function initSystemMessageLayer({
+export async function initSystemMessageLayer({
   documentRef = typeof document !== 'undefined' ? document : null,
   windowRef = typeof window !== 'undefined' ? window : null
 } = {}) {
   if (!documentRef || !windowRef || windowRef.__shoppingListSystemMessageLayerInitialized) return () => {};
-  const originalShowMsg = windowRef.showMsg;
-  if (typeof originalShowMsg !== 'function') return () => {};
-  const modal = documentRef.getElementById('msg-modal');
-  if (!modal) return () => {};
+  const { modal, showMsg: originalShowMsg } = await waitForMessageDependencies(documentRef, windowRef);
+  if (windowRef.__shoppingListSystemMessageLayerInitialized) return () => {};
 
   windowRef.__shoppingListSystemMessageLayerInitialized = true;
   const wrappedShowMsg = function(...args) {
