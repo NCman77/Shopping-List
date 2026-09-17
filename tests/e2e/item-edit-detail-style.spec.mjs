@@ -3,8 +3,8 @@ import { test, expect } from '@playwright/test';
 test('existing-item edit mode renders a real detail-style editable card without replacing controls', async ({ page }) => {
   await page.route('**/index.html', (route) => route.fulfill({
     status: 200,
-    contentType: 'text/html',
-    body: `<!doctype html><html><head></head><body>
+    headers: { 'content-type': 'text/html; charset=utf-8' },
+    body: `<!doctype html><html><head><meta charset="utf-8"></head><body>
       <div id="add-modal-content" class="workflow-edit-mode">
         <div id="item-edit-form-scroll">
           <div id="item-edit-photo-field"><label for="item-photo"><input id="item-photo" type="file"></label></div>
