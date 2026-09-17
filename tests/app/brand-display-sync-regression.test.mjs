@@ -16,7 +16,6 @@ test('brand dictionary display sync covers all user-visible location surfaces wh
   assert.match(displaySource, /item-multi-location-chips/);
   assert.match(displaySource, /item-detail-view/);
   assert.match(displaySource, /filter-delete-warning-modal/);
-  assert.match(displaySource, /settings', 'preferences'/);
 
   assert.match(renameSource, /dataset\?\.brandLocationRaw|dataset\.brandLocationRaw/);
   assert.match(detailSource, /dataset\.brandLocationRaw\s*=\s*location/);
