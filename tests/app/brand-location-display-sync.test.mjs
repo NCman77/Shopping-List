@@ -15,6 +15,12 @@ test('brand display sync covers management and item location UI without replacin
   assert.match(displaySource, /brandLocationRaw/);
 });
 
+test('brand display sync hands multilingual picker labels to the source choices that rebuild the visible select', () => {
+  assert.match(displaySource, /multi-location-choice\[data-location\]/);
+  assert.match(displaySource, /brandLocationPickerLabel/);
+  assert.match(displaySource, /resolveLocationPickerLabel/);
+});
+
 test('filter rename reads the preserved raw management value instead of translated text', () => {
   assert.match(renameSource, /dataset\?\.manageValue|dataset\.manageValue/);
 });
