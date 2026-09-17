@@ -104,6 +104,15 @@ export async function initLocationDuplicateGuard({
     modal.classList.add('flex');
   }
 
+  function continueAddLocation(rawLocation) {
+    const requestBrand = windowRef.shoppingListRequestBrandForLocation;
+    if (typeof requestBrand === 'function') {
+      requestBrand(rawLocation, originalAddLocation);
+      return;
+    }
+    originalAddLocation(rawLocation);
+  }
+
   function guardedAddLocation(rawLocation) {
     const location = clean(rawLocation);
     if (!location) return originalAddLocation(rawLocation);
@@ -124,7 +133,7 @@ export async function initLocationDuplicateGuard({
       return;
     }
 
-    originalAddLocation(rawLocation);
+    continueAddLocation(rawLocation);
   }
 
   windowRef.handleAddLocation = guardedAddLocation;
@@ -133,7 +142,7 @@ export async function initLocationDuplicateGuard({
   documentRef.getElementById('location-duplicate-confirm')?.addEventListener('click', () => {
     const rawLocation = state.pendingLocation;
     closeWarning();
-    if (clean(rawLocation)) originalAddLocation(rawLocation);
+    if (clean(rawLocation)) continueAddLocation(rawLocation);
   });
   modal.addEventListener('click', (event) => { if (event.target === modal) closeWarning(); });
   documentRef.addEventListener('keydown', (event) => {
