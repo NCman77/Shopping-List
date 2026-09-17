@@ -18,6 +18,12 @@ function activeCountry(windowRef) {
     || DEFAULT_COUNTRY;
 }
 
+function displayName(raw, brands, country) {
+  const value = clean(raw);
+  if (!value) return '';
+  return resolveLocationDisplayName(value, brands, country) || value;
+}
+
 function rawLocationFromMapsLink(link) {
   const saved = clean(link?.dataset?.brandLocationRaw);
   if (saved) return saved;
@@ -85,6 +91,89 @@ function updateItemLocationButtons(documentRef, brands, country) {
   });
 }
 
+function updateManagementLocationRows(documentRef, brands, country) {
+  const title = clean(documentRef.getElementById('manage-filter-title')?.textContent);
+  if (!title.includes('地點')) return;
+
+  documentRef.querySelectorAll('#manage-filter-list .manage-row').forEach((row) => {
+    const label = row.querySelector?.('.manage-option-name');
+    if (!label) return;
+    const raw = clean(row.dataset?.brandLocationRaw) || clean(label.textContent);
+    if (!raw) return;
+    row.dataset.brandLocationRaw = raw;
+    row.dataset.brandLocationIndex = clean(row.dataset?.manageIndex);
+    const display = displayName(raw, brands, country);
+    if (clean(label.textContent) !== display) label.textContent = display;
+    const rename = row.querySelector?.('.rename-option');
+    if (rename) rename.setAttribute('aria-label', `重新命名地點${display}`);
+  });
+}
+
+function updateItemLocationPicker(documentRef, brands, country) {
+  documentRef.querySelectorAll('#item-multi-location-select option').forEach((option) => {
+    const raw = clean(option.value);
+    if (!raw) return;
+    const display = displayName(raw, brands, country);
+    if (clean(option.textContent) !== display) option.textContent = display;
+  });
+
+  documentRef.querySelectorAll('#item-multi-location-chips .multi-location-remove[data-location]').forEach((remove) => {
+    const raw = clean(remove.dataset?.location);
+    const label = remove.parentElement?.querySelector?.('span');
+    if (!raw || !label) return;
+    const legacy = clean(label.textContent).endsWith('（舊）');
+    const display = `${displayName(raw, brands, country)}${legacy ? '（舊）' : ''}`;
+    if (clean(label.textContent) !== display) label.textContent = display;
+  });
+}
+
+function updateItemDetailLocationLabels(documentRef, brands, country) {
+  documentRef.querySelectorAll('#item-detail-view [data-brand-location-raw]').forEach((button) => {
+    const raw = clean(button.dataset?.brandLocationRaw);
+    const label = button.querySelector?.('.brand-location-label');
+    if (!raw || !label) return;
+    const display = displayName(raw, brands, country);
+    if (clean(label.textContent) !== display) label.textContent = display;
+  });
+}
+
+function updateFilterDeleteWarning(documentRef, brands, country) {
+  const modal = documentRef.getElementById('filter-delete-warning-modal');
+  const title = documentRef.getElementById('filter-delete-title');
+  const note = documentRef.getElementById('filter-delete-retain-note');
+  const titleText = clean(title?.textContent);
+  const match = titleText.match(/^刪除地點「(.+)」？$/u);
+  if (!modal || !title || !match?.[1]) {
+    if (modal?.dataset) {
+      delete modal.dataset.brandLocationRaw;
+      delete modal.dataset.brandLocationDisplay;
+    }
+    return;
+  }
+
+  const visibleValue = clean(match[1]);
+  const previousRaw = clean(modal.dataset?.brandLocationRaw);
+  const previousDisplay = clean(modal.dataset?.brandLocationDisplay);
+  const raw = previousRaw && (visibleValue === previousRaw || visibleValue === previousDisplay)
+    ? previousRaw
+    : visibleValue;
+  const display = displayName(raw, brands, country);
+  modal.dataset.brandLocationRaw = raw;
+
+  const replaceVisibleName = (node) => {
+    if (!node) return;
+    const current = String(node.textContent ?? '');
+    let next = current;
+    if (previousDisplay && previousDisplay !== display) next = next.replaceAll(previousDisplay, display);
+    if (raw !== display) next = next.replaceAll(raw, display);
+    if (next !== current) node.textContent = next;
+  };
+
+  replaceVisibleName(title);
+  replaceVisibleName(note);
+  modal.dataset.brandLocationDisplay = display;
+}
+
 export function installBrandLocationMapButtonHandler({
   documentRef = typeof document !== 'undefined' ? document : null,
   windowRef = typeof window !== 'undefined' ? window : null
@@ -125,6 +214,10 @@ export function applyBrandLocationDisplay({
   updateLocationFilters(documentRef, brands, country);
   updateItemLocationLinks(documentRef, brands, country);
   updateItemLocationButtons(documentRef, brands, country);
+  updateManagementLocationRows(documentRef, brands, country);
+  updateItemLocationPicker(documentRef, brands, country);
+  updateItemDetailLocationLabels(documentRef, brands, country);
+  updateFilterDeleteWarning(documentRef, brands, country);
 }
 
 export async function initBrandLocationDisplay({
@@ -165,17 +258,34 @@ export async function initBrandLocationDisplay({
     queueMicrotask(apply);
   }
 
-  const roots = [
-    documentRef.getElementById('location-filters'),
-    documentRef.getElementById('item-list')
-  ].filter(Boolean);
   const observers = [];
-  if (MutationObserverImpl) {
-    for (const root of roots) {
-      const observer = new MutationObserverImpl(schedule);
-      observer.observe(root, { childList: true, subtree: true });
-      observers.push(observer);
-    }
+  const observedRoots = new WeakSet();
+  function observeRoot(root) {
+    if (!MutationObserverImpl || !root || observedRoots.has(root)) return;
+    const observer = new MutationObserverImpl(schedule);
+    observer.observe(root, { childList: true, subtree: true });
+    observedRoots.add(root);
+    observers.push(observer);
+  }
+
+  function observeKnownRoots() {
+    [
+      documentRef.getElementById('location-filters'),
+      documentRef.getElementById('item-list'),
+      documentRef.getElementById('add-modal-content'),
+      documentRef.getElementById('manage-filter-modal'),
+      documentRef.getElementById('filter-delete-warning-modal')
+    ].forEach(observeRoot);
+  }
+
+  observeKnownRoots();
+  let bodyObserver = null;
+  if (MutationObserverImpl && documentRef.body) {
+    bodyObserver = new MutationObserverImpl(() => {
+      observeKnownRoots();
+      schedule();
+    });
+    bodyObserver.observe(documentRef.body, { childList: true, subtree: false });
   }
 
   windowRef.addEventListener('shopping-list:active-trip-changed', schedule);
@@ -202,6 +312,7 @@ export async function initBrandLocationDisplay({
   return () => {
     state.dictionaryUnsub?.();
     observers.forEach((observer) => observer.disconnect());
+    bodyObserver?.disconnect();
     removeMapButtonHandler();
     windowRef.removeEventListener('shopping-list:active-trip-changed', schedule);
     windowRef.removeEventListener('shopping-list:trips-changed', schedule);
