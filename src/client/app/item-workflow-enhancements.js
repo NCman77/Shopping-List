@@ -528,6 +528,7 @@ export async function initItemWorkflowEnhancements() {
         onBack: () => window.closeAddModal?.(),
         onEdit: enterDetailEditMode
       });
+      window.shoppingListItemCouponUi?.renderItemDetailCoupons?.(detailSurface, item);
     }
     state.detailMode = 'view';
     setDetailMode('view', { existing: true });
