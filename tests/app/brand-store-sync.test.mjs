@@ -60,10 +60,7 @@ test('coupon manager offers brand creation through the same dictionary editor wh
   assert.match(source, /context:\s*'coupon'/);
 });
 
-test('brand dictionary duplicate warnings are raised above the dictionary only while it is open', async () => {
+test('brand store sync delegates all global message layering to the shared system message layer', async () => {
   const source = await readFile(sourcePath, 'utf8');
-  assert.match(source, /msg-modal/);
-  assert.match(source, /brand-dictionary-modal/);
-  assert.match(source, /style\.zIndex = '180'/);
-  assert.match(source, /restoreAlertLayer/);
+  assert.doesNotMatch(source, /msg-modal|priorMsgZIndex|applyAlertLayer|restoreAlertLayer|style\.zIndex/);
 });

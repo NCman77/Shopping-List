@@ -162,6 +162,41 @@ function firstAliasForPriority(brand, basePriority, { excludeChinese = false } =
   return '';
 }
 
+function pickerLanguagePriority(brand, country) {
+  const grouped = aliasesByLanguage(brand);
+  const localLanguages = countryDefaults(country)
+    .filter((language) => !['中文', '英文', '其他'].includes(language));
+  const reserved = new Set(['中文', '英文', '其他', ...localLanguages]);
+  const extras = [...grouped.keys()]
+    .filter((language) => !reserved.has(language) && language !== '其他');
+  return unique(['中文', '英文', ...localLanguages, ...extras, '其他']);
+}
+
+function appendUniqueDisplayValue(values, seen, value) {
+  const label = rawDisplay(value);
+  const normalized = clean(label).toLocaleLowerCase();
+  if (!label || !normalized || seen.has(normalized)) return;
+  seen.add(normalized);
+  values.push(label);
+}
+
+export function resolveLocationPickerLabel(location, brands, country) {
+  const raw = rawDisplay(location);
+  const brand = findBrandForLocation(brands, raw, country);
+  if (!brand) return raw;
+
+  const grouped = aliasesByLanguage(brand);
+  const values = [];
+  const seen = new Set();
+  for (const language of pickerLanguagePriority(brand, country)) {
+    appendUniqueDisplayValue(values, seen, grouped.get(language)?.[0]);
+  }
+
+  if (!values.length) appendUniqueDisplayValue(values, seen, brand?.displayName);
+  if (!values.length) appendUniqueDisplayValue(values, seen, raw);
+  return values.join(' / ');
+}
+
 export function resolveLocationDisplayName(location, brands, country) {
   const raw = rawDisplay(location);
   const brand = findBrandForLocation(brands, raw, country);

@@ -1,14 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import {
+import * as resolver from '../../src/client/app/brand-location-resolver.js';
+
+const {
   displayLanguagePriorityForCountry,
   mapLanguagePriorityForCountry,
   inferAliasesFromLocation,
   findBrandForLocation,
   resolveLocationDisplayName,
   resolveLocationMapQuery
-} from '../../src/client/app/brand-location-resolver.js';
+} = resolver;
 
 const japanBrand = {
   id: 'matsukiyo',
@@ -57,7 +59,66 @@ test('homepage display uses Chinese but Google Maps uses local language', () => 
   assert.equal(resolveLocationMapQuery('Matsumoto Kiyoshi マツモトキヨシ', brands, '日本'), 'マツモトキヨシ');
 });
 
-test('unmatched locations retain their original identity for display and Maps', () => {
+test('where-to-buy picker uses Chinese, English, then local language for Japan', () => {
+  assert.equal(typeof resolver.resolveLocationPickerLabel, 'function');
+  assert.equal(
+    resolver.resolveLocationPickerLabel('Matsumoto Kiyoshi', [japanBrand], '日本'),
+    '松本清 / Matsumoto Kiyoshi / マツモトキヨシ'
+  );
+});
+
+test('where-to-buy picker skips missing languages and deduplicates English when it is also a local language', () => {
+  assert.equal(typeof resolver.resolveLocationPickerLabel, 'function');
+  const japanWithoutChinese = {
+    id: 'donki',
+    country: '日本',
+    displayName: 'Don Quijote',
+    aliases: [
+      { language: '英文', value: 'Don Quijote' },
+      { language: '日文', value: 'ドン・キホーテ' }
+    ]
+  };
+  const canadaBrand = {
+    id: 'london-drugs',
+    country: '加拿大',
+    displayName: 'London Drugs',
+    aliases: [
+      { language: '中文', value: '倫敦藥房' },
+      { language: '英文', value: 'London Drugs' },
+      { language: '法文', value: 'London Drugs' }
+    ]
+  };
+  assert.equal(
+    resolver.resolveLocationPickerLabel('Don Quijote', [japanWithoutChinese], '日本'),
+    'Don Quijote / ドン・キホーテ'
+  );
+  assert.equal(
+    resolver.resolveLocationPickerLabel('London Drugs', [canadaBrand], '加拿大'),
+    '倫敦藥房 / London Drugs'
+  );
+});
+
+test('where-to-buy picker supports custom country alias languages after Chinese and English', () => {
+  assert.equal(typeof resolver.resolveLocationPickerLabel, 'function');
+  const customBrand = {
+    id: 'custom-shop',
+    country: '越南',
+    displayName: 'Custom Shop',
+    aliases: [
+      { language: '中文', value: '自訂商店' },
+      { language: '英文', value: 'Custom Shop' },
+      { language: '越南文', value: 'Cửa hàng' }
+    ]
+  };
+  assert.equal(
+    resolver.resolveLocationPickerLabel('Custom Shop', [customBrand], '越南'),
+    '自訂商店 / Custom Shop / Cửa hàng'
+  );
+});
+
+test('unmatched locations retain their original identity for display, picker, and Maps', () => {
   assert.equal(resolveLocationDisplayName('ABC Store', [japanBrand], '日本'), 'ABC Store');
   assert.equal(resolveLocationMapQuery('ABC Store', [japanBrand], '日本'), 'ABC Store');
+  assert.equal(typeof resolver.resolveLocationPickerLabel, 'function');
+  assert.equal(resolver.resolveLocationPickerLabel('ABC Store', [japanBrand], '日本'), 'ABC Store');
 });

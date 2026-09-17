@@ -83,7 +83,6 @@ export async function initBrandStoreSync({
     externalContext: '',
     externalEditorOpened: false,
     couponWasVisible: false,
-    priorMsgZIndex: '',
     pickerScheduled: false
   };
 
@@ -149,25 +148,6 @@ export async function initBrandStoreSync({
     });
   }
 
-  function applyAlertLayer() {
-    const dictionaryModal = documentRef.getElementById('brand-dictionary-modal');
-    const messageModal = documentRef.getElementById('msg-modal');
-    if (!dictionaryModal || !messageModal) return;
-    const dictionaryOpen = !dictionaryModal.classList.contains('hidden');
-    if (dictionaryOpen) {
-      if (!state.priorMsgZIndex) state.priorMsgZIndex = messageModal.style.zIndex || '';
-      messageModal.style.zIndex = '180';
-    } else {
-      restoreAlertLayer();
-    }
-  }
-
-  function restoreAlertLayer() {
-    const messageModal = documentRef.getElementById('msg-modal');
-    if (messageModal) messageModal.style.zIndex = state.priorMsgZIndex;
-    state.priorMsgZIndex = '';
-  }
-
   function countryButton(country) {
     const expected = clean(country);
     return [...documentRef.querySelectorAll('#brand-country-list button')].find((button) => {
@@ -229,12 +209,10 @@ export async function initBrandStoreSync({
     }
     addButton.click();
     state.externalEditorOpened = true;
-    applyAlertLayer();
     return true;
   }
 
   function handleBrandModalState() {
-    applyAlertLayer();
     if (!state.externalContext) return;
     const dictionaryModal = documentRef.getElementById('brand-dictionary-modal');
     if (!dictionaryModal || dictionaryModal.classList.contains('hidden')) {
@@ -365,7 +343,6 @@ export async function initBrandStoreSync({
   const authUnsub = authSdk.onAuthStateChanged(auth, subscribeUser);
   schedulePickerFilter();
   updateCouponAddBrandButton();
-  applyAlertLayer();
 
   return () => {
     authUnsub?.();
@@ -374,7 +351,6 @@ export async function initBrandStoreSync({
     documentRef.removeEventListener('click', captureItemAdd, true);
     windowRef.removeEventListener('shopping-list:active-trip-changed', activeContextChanged);
     windowRef.removeEventListener('shopping-list:active-country-changed', activeContextChanged);
-    restoreAlertLayer();
     windowRef.__shoppingListBrandStoreSyncInitialized = false;
   };
 }
