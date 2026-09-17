@@ -116,6 +116,23 @@ test('where-to-buy picker supports custom country alias languages after Chinese 
   );
 });
 
+test('where-to-buy picker retains a distinct primary display name after language-tagged names', () => {
+  const brand = {
+    id: 'primary-name',
+    country: '日本',
+    displayName: '主要名稱',
+    aliases: [
+      { language: '中文', value: '中文名' },
+      { language: '英文', value: 'English Name' },
+      { language: '日文', value: '日本語名' }
+    ]
+  };
+  assert.equal(
+    resolver.resolveLocationPickerLabel('主要名稱', [brand], '日本'),
+    '中文名 / English Name / 日本語名 / 主要名稱'
+  );
+});
+
 test('unmatched locations retain their original identity for display, picker, and Maps', () => {
   assert.equal(resolveLocationDisplayName('ABC Store', [japanBrand], '日本'), 'ABC Store');
   assert.equal(resolveLocationMapQuery('ABC Store', [japanBrand], '日本'), 'ABC Store');
