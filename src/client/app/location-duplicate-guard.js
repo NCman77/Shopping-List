@@ -67,7 +67,7 @@ export async function initLocationDuplicateGuard({
   const app = appSdk.getApps()[0] || appSdk.getApp();
   const auth = authSdk.getAuth(app);
   const db = firestoreSdk.getFirestore(app);
-  const { collection, doc, onSnapshot } = firestoreSdk;
+  const { doc, onSnapshot } = firestoreSdk;
 
   const modal = documentRef.getElementById('location-duplicate-confirm-modal');
   const state = {
@@ -152,15 +152,16 @@ export async function initLocationDuplicateGuard({
     if (!user) return;
 
     const settingsRef = doc(db, 'artifacts', APP_ID, 'users', user.uid, 'settings', 'preferences');
-    const brandCollection = collection(db, 'artifacts', APP_ID, 'users', user.uid, 'brands');
+    const brandDictionaryRef = doc(db, 'artifacts', APP_ID, 'users', user.uid, 'settings', 'brandDictionary');
     state.settingsUnsub = onSnapshot(settingsRef, (snapshot) => {
       if (state.userId !== user.uid) return;
       const data = snapshot.exists() ? snapshot.data() : {};
       state.locations = Array.isArray(data.locations) ? [...data.locations] : [];
     }, (error) => console.error('Location duplicate settings listener failed:', error));
-    state.brandsUnsub = onSnapshot(brandCollection, (snapshot) => {
+    state.brandsUnsub = onSnapshot(brandDictionaryRef, (snapshot) => {
       if (state.userId !== user.uid) return;
-      state.brands = snapshot.docs.map((brandDoc) => ({ id: brandDoc.id, ...brandDoc.data() }));
+      const data = snapshot.exists() ? snapshot.data() : {};
+      state.brands = Array.isArray(data.brands) ? data.brands.map((brand) => ({ ...brand })) : [];
     }, (error) => console.error('Location duplicate brand listener failed:', error));
   }
 

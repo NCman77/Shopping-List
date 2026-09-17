@@ -49,8 +49,8 @@ function ensureSettingsEntry(documentRef) {
     <span class="w-10 h-10 shrink-0 rounded-full bg-white border-2 border-warmBrown flex items-center justify-center"><i class="fas fa-book-open"></i></span>
     <span class="flex-1 min-w-0"><span class="block font-bold">品牌字典</span><span class="block text-xs opacity-60 mt-0.5">依旅遊國家管理品牌名稱與別名</span></span>
     <i class="fas fa-chevron-right text-xs"></i>`;
-  const mapsButton = documentRef.getElementById('account-open-maps');
-  if (mapsButton?.parentElement === root) root.insertBefore(button, mapsButton);
+  const personalizationButton = documentRef.getElementById('account-open-personalization');
+  if (personalizationButton?.parentElement === root) root.insertBefore(button, personalizationButton);
   else root.appendChild(button);
 }
 
@@ -77,15 +77,7 @@ function ensureModal(documentRef) {
           <button id="brand-add" type="button" class="px-3 py-2 rounded-xl bg-pastelGreen border-2 border-warmBrown text-warmBrown text-xs font-bold"><i class="fas fa-plus mr-1"></i>新增品牌</button>
         </div>
         <div class="p-4 overflow-y-auto bg-white">
-          <div class="rounded-2xl border-2 border-warmBrown/30 bg-shinBg p-3 mb-4">
-            <div class="flex items-center justify-between gap-2 mb-2"><div><p class="text-xs font-bold text-warmBrown">語言欄位</p><p class="text-[10px] text-gray-500">各國預設不同，也可以自行新增語言</p></div></div>
-            <div id="brand-language-fields" class="flex flex-wrap gap-2 mb-3"></div>
-            <div class="flex gap-2">
-              <input id="brand-language-input" type="text" autocomplete="off" class="flex-1 min-w-0 px-3 py-2 rounded-xl border-2 border-warmBrown bg-white text-sm text-warmBrown font-bold outline-none" placeholder="例如：德文">
-              <button id="brand-language-add" type="button" class="px-3 py-2 rounded-xl bg-pastelBlue border-2 border-warmBrown text-warmBrown text-xs font-bold">＋新增語言</button>
-            </div>
-          </div>
-          <div id="brand-list" class="space-y-3"></div>
+          <div id="brand-list" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
           <div id="brand-empty" class="hidden py-8 text-center text-sm font-bold text-gray-400">這個國家還沒有品牌資料</div>
         </div>
       </div>
@@ -102,11 +94,28 @@ function ensureModal(documentRef) {
             <input id="brand-display-name" type="text" autocomplete="off" class="w-full px-4 py-2.5 rounded-xl bg-shinBg border-2 border-warmBrown text-warmBrown font-bold outline-none" placeholder="留空會使用第一個已填名稱">
           </div>
           <div id="brand-alias-fields" class="space-y-3"></div>
+          <div id="brand-language-section" class="rounded-2xl border-2 border-warmBrown/30 bg-shinBg p-3">
+            <div class="mb-2">
+              <p class="text-xs font-bold text-warmBrown">新增語言</p>
+              <p class="text-[10px] text-gray-500 mt-0.5">新增後會在上方建立新的名稱欄位，按右上角「儲存」時一起保存。</p>
+            </div>
+            <div id="brand-language-fields" class="flex flex-wrap gap-2 mb-3"></div>
+            <div class="flex gap-2">
+              <input id="brand-language-input" type="text" autocomplete="off" class="flex-1 min-w-0 px-3 py-2 rounded-xl border-2 border-warmBrown bg-white text-sm text-warmBrown font-bold outline-none" placeholder="例如：德文">
+              <button id="brand-language-add" type="button" class="px-3 py-2 rounded-xl bg-pastelBlue border-2 border-warmBrown text-warmBrown text-xs font-bold">＋新增語言</button>
+            </div>
+          </div>
           <p class="text-[10px] text-gray-500 leading-relaxed">「其他」可用逗號、頓號、分號或換行輸入多個別名。至少要填一個名稱。</p>
+          <button id="brand-editor-delete" type="button" class="hidden w-full py-2.5 rounded-xl bg-pastelPink border-2 border-warmBrown text-warmBrown text-sm font-bold"><i class="fas fa-trash mr-2"></i>刪除品牌</button>
         </div>
       </div>
     </div>`;
   documentRef.body.appendChild(modal);
+}
+
+function createBrandId() {
+  if (typeof globalThis.crypto?.randomUUID === 'function') return globalThis.crypto.randomUUID();
+  return `brand-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 export async function initBrandDictionaryUi({
@@ -129,7 +138,7 @@ export async function initBrandDictionaryUi({
   const app = appSdk.getApps()[0] || appSdk.getApp();
   const auth = authSdk.getAuth(app);
   const db = firestoreSdk.getFirestore(app);
-  const { collection, deleteDoc, doc, onSnapshot, serverTimestamp, setDoc } = firestoreSdk;
+  const { doc, onSnapshot, writeBatch } = firestoreSdk;
 
   const modal = documentRef.getElementById('brand-dictionary-modal');
   const accountModal = documentRef.getElementById('account-settings-modal');
@@ -139,6 +148,7 @@ export async function initBrandDictionaryUi({
   const languageInput = documentRef.getElementById('brand-language-input');
   const displayNameInput = documentRef.getElementById('brand-display-name');
   const saveButton = documentRef.getElementById('brand-editor-save');
+  const deleteButton = documentRef.getElementById('brand-editor-delete');
 
   const state = {
     userId: '',
@@ -147,6 +157,7 @@ export async function initBrandDictionaryUi({
     brands: [],
     selectedCountry: '',
     editingBrandId: '',
+    draftLanguageFields: [],
     settingsUnsub: null,
     brandsUnsub: null
   };
@@ -155,12 +166,8 @@ export async function initBrandDictionaryUi({
     return state.userId ? doc(db, 'artifacts', APP_ID, 'users', state.userId, 'settings', 'preferences') : null;
   }
 
-  function brandsRef() {
-    return state.userId ? collection(db, 'artifacts', APP_ID, 'users', state.userId, 'brands') : null;
-  }
-
-  function brandRef(brandId) {
-    return doc(db, 'artifacts', APP_ID, 'users', state.userId, 'brands', brandId);
+  function brandDictionaryRef() {
+    return state.userId ? doc(db, 'artifacts', APP_ID, 'users', state.userId, 'settings', 'brandDictionary') : null;
   }
 
   function showOnly(view) {
@@ -175,6 +182,7 @@ export async function initBrandDictionaryUi({
     modal.classList.remove('flex');
     state.selectedCountry = '';
     state.editingBrandId = '';
+    state.draftLanguageFields = [];
     showOnly(countryView);
     if (returnToSettings) {
       accountModal.classList.remove('hidden');
@@ -196,6 +204,9 @@ export async function initBrandDictionaryUi({
   }
 
   function fieldsFor(country = state.selectedCountry) {
+    if (sameCountry(country, state.selectedCountry) && state.draftLanguageFields.length) {
+      return effectiveLanguageFields(country, state.draftLanguageFields);
+    }
     return effectiveLanguageFields(country, state.languageFieldsByCountry?.[country]);
   }
 
@@ -216,6 +227,89 @@ export async function initBrandDictionaryUi({
     }
   }
 
+  function renderBrandList() {
+    const root = documentRef.getElementById('brand-list');
+    const empty = documentRef.getElementById('brand-empty');
+    if (!root || !empty) return;
+    root.replaceChildren();
+    const brands = countryBrands();
+    empty.classList.toggle('hidden', brands.length > 0);
+    for (const brand of brands) {
+      const card = documentRef.createElement('button');
+      card.type = 'button';
+      card.className = 'w-full min-w-0 rounded-2xl border-2 border-warmBrown bg-white p-3 text-left text-warmBrown hover:bg-shinBg';
+      const aliases = (Array.isArray(brand.aliases) ? brand.aliases : [])
+        .map((alias) => `${clean(alias.language) || '其他'}：${clean(alias.value)}`)
+        .filter(Boolean);
+      card.innerHTML = `
+        <div class="flex items-center gap-2">
+          <div class="flex-1 min-w-0">
+            <h4 class="font-bold break-words"></h4>
+            <p class="brand-alias-summary text-[11px] text-gray-500 mt-1 leading-relaxed break-words"></p>
+          </div>
+          <i class="fas fa-chevron-right text-xs opacity-50 shrink-0"></i>
+        </div>`;
+      card.querySelector('h4').textContent = clean(brand.displayName) || aliases[0] || '未命名品牌';
+      card.querySelector('.brand-alias-summary').textContent = aliases.join(' · ');
+      card.addEventListener('click', () => openEditor(brand));
+      root.appendChild(card);
+    }
+  }
+
+  function renderCountry() {
+    documentRef.getElementById('brand-country-title').textContent = `${state.selectedCountry}品牌字典`;
+    renderBrandList();
+  }
+
+  function openCountry(country) {
+    state.selectedCountry = clean(country);
+    state.editingBrandId = '';
+    state.draftLanguageFields = [];
+    if (!state.selectedCountry) return;
+    showOnly(listView);
+    renderCountry();
+  }
+
+  function aliasesByLanguage(brand) {
+    const grouped = new Map();
+    for (const alias of Array.isArray(brand?.aliases) ? brand.aliases : []) {
+      const language = clean(alias?.language) || '其他';
+      const value = String(alias?.value ?? '').trim();
+      if (!value) continue;
+      const values = grouped.get(language) || [];
+      values.push(value);
+      grouped.set(language, values);
+    }
+    return grouped;
+  }
+
+  function currentAliasDraft() {
+    const draft = new Map();
+    documentRef.querySelectorAll('#brand-alias-fields .brand-alias-input').forEach((input) => {
+      const language = clean(input.dataset.language) || '其他';
+      draft.set(language, input.value);
+    });
+    return draft;
+  }
+
+  function renderEditorFields(brand = null, draft = null) {
+    const root = documentRef.getElementById('brand-alias-fields');
+    root.replaceChildren();
+    const grouped = aliasesByLanguage(brand);
+    for (const label of fieldsFor()) {
+      const row = documentRef.createElement('div');
+      const savedValues = grouped.get(label) || [];
+      row.innerHTML = `
+        <label class="block text-xs font-bold text-warmBrown mb-1.5"></label>
+        <textarea rows="1" class="brand-alias-input w-full px-4 py-2.5 rounded-xl bg-shinBg border-2 border-warmBrown text-warmBrown font-medium outline-none resize-y" data-language=""></textarea>`;
+      row.querySelector('label').textContent = `${label}名稱`;
+      const input = row.querySelector('.brand-alias-input');
+      input.dataset.language = label;
+      input.value = draft?.has(label) ? draft.get(label) : savedValues.join(', ');
+      root.appendChild(row);
+    }
+  }
+
   function renderLanguageFields() {
     const root = documentRef.getElementById('brand-language-fields');
     if (!root || !state.selectedCountry) return;
@@ -231,91 +325,23 @@ export async function initBrandDictionaryUi({
         remove.className = 'w-4 h-4 rounded-full bg-pastelPink border border-warmBrown flex items-center justify-center';
         remove.setAttribute('aria-label', `移除${label}`);
         remove.innerHTML = '<i class="fas fa-times text-[7px]"></i>';
-        remove.addEventListener('click', () => void removeLanguage(label));
+        remove.addEventListener('click', () => removeLanguage(label));
         chip.appendChild(remove);
       }
       root.appendChild(chip);
     }
   }
 
-  function renderBrandList() {
-    const root = documentRef.getElementById('brand-list');
-    const empty = documentRef.getElementById('brand-empty');
-    if (!root || !empty) return;
-    root.replaceChildren();
-    const brands = countryBrands();
-    empty.classList.toggle('hidden', brands.length > 0);
-    for (const brand of brands) {
-      const card = documentRef.createElement('div');
-      card.className = 'rounded-2xl border-2 border-warmBrown bg-white p-3 text-warmBrown';
-      const aliases = (Array.isArray(brand.aliases) ? brand.aliases : [])
-        .map((alias) => `${clean(alias.language) || '其他'}：${clean(alias.value)}`)
-        .filter(Boolean);
-      card.innerHTML = `
-        <div class="flex items-start gap-2">
-          <div class="flex-1 min-w-0"><h4 class="font-bold break-words"></h4><p class="brand-alias-summary text-[11px] text-gray-500 mt-1 leading-relaxed break-words"></p></div>
-          <button type="button" class="brand-edit w-8 h-8 rounded-full bg-pastelBlue border-2 border-warmBrown"><i class="fas fa-pen text-xs"></i></button>
-          <button type="button" class="brand-delete w-8 h-8 rounded-full bg-pastelPink border-2 border-warmBrown"><i class="fas fa-trash text-xs"></i></button>
-        </div>`;
-      card.querySelector('h4').textContent = clean(brand.displayName) || aliases[0] || '未命名品牌';
-      card.querySelector('.brand-alias-summary').textContent = aliases.join(' · ');
-      card.querySelector('.brand-edit').addEventListener('click', () => openEditor(brand));
-      card.querySelector('.brand-delete').addEventListener('click', () => void removeBrand(brand));
-      root.appendChild(card);
-    }
-  }
-
-  function renderCountry() {
-    documentRef.getElementById('brand-country-title').textContent = `${state.selectedCountry}品牌字典`;
-    renderLanguageFields();
-    renderBrandList();
-  }
-
-  function openCountry(country) {
-    state.selectedCountry = clean(country);
-    state.editingBrandId = '';
-    if (!state.selectedCountry) return;
-    showOnly(listView);
-    renderCountry();
-  }
-
-  function aliasesByLanguage(brand) {
-    const grouped = new Map();
-    for (const alias of Array.isArray(brand?.aliases) ? brand.aliases : []) {
-      const language = clean(alias?.language) || '其他';
-      const value = clean(alias?.value);
-      if (!value) continue;
-      const values = grouped.get(language) || [];
-      values.push(value);
-      grouped.set(language, values);
-    }
-    return grouped;
-  }
-
-  function renderEditorFields(brand = null) {
-    const root = documentRef.getElementById('brand-alias-fields');
-    root.replaceChildren();
-    const grouped = aliasesByLanguage(brand);
-    for (const label of fieldsFor()) {
-      const row = documentRef.createElement('div');
-      const values = grouped.get(label) || [];
-      row.innerHTML = `
-        <label class="block text-xs font-bold text-warmBrown mb-1.5"></label>
-        <textarea rows="1" class="brand-alias-input w-full px-4 py-2.5 rounded-xl bg-shinBg border-2 border-warmBrown text-warmBrown font-medium outline-none resize-y" data-language=""></textarea>`;
-      row.querySelector('label').textContent = `${label}名稱`;
-      const input = row.querySelector('.brand-alias-input');
-      input.dataset.language = label;
-      input.value = values.join(', ');
-      root.appendChild(row);
-    }
-  }
-
   function openEditor(brand = null) {
     state.editingBrandId = clean(brand?.id);
+    state.draftLanguageFields = [...effectiveLanguageFields(state.selectedCountry, state.languageFieldsByCountry?.[state.selectedCountry])];
     documentRef.getElementById('brand-editor-title').textContent = state.editingBrandId ? '編輯品牌' : '新增品牌';
     documentRef.getElementById('brand-editor-country').textContent = state.selectedCountry;
     displayNameInput.value = clean(brand?.displayName);
+    languageInput.value = '';
+    deleteButton.classList.toggle('hidden', !state.editingBrandId);
     renderEditorFields(brand);
+    renderLanguageFields();
     showOnly(editorView);
     setTimeout(() => documentRef.querySelector('.brand-alias-input')?.focus(), 50);
   }
@@ -327,6 +353,23 @@ export async function initBrandDictionaryUi({
       for (const value of parseAliasValues(input.value)) entries.push({ language, value });
     });
     return normalizeBrandAliases(entries);
+  }
+
+  function nextLanguageFieldsMap() {
+    return {
+      ...state.languageFieldsByCountry,
+      [state.selectedCountry]: effectiveLanguageFields(state.selectedCountry, state.draftLanguageFields)
+    };
+  }
+
+  async function persistBrandDictionary(nextBrands, nextLanguageFieldsByCountry = state.languageFieldsByCountry) {
+    const preferences = settingsRef();
+    const dictionary = brandDictionaryRef();
+    if (!preferences || !dictionary) throw new Error('Brand dictionary references are unavailable.');
+    const batch = writeBatch(db);
+    batch.set(preferences, { brandLanguageFields: nextLanguageFieldsByCountry }, { merge: true });
+    batch.set(dictionary, { brands: nextBrands }, { merge: true });
+    await batch.commit();
   }
 
   async function saveBrand() {
@@ -343,17 +386,30 @@ export async function initBrandDictionaryUi({
 
     saveButton.disabled = true;
     try {
-      const ref = state.editingBrandId ? brandRef(state.editingBrandId) : doc(brandsRef());
-      const data = {
+      const now = Date.now();
+      const existing = state.brands.find((brand) => String(brand?.id || '') === state.editingBrandId);
+      const id = state.editingBrandId || createBrandId();
+      const nextBrand = {
+        ...(existing || {}),
+        id,
         country: state.selectedCountry,
         displayName,
         aliases,
-        updatedAt: serverTimestamp()
+        createdAt: existing?.createdAt || now,
+        updatedAt: now
       };
-      if (!state.editingBrandId) data.createdAt = serverTimestamp();
-      await setDoc(ref, data, { merge: Boolean(state.editingBrandId) });
+      const nextBrands = state.editingBrandId
+        ? state.brands.map((brand) => String(brand?.id || '') === state.editingBrandId ? nextBrand : brand)
+        : [...state.brands, nextBrand];
+      const nextMap = nextLanguageFieldsMap();
+
+      await persistBrandDictionary(nextBrands, nextMap);
+      state.brands = nextBrands;
+      state.languageFieldsByCountry = nextMap;
       state.editingBrandId = '';
+      state.draftLanguageFields = [];
       showOnly(listView);
+      renderCountry();
       notify('品牌已儲存', `「${displayName}」已加入${state.selectedCountry}品牌字典。`, 'success');
     } catch (error) {
       console.error('Save brand dictionary entry failed:', error);
@@ -367,42 +423,52 @@ export async function initBrandDictionaryUi({
     if (!state.userId || !brand?.id) return;
     const label = clean(brand.displayName) || '這個品牌';
     if (typeof windowRef.confirm === 'function' && !windowRef.confirm(`確定刪除「${label}」？\n這不會刪除已存在的地點或商品。`)) return;
+
+    deleteButton.disabled = true;
     try {
-      await deleteDoc(brandRef(brand.id));
+      const nextBrands = state.brands.filter((entry) => String(entry?.id || '') !== String(brand.id));
+      await persistBrandDictionary(nextBrands, state.languageFieldsByCountry);
+      state.brands = nextBrands;
+      state.editingBrandId = '';
+      state.draftLanguageFields = [];
+      showOnly(listView);
+      renderCountry();
       notify('品牌已刪除', `已從${state.selectedCountry}品牌字典移除「${label}」。`, 'success');
     } catch (error) {
       console.error('Delete brand dictionary entry failed:', error);
       notify('刪除失敗', '無法刪除這筆品牌資料，請稍後再試。');
+    } finally {
+      deleteButton.disabled = false;
     }
   }
 
-  async function persistLanguageFields(fields) {
-    if (!state.userId || !state.selectedCountry) return;
-    const nextMap = { ...state.languageFieldsByCountry, [state.selectedCountry]: effectiveLanguageFields(state.selectedCountry, fields) };
-    try {
-      await setDoc(settingsRef(), { brandLanguageFields: nextMap }, { merge: true });
-      state.languageFieldsByCountry = nextMap;
-      renderLanguageFields();
-    } catch (error) {
-      console.error('Save brand language fields failed:', error);
-      notify('儲存失敗', '無法更新這個國家的品牌語言欄位。');
-    }
-  }
-
-  async function addLanguage() {
+  function addLanguage() {
     const label = clean(languageInput.value);
     if (!label) return notify('缺少語言名稱', '請輸入要新增的語言，例如「德文」。', 'warning');
     const current = fieldsFor();
     if (current.some((field) => field.toLocaleLowerCase() === label.toLocaleLowerCase())) {
       return notify('語言已存在', `「${label}」已經在這個國家的欄位中。`, 'warning');
     }
+    const draft = currentAliasDraft();
+    state.draftLanguageFields = [...current.filter((field) => field !== '其他'), label, '其他'];
     languageInput.value = '';
-    await persistLanguageFields([...current.filter((field) => field !== '其他'), label, '其他']);
+    renderEditorFields(null, draft);
+    renderLanguageFields();
+    const addedInput = [...documentRef.querySelectorAll('#brand-alias-fields .brand-alias-input')]
+      .find((input) => input.dataset.language === label);
+    addedInput?.focus();
   }
 
-  async function removeLanguage(label) {
-    const next = fieldsFor().filter((field) => field !== label);
-    await persistLanguageFields(next);
+  function removeLanguage(label) {
+    const draft = currentAliasDraft();
+    draft.delete(label);
+    state.draftLanguageFields = fieldsFor().filter((field) => field !== label);
+    renderEditorFields(null, draft);
+    renderLanguageFields();
+  }
+
+  function currentEditingBrand() {
+    return state.brands.find((brand) => String(brand?.id || '') === state.editingBrandId) || null;
   }
 
   function subscribeUser(user) {
@@ -416,6 +482,7 @@ export async function initBrandDictionaryUi({
     state.brands = [];
     state.selectedCountry = '';
     state.editingBrandId = '';
+    state.draftLanguageFields = [];
     renderCountries();
     if (!user) {
       closeDictionary();
@@ -427,16 +494,19 @@ export async function initBrandDictionaryUi({
       if (state.userId !== user.uid) return;
       const data = snapshot.exists() ? snapshot.data() : {};
       state.countries = normalizeCountries(data.countries);
-      state.languageFieldsByCountry = data.brandLanguageFields && typeof data.brandLanguageFields === 'object' ? { ...data.brandLanguageFields } : {};
+      state.languageFieldsByCountry = data.brandLanguageFields && typeof data.brandLanguageFields === 'object'
+        ? { ...data.brandLanguageFields }
+        : {};
       renderCountries();
-      if (state.selectedCountry) renderCountry();
+      if (state.selectedCountry && !state.editingBrandId) renderCountry();
     }, (error) => console.error('Brand dictionary settings listener failed:', error));
 
-    state.brandsUnsub = onSnapshot(collection(db, 'artifacts', APP_ID, 'users', state.userId, 'brands'), (snapshot) => {
+    state.brandsUnsub = onSnapshot(brandDictionaryRef(), (snapshot) => {
       if (state.userId !== user.uid) return;
-      state.brands = snapshot.docs.map((brandDoc) => ({ id: brandDoc.id, ...brandDoc.data() }));
+      const data = snapshot.exists() ? snapshot.data() : {};
+      state.brands = Array.isArray(data.brands) ? data.brands.map((brand) => ({ ...brand })) : [];
       renderCountries();
-      if (state.selectedCountry) renderBrandList();
+      if (state.selectedCountry && !state.editingBrandId) renderBrandList();
     }, (error) => console.error('Brand dictionary listener failed:', error));
   }
 
@@ -445,21 +515,27 @@ export async function initBrandDictionaryUi({
   documentRef.getElementById('brand-close')?.addEventListener('click', () => closeDictionary());
   documentRef.getElementById('brand-country-back')?.addEventListener('click', () => {
     state.selectedCountry = '';
+    state.draftLanguageFields = [];
     showOnly(countryView);
     renderCountries();
   });
   documentRef.getElementById('brand-add')?.addEventListener('click', () => openEditor());
   documentRef.getElementById('brand-editor-back')?.addEventListener('click', () => {
     state.editingBrandId = '';
+    state.draftLanguageFields = [];
     showOnly(listView);
     renderCountry();
   });
   documentRef.getElementById('brand-editor-save')?.addEventListener('click', () => void saveBrand());
-  documentRef.getElementById('brand-language-add')?.addEventListener('click', () => void addLanguage());
+  documentRef.getElementById('brand-editor-delete')?.addEventListener('click', () => {
+    const brand = currentEditingBrand();
+    if (brand) void removeBrand(brand);
+  });
+  documentRef.getElementById('brand-language-add')?.addEventListener('click', addLanguage);
   languageInput?.addEventListener('keydown', (event) => {
     if (event.key === 'Enter') {
       event.preventDefault();
-      void addLanguage();
+      addLanguage();
     }
   });
   modal.addEventListener('click', (event) => { if (event.target === modal) closeDictionary(); });

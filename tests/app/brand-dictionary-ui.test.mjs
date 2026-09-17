@@ -2,28 +2,40 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-test('brand dictionary is exposed from account settings and remains country scoped', async () => {
+test('brand dictionary entry is inserted immediately before personalization', async () => {
   const source = await readFile(new URL('../../src/client/app/brand-dictionary-ui.js', import.meta.url), 'utf8');
   assert.match(source, /account-open-brand-dictionary/);
-  assert.match(source, /品牌字典/);
-  assert.match(source, /account-settings-root/);
-  assert.match(source, /brand-country-list/);
-  assert.match(source, /brand-country-title/);
-  assert.match(source, /新增語言/);
-  assert.match(source, /主要顯示名稱/);
-  assert.match(source, /brandLanguageFields/);
-  assert.match(source, /collection\(db, 'artifacts', APP_ID, 'users', state\.userId, 'brands'\)/);
-  assert.match(source, /country:\s*state\.selectedCountry/);
+  assert.match(source, /account-open-personalization/);
+  assert.match(source, /root\.insertBefore\(button, personalizationButton\)/);
 });
 
-test('brand editor supports add edit delete and alias conflict protection', async () => {
+test('country view contains brand cards only and cards open an editor that can delete existing brands', async () => {
   const source = await readFile(new URL('../../src/client/app/brand-dictionary-ui.js', import.meta.url), 'utf8');
-  assert.match(source, /findBrandAliasConflict/);
-  assert.match(source, /deleteDoc/);
-  assert.match(source, /setDoc/);
-  assert.match(source, /brand-edit/);
-  assert.match(source, /brand-delete/);
-  assert.match(source, /名稱已被其他品牌使用/);
+  assert.match(source, /brand-country-list/);
+  assert.match(source, /brand-list/);
+  assert.match(source, /card\.addEventListener\('click', \(\) => openEditor\(brand\)\)/);
+  assert.match(source, /brand-editor-delete/);
+  assert.match(source, /removeBrand\(brand\)/);
+  assert.doesNotMatch(source, /class="brand-edit/);
+  assert.doesNotMatch(source, /class="brand-delete/);
+});
+
+test('language management lives in the brand editor below alias fields and is saved with the brand', async () => {
+  const source = await readFile(new URL('../../src/client/app/brand-dictionary-ui.js', import.meta.url), 'utf8');
+  assert.match(source, /id="brand-alias-fields"/);
+  assert.match(source, /id="brand-language-section"/);
+  assert.match(source, /id="brand-language-input"/);
+  assert.match(source, /新增語言/);
+  assert.match(source, /draftLanguageFields/);
+  assert.match(source, /persistBrandDictionary/);
+  assert.match(source, /brandLanguageFields/);
+});
+
+test('brand storage uses the already-authorized settings brandDictionary document instead of a new brands collection', async () => {
+  const source = await readFile(new URL('../../src/client/app/brand-dictionary-ui.js', import.meta.url), 'utf8');
+  assert.match(source, /settings', 'brandDictionary'/);
+  assert.doesNotMatch(source, /collection\(db, 'artifacts', APP_ID, 'users', state\.userId, 'brands'\)/);
+  assert.doesNotMatch(source, /doc\(brandsRef\(\)\)/);
 });
 
 test('feature bootstrap loads brand dictionary and duplicate guard independently', async () => {
