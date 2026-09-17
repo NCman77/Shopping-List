@@ -30,7 +30,7 @@ test('reordering used locations preserves unused preference definitions in place
   );
 });
 
-test('brand deletion removes every matching raw alias from items and preferences locations', () => {
+test('brand deletion removes every matching raw alias including mixed local and English names', () => {
   const brand = {
     id: 'tsuruha',
     country: '日本',
@@ -43,10 +43,10 @@ test('brand deletion removes every matching raw alias from items and preferences
   };
   const items = [
     { id: 'a', locations: ['ツルハドラッグ', '松本清'] },
-    { id: 'b', locations: ['TSURUHA'] },
+    { id: 'b', locations: ['ツルハドラッグ TSURUHA'] },
     { id: 'c', locations: ['唐吉訶德'] }
   ];
-  const plan = buildBrandDeletionPlan(items, ['ツルハドラッグ', 'TSURUHA', '松本清'], brand, '日本');
+  const plan = buildBrandDeletionPlan(items, ['ツルハドラッグ', 'ツルハドラッグ TSURUHA', '松本清'], brand, '日本');
 
   assert.deepEqual(plan.nextPreferenceLocations, ['松本清']);
   assert.equal(plan.affected.length, 2);
