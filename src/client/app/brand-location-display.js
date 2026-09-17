@@ -2,7 +2,8 @@ import { DEFAULT_COUNTRY } from './travel-country.js';
 import { createGoogleMapsUrl } from '../utils/url-utils.js';
 import {
   resolveLocationDisplayName,
-  resolveLocationMapQuery
+  resolveLocationMapQuery,
+  resolveLocationPickerLabel
 } from './brand-location-resolver.js';
 
 const APP_ID = 'japan-shopping-app';
@@ -83,7 +84,7 @@ function updateVisibleLocationPicker(documentRef, brands, country) {
   documentRef.querySelectorAll('#item-multi-location-select option[value]').forEach((option) => {
     const raw = clean(option.value);
     if (!raw) return;
-    const display = displayLocation(raw, brands, country);
+    const display = resolveLocationPickerLabel(raw, brands, country) || raw;
     if (clean(option.textContent) !== display) option.textContent = display;
   });
 
