@@ -29,3 +29,10 @@ test('duplicate guard scopes brand matching to the active trip country', async (
   assert.match(source, /shoppingListActiveCountry/);
   assert.match(source, /DEFAULT_COUNTRY/);
 });
+
+test('duplicate guard reads brand aliases from the settings brandDictionary document', async () => {
+  const source = await readFile(new URL('../../src/client/app/location-duplicate-guard.js', import.meta.url), 'utf8');
+  assert.match(source, /settings', 'brandDictionary'/);
+  assert.match(source, /data\.brands/);
+  assert.doesNotMatch(source, /collection\(db, 'artifacts', APP_ID, 'users', user\.uid, 'brands'\)/);
+});
