@@ -6,6 +6,7 @@ import {
   normalizeBrandAliases,
   parseAliasValues
 } from './brand-dictionary-core.js';
+import { buildBrandDeletionPlan } from './brand-driven-location-management.js';
 
 const APP_ID = 'japan-shopping-app';
 
@@ -138,7 +139,7 @@ export async function initBrandDictionaryUi({
   const app = appSdk.getApps()[0] || appSdk.getApp();
   const auth = authSdk.getAuth(app);
   const db = firestoreSdk.getFirestore(app);
-  const { doc, onSnapshot, writeBatch } = firestoreSdk;
+  const { collection, doc, onSnapshot, writeBatch } = firestoreSdk;
 
   const modal = documentRef.getElementById('brand-dictionary-modal');
   const accountModal = documentRef.getElementById('account-settings-modal');
@@ -155,11 +156,14 @@ export async function initBrandDictionaryUi({
     countries: [DEFAULT_COUNTRY],
     languageFieldsByCountry: {},
     brands: [],
+    locations: [],
+    items: [],
     selectedCountry: '',
     editingBrandId: '',
     draftLanguageFields: [],
     settingsUnsub: null,
-    brandsUnsub: null
+    brandsUnsub: null,
+    itemsUnsub: null
   };
 
   function settingsRef() {
@@ -422,21 +426,40 @@ export async function initBrandDictionaryUi({
   async function removeBrand(brand) {
     if (!state.userId || !brand?.id) return;
     const label = clean(brand.displayName) || '這個品牌';
-    if (typeof windowRef.confirm === 'function' && !windowRef.confirm(`確定刪除「${label}」？\n這不會刪除已存在的地點或商品。`)) return;
+    const plan = buildBrandDeletionPlan(state.items, state.locations, brand, state.selectedCountry || brand.country);
+    if (plan.writeCount > 498) {
+      notify('無法刪除', `目前有 ${plan.writeCount} 個商品使用「${label}」，超過單次安全更新上限，未進行任何變更。`, 'warning');
+      return;
+    }
+
+    const usageLine = plan.writeCount
+      ? `目前有 ${plan.writeCount} 個商品使用這個品牌。\n刪除後會同步從這些商品移除對應地點；商品本身不會刪除。\n`
+      : '';
+    if (typeof windowRef.confirm === 'function' && !windowRef.confirm(`${usageLine}確定刪除品牌「${label}」？`)) return;
 
     deleteButton.disabled = true;
     try {
       const nextBrands = state.brands.filter((entry) => String(entry?.id || '') !== String(brand.id));
-      await persistBrandDictionary(nextBrands, state.languageFieldsByCountry);
+      const batch = writeBatch(db);
+      batch.set(brandDictionaryRef(), { brands: nextBrands }, { merge: true });
+      batch.set(settingsRef(), { locations: plan.nextPreferenceLocations }, { merge: true });
+      for (const entry of plan.affected) {
+        const itemRef = doc(db, 'artifacts', APP_ID, 'users', state.userId, 'items', entry.id);
+        batch.update(itemRef, entry.patch);
+      }
+      await batch.commit();
       state.brands = nextBrands;
+      state.locations = plan.nextPreferenceLocations;
       state.editingBrandId = '';
       state.draftLanguageFields = [];
       showOnly(listView);
       renderCountry();
-      notify('品牌已刪除', `已從${state.selectedCountry}品牌字典移除「${label}」。`, 'success');
+      notify('品牌已刪除', plan.writeCount
+        ? `已刪除「${label}」，並從 ${plan.writeCount} 個商品移除對應地點。`
+        : `已從${state.selectedCountry}品牌字典移除「${label}」。`, 'success');
     } catch (error) {
       console.error('Delete brand dictionary entry failed:', error);
-      notify('刪除失敗', '無法刪除這筆品牌資料，請稍後再試。');
+      notify('刪除失敗', '品牌與商品地點都沒有完成變更，請稍後再試。');
     } finally {
       deleteButton.disabled = false;
     }
@@ -474,12 +497,16 @@ export async function initBrandDictionaryUi({
   function subscribeUser(user) {
     state.settingsUnsub?.();
     state.brandsUnsub?.();
+    state.itemsUnsub?.();
     state.settingsUnsub = null;
     state.brandsUnsub = null;
+    state.itemsUnsub = null;
     state.userId = user?.uid || '';
     state.countries = [DEFAULT_COUNTRY];
     state.languageFieldsByCountry = {};
     state.brands = [];
+    state.locations = [];
+    state.items = [];
     state.selectedCountry = '';
     state.editingBrandId = '';
     state.draftLanguageFields = [];
@@ -494,6 +521,7 @@ export async function initBrandDictionaryUi({
       if (state.userId !== user.uid) return;
       const data = snapshot.exists() ? snapshot.data() : {};
       state.countries = normalizeCountries(data.countries);
+      state.locations = Array.isArray(data.locations) ? [...data.locations] : [];
       state.languageFieldsByCountry = data.brandLanguageFields && typeof data.brandLanguageFields === 'object'
         ? { ...data.brandLanguageFields }
         : {};
@@ -508,6 +536,12 @@ export async function initBrandDictionaryUi({
       renderCountries();
       if (state.selectedCountry && !state.editingBrandId) renderBrandList();
     }, (error) => console.error('Brand dictionary listener failed:', error));
+
+    const itemsRef = collection(db, 'artifacts', APP_ID, 'users', user.uid, 'items');
+    state.itemsUnsub = onSnapshot(itemsRef, (snapshot) => {
+      if (state.userId !== user.uid) return;
+      state.items = snapshot.docs.map((itemDoc) => ({ id: itemDoc.id, ...itemDoc.data() }));
+    }, (error) => console.error('Brand dictionary item listener failed:', error));
   }
 
   documentRef.getElementById('account-open-brand-dictionary')?.addEventListener('click', openDictionary);
@@ -548,5 +582,6 @@ export async function initBrandDictionaryUi({
   return () => {
     state.settingsUnsub?.();
     state.brandsUnsub?.();
+    state.itemsUnsub?.();
   };
 }

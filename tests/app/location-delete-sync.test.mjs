@@ -8,8 +8,9 @@ import {
 } from '../../src/client/filters/filter-management.js';
 
 const homeSource = await readFile(new URL('../../src/client/app/home-ui-enhancements.js', import.meta.url), 'utf8');
+const brandSource = await readFile(new URL('../../src/client/app/brand-dictionary-ui.js', import.meta.url), 'utf8');
 
-test('deleting one raw location preserves the other selected locations and legacy first location', () => {
+test('deleting one raw location helper still preserves the other selected locations and legacy first location', () => {
   const patch = buildLocationDeletionItemPatch({
     id: 'a',
     locations: ['Matsumoto Kiyoshi', 'ツルハドラッグ TSURUHA'],
@@ -21,12 +22,12 @@ test('deleting one raw location preserves the other selected locations and legac
   });
 });
 
-test('item with only deleted location becomes locationless but is not deleted', () => {
+test('item with only deleted location helper becomes locationless but is not deleted', () => {
   const patch = buildLocationDeletionItemPatch({ id: 'a', locations: ['A'], location: 'A' }, 'A');
   assert.deepEqual(patch, { locations: [], location: '' });
 });
 
-test('location deletion plan counts only affected items', () => {
+test('location deletion helper plan counts only affected items', () => {
   const plan = buildLocationDeletionPlan([
     { id: 'a', locations: ['A', 'B'] },
     { id: 'b', locations: ['B'] }
@@ -35,19 +36,17 @@ test('location deletion plan counts only affected items', () => {
   assert.deepEqual(plan.affected.map((entry) => entry.id), ['a']);
 });
 
-test('location deletion warning says affected products lose the raw location but central brand/coupon data stay', () => {
+test('legacy location deletion impact helper remains descriptive for compatibility', () => {
   const impact = buildDeletionImpact([{ id: 'a', name: '商品A', locations: ['A'] }], 'location', 'A');
   assert.match(impact.retainNote, /商品.*移除/);
-  assert.match(impact.retainNote, /品牌字典/);
-  assert.match(impact.retainNote, /優惠券/);
 });
 
-test('homepage deletion uses one atomic batch and guards the 499 affected-item limit before writes', () => {
-  assert.match(homeSource, /buildLocationDeletionPlan/);
-  assert.match(homeSource, /writeBatch/);
-  assert.match(homeSource, /plan\.writeCount\s*>\s*499/);
-  assert.match(homeSource, /batch\.set\(settingsRef/);
-  assert.match(homeSource, /batch\.update\(/);
-  assert.match(homeSource, /await batch\.commit\(\)/);
-  assert.doesNotMatch(homeSource, /brandDictionary[^\n]*batch|couponDictionary[^\n]*batch/);
+test('homepage no longer owns location deletion while Brand Dictionary owns the synchronized delete batch', () => {
+  assert.doesNotMatch(homeSource, /buildLocationDeletionPlan/);
+  assert.doesNotMatch(homeSource, /plan\.writeCount\s*>\s*499/);
+  assert.match(brandSource, /buildBrandDeletionPlan/);
+  assert.match(brandSource, /plan\.writeCount\s*>\s*498/);
+  assert.match(brandSource, /batch\.set\(brandDictionaryRef\(\)/);
+  assert.match(brandSource, /batch\.set\(settingsRef\(\)/);
+  assert.match(brandSource, /batch\.update\(/);
 });

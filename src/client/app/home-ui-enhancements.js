@@ -1,4 +1,5 @@
-import { buildLocationDeletionPlan, findItemsUsingOption, moveOption, removeOption } from './filter-management.js';
+import { findItemsUsingOption, moveOption, removeOption } from './filter-management.js';
+import { deriveUsedManagedLocations, mergeManagedLocationOrder } from './brand-driven-location-management.js';
 
 const APP_ID = 'japan-shopping-app';
 const FIELD_BY_KIND = { category: 'categories', location: 'locations' };
@@ -173,7 +174,7 @@ export async function initHomeUiEnhancements() {
   const app = appSdk.getApps()[0] || appSdk.getApp();
   const auth = authSdk.getAuth(app);
   const db = firestoreSdk.getFirestore(app);
-  const { collection, doc, onSnapshot, setDoc, writeBatch } = firestoreSdk;
+  const { collection, doc, onSnapshot, setDoc } = firestoreSdk;
 
   const state = {
     userId: null,
@@ -194,6 +195,12 @@ export async function initHomeUiEnhancements() {
 
   function valuesFor(kind) {
     return state[FIELD_BY_KIND[kind]] || [];
+  }
+
+  function managedValuesFor(kind) {
+    return kind === 'location'
+      ? deriveUsedManagedLocations(state.items, state.locations)
+      : valuesFor(kind);
   }
 
   async function persistValues(kind, nextValues) {
@@ -235,8 +242,12 @@ export async function initHomeUiEnhancements() {
   }
 
   async function moveAndSave(kind, fromIndex, toIndex) {
-    const next = moveOption(valuesFor(kind), fromIndex, toIndex);
-    if (next.every((value, index) => value === valuesFor(kind)[index])) return;
+    const current = managedValuesFor(kind);
+    const nextManaged = moveOption(current, fromIndex, toIndex);
+    if (nextManaged.every((value, index) => value === current[index])) return;
+    const next = kind === 'location'
+      ? mergeManagedLocationOrder(state.locations, current, nextManaged)
+      : nextManaged;
     try {
       await persistValues(kind, next);
     } catch (error) {
@@ -246,6 +257,7 @@ export async function initHomeUiEnhancements() {
   }
 
   function openDeleteWarning(kind, value) {
+    if (kind === 'location') return;
     const usages = findItemsUsingOption(state.items, kind, value);
     state.pendingDelete = { kind, value };
     document.getElementById('filter-delete-title').textContent = `刪除${LABEL_BY_KIND[kind]}「${value}」？`;
@@ -262,14 +274,10 @@ export async function initHomeUiEnhancements() {
         row.textContent = item.name || '未命名商品';
         usageList.appendChild(row);
       });
-      note.textContent = kind === 'location'
-        ? `刪除後，上面這些既有商品會同步移除「${value}」地點；品牌字典與優惠券資料都會保留，不會一起刪除。`
-        : `刪除後，上面這些既有商品仍會保留「${value}」文字；只是之後新增或編輯商品時，不會再出現在分類選單中。`;
+      note.textContent = `刪除後，上面這些既有商品仍會保留「${value}」文字；只是之後新增或編輯商品時，不會再出現在分類選單中。`;
     } else {
       summary.textContent = `目前沒有商品使用這個${LABEL_BY_KIND[kind]}。`;
-      note.textContent = kind === 'location'
-        ? `刪除後，「${value}」將不再出現在地點選單中；品牌字典與優惠券資料都會保留。`
-        : `刪除後，「${value}」將不再出現在分類選單中。`;
+      note.textContent = `刪除後，「${value}」將不再出現在分類選單中。`;
     }
 
     warningModal.classList.remove('hidden');
@@ -279,7 +287,7 @@ export async function initHomeUiEnhancements() {
   function renderManageList() {
     if (!state.currentKind) return;
     const kind = state.currentKind;
-    const values = valuesFor(kind);
+    const values = managedValuesFor(kind);
     title.textContent = `管理${LABEL_BY_KIND[kind]}`;
     list.innerHTML = '';
 
@@ -294,7 +302,7 @@ export async function initHomeUiEnhancements() {
     if (!values.length) {
       const empty = document.createElement('div');
       empty.className = 'py-8 text-center text-sm font-bold text-gray-400';
-      empty.textContent = `目前沒有${LABEL_BY_KIND[kind]}`;
+      empty.textContent = kind === 'location' ? '目前沒有商品使用任何地點' : `目前沒有${LABEL_BY_KIND[kind]}`;
       list.appendChild(empty);
       return;
     }
@@ -303,12 +311,13 @@ export async function initHomeUiEnhancements() {
       const row = document.createElement('div');
       row.className = 'manage-row flex items-center gap-2 rounded-2xl border-2 border-warmBrown bg-shinBg px-2 py-2 transition-all';
       row.dataset.manageIndex = String(index);
+      row.dataset.manageValue = value;
       row.innerHTML = `
         <button type="button" class="filter-drag-handle w-9 h-10 rounded-xl text-warmBrown hover:bg-pastelYellow" aria-label="拖曳調整順序"><i class="fas fa-grip-vertical"></i></button>
         <span class="manage-option-name flex-1 min-w-0 truncate font-bold text-warmBrown"></span>
         <button type="button" class="move-up w-8 h-8 rounded-full border border-warmBrown/40 text-warmBrown disabled:opacity-25" aria-label="往上移"><i class="fas fa-chevron-up text-xs"></i></button>
         <button type="button" class="move-down w-8 h-8 rounded-full border border-warmBrown/40 text-warmBrown disabled:opacity-25" aria-label="往下移"><i class="fas fa-chevron-down text-xs"></i></button>
-        <button type="button" class="delete-option w-8 h-8 rounded-full bg-pastelPink border border-warmBrown text-warmBrown" aria-label="刪除"><i class="fas fa-trash-alt text-xs"></i></button>`;
+        ${kind === 'location' ? '' : '<button type="button" class="delete-option w-8 h-8 rounded-full bg-pastelPink border border-warmBrown text-warmBrown" aria-label="刪除"><i class="fas fa-trash-alt text-xs"></i></button>'}`;
       row.querySelector('.manage-option-name').textContent = value;
 
       const up = row.querySelector('.move-up');
@@ -317,7 +326,7 @@ export async function initHomeUiEnhancements() {
       down.disabled = index === values.length - 1;
       up.addEventListener('click', () => moveAndSave(kind, index, index - 1));
       down.addEventListener('click', () => moveAndSave(kind, index, index + 1));
-      row.querySelector('.delete-option').addEventListener('click', () => openDeleteWarning(kind, value));
+      row.querySelector('.delete-option')?.addEventListener('click', () => openDeleteWarning(kind, value));
 
       const handle = row.querySelector('.filter-drag-handle');
       let dragTargetIndex = index;
@@ -368,7 +377,7 @@ export async function initHomeUiEnhancements() {
     trigger.setAttribute('role', 'button');
     trigger.setAttribute('tabindex', '0');
     trigger.setAttribute('aria-label', `管理${LABEL_BY_KIND[kind]}`);
-    trigger.title = `管理${LABEL_BY_KIND[kind]}：排序或刪除`;
+    trigger.title = kind === 'location' ? '管理地點：排序' : `管理${LABEL_BY_KIND[kind]}：排序或刪除`;
     const icon = document.createElement('i');
     icon.className = 'fas fa-sliders-h ml-1 opacity-60 text-[10px]';
     trigger.appendChild(icon);
@@ -391,39 +400,16 @@ export async function initHomeUiEnhancements() {
   warningModal.addEventListener('click', (event) => { if (event.target === warningModal) closeWarningModal(); });
   document.getElementById('confirm-filter-delete').addEventListener('click', async () => {
     const pending = state.pendingDelete;
-    if (!pending) return;
+    if (!pending || pending.kind !== 'category') return;
     const button = document.getElementById('confirm-filter-delete');
     button.disabled = true;
     try {
-      if (pending.kind === 'location') {
-        if (!state.userId) throw new Error('請先登入 Google 帳號。');
-        const nextLocations = removeOption(valuesFor('location'), pending.value);
-        const plan = buildLocationDeletionPlan(state.items, pending.value);
-        if (plan.writeCount > 499) {
-          notify('無法刪除', '使用這個地點的商品超過單次安全更新上限，未進行任何變更。', 'warning');
-          return;
-        }
-        const settingsRef = doc(db, 'artifacts', APP_ID, 'users', state.userId, 'settings', 'preferences');
-        const batch = writeBatch(db);
-        batch.set(settingsRef, { locations: nextLocations }, { merge: true });
-        for (const entry of plan.affected) {
-          const itemRef = doc(db, 'artifacts', APP_ID, 'users', state.userId, 'items', entry.id);
-          batch.update(itemRef, entry.patch);
-        }
-        await batch.commit();
-        state.locations = nextLocations;
-        renderManageList();
-      } else {
-        await persistValues('category', removeOption(valuesFor('category'), pending.value));
-      }
-      const allSelector = pending.kind === 'category'
-        ? '#category-filters [data-cat="all"]'
-        : '#location-filters [data-loc="all"]';
-      document.querySelector(allSelector)?.click();
+      await persistValues('category', removeOption(valuesFor('category'), pending.value));
+      document.querySelector('#category-filters [data-cat="all"]')?.click();
       closeWarningModal();
     } catch (error) {
       console.error('Filter delete failed:', error);
-      notify('刪除失敗', `無法刪除這個${LABEL_BY_KIND[pending.kind]}。`);
+      notify('刪除失敗', '無法刪除這個分類。');
     } finally {
       button.disabled = false;
     }
@@ -466,6 +452,7 @@ export async function initHomeUiEnhancements() {
     state.itemsUnsub = onSnapshot(itemsRef, (snapshot) => {
       if (state.userId !== user.uid) return;
       state.items = snapshot.docs.map((itemDoc) => ({ id: itemDoc.id, ...itemDoc.data() }));
+      renderManageList();
     }, (error) => console.error('Filter item listener failed:', error));
   }
 
