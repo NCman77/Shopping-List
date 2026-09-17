@@ -192,7 +192,7 @@ export function resolveLocationPickerLabel(location, brands, country) {
     appendUniqueDisplayValue(values, seen, grouped.get(language)?.[0]);
   }
 
-  if (!values.length) appendUniqueDisplayValue(values, seen, brand?.displayName);
+  appendUniqueDisplayValue(values, seen, brand?.displayName);
   if (!values.length) appendUniqueDisplayValue(values, seen, raw);
   return values.join(' / ');
 }

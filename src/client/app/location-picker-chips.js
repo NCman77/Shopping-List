@@ -75,6 +75,11 @@ function findLocationButton(root, location) {
   return locationButtons(root).find((button) => clean(button.dataset?.location) === target) || null;
 }
 
+function pickerLabelForLocation(root, location) {
+  const button = findLocationButton(root, location);
+  return clean(button?.dataset?.brandLocationPickerLabel) || clean(location);
+}
+
 function ensureCompactUi(root, documentRef) {
   const field = root?.closest?.('#item-multi-location-field') || root?.parentElement;
   if (!field) return null;
@@ -116,7 +121,7 @@ function renderPicker(root, documentRef) {
   for (const location of model.selectable) {
     const option = documentRef.createElement('option');
     option.value = location;
-    option.textContent = location;
+    option.textContent = pickerLabelForLocation(root, location);
     select.appendChild(option);
   }
 
@@ -197,7 +202,7 @@ export async function initLocationPickerChips({
     childList: true,
     subtree: true,
     attributes: true,
-    attributeFilter: ['aria-pressed', 'disabled']
+    attributeFilter: ['aria-pressed', 'disabled', 'data-brand-location-picker-label']
   });
 
   renderPicker(root, documentRef);
