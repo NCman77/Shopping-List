@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 
 import {
   deriveUsedManagedLocations,
+  mergeManagedLocationOrder,
   buildBrandDeletionPlan
 } from '../../src/client/app/brand-driven-location-management.js';
 
@@ -15,6 +16,17 @@ test('managed locations only include raw locations currently used by items and p
   assert.deepEqual(
     deriveUsedManagedLocations(items, ['A', 'Unused', 'C', 'B']),
     ['A', 'C', 'B']
+  );
+});
+
+test('reordering used locations preserves unused preference definitions in place', () => {
+  assert.deepEqual(
+    mergeManagedLocationOrder(
+      ['A', 'Unused', 'C', 'B'],
+      ['A', 'C', 'B'],
+      ['B', 'A', 'C']
+    ),
+    ['B', 'Unused', 'A', 'C']
   );
 });
 
