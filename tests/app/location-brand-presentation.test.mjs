@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import {
   classifyBrandInputAliases,
   findBrandForLocationInput,
@@ -77,4 +78,24 @@ test('new brand must be created when no dictionary match exists; existing incomp
     country: '日本', aliases: [{ language: '英文', value: 'Matsumoto Kiyoshi' }]
   }, '日本'), true);
   assert.equal(brandNeedsLanguageCompletion(matsumoto, '日本'), false);
+});
+
+test('location onboarding reuses the existing brand editor and only existing brands can skip supplementation', async () => {
+  const source = await readFile(new URL('../../src/client/app/location-brand-onboarding.js', import.meta.url), 'utf8');
+  assert.match(source, /account-open-brand-dictionary/);
+  assert.match(source, /brand-add/);
+  assert.match(source, /brand-editor-save/);
+  assert.match(source, /if \(brand && !required\)/);
+  assert.match(source, /略過補充，直接加入地點/);
+  assert.match(source, /新增品牌並加入地點/);
+});
+
+test('localized presentation keeps raw filter identity but intercepts brand Maps actions with the local-language query', async () => {
+  const source = await readFile(new URL('../../src/client/app/brand-location-presentation.js', import.meta.url), 'utf8');
+  assert.match(source, /const raw = clean\(button\.dataset\.loc\)/);
+  assert.match(source, /button\.dataset\.filterPickerLabel = display/);
+  assert.doesNotMatch(source, /button\.dataset\.loc = display/);
+  assert.match(source, /button\.dataset\.brandMapSearch = mapSearch/);
+  assert.match(source, /stopImmediatePropagation\(\)/);
+  assert.match(source, /windowRef\.open\(url, '_blank'/);
 });
