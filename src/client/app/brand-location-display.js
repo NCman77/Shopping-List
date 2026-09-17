@@ -146,8 +146,9 @@ function updateItemDetailLocations(documentRef, brands, country) {
 }
 
 function updateFilterDeleteWarning(documentRef, brands, country) {
-  const title = documentRef.getElementById('filter-delete-title');
-  if (!title) return;
+  const modal = documentRef.getElementById('filter-delete-warning-modal');
+  const title = modal?.querySelector('#filter-delete-title');
+  if (!modal || !title) return;
   const current = clean(title.textContent);
   const priorDisplay = clean(title.dataset?.brandLocationDisplay);
   let raw = clean(title.dataset?.brandLocationRaw);
@@ -161,7 +162,7 @@ function updateFilterDeleteWarning(documentRef, brands, country) {
   title.dataset.brandLocationRaw = raw;
   title.dataset.brandLocationDisplay = display;
   title.textContent = `刪除地點「${display}」？`;
-  const note = documentRef.getElementById('filter-delete-retain-note');
+  const note = modal.querySelector('#filter-delete-retain-note');
   if (note && raw !== display) note.textContent = note.textContent.replaceAll(raw, display);
 }
 
