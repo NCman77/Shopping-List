@@ -6,7 +6,8 @@ test('location duplicate guard wraps the existing add handler instead of replaci
   const source = await readFile(new URL('../../src/client/app/location-duplicate-guard.js', import.meta.url), 'utf8');
   assert.match(source, /const originalAddLocation = window\.handleAddLocation/);
   assert.match(source, /detectLocationDuplicate/);
-  assert.match(source, /originalAddLocation\(location\)/);
+  assert.match(source, /originalAddLocation\(rawLocation\)/);
+  assert.match(source, /state\.pendingLocation = rawLocation/);
   assert.doesNotMatch(source, /setDoc\(/);
   assert.doesNotMatch(source, /updateDoc\(/);
 });
