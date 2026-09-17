@@ -163,34 +163,9 @@ export function isCertainDuplicateName(left, right) {
 }
 
 const KANA_SINGLE = {
-  あ:'a',い:'i',う:'u',え:'e',お:'o',
-  か:'ka',き:'ki',く:'ku',け:'ke',こ:'ko',
-  さ:'sa',し:'shi',す:'su',せ:'se',そ:'so',
-  た:'ta',ち:'chi',つ:'tsu',て:'te',と:'to',
-  な:'na',に:'ni',ぬ:'nu',ね:'ne',の:'no',
-  は:'ha',ひ:'hi',ふ:'fu',へ:'he',ほ:'ho',
-  ま:'ma',み:'mi',む:'mu',め:'me',も:'mo',
-  や:'ya',ゆ:'yu',よ:'yo',
-  ら:'ra',り:'ri',る:'ru',れ:'re',ろ:'ro',
-  わ:'wa',を:'o',ん:'n',
-  が:'ga',ぎ:'gi',ぐ:'gu',げ:'ge',ご:'go',
-  ざ:'za',じ:'ji',ず:'zu',ぜ:'ze',ぞ:'zo',
-  だ:'da',ぢ:'ji',づ:'zu',で:'de',ど:'do',
-  ば:'ba',び:'bi',ぶ:'bu',べ:'be',ぼ:'bo',
-  ぱ:'pa',ぴ:'pi',ぷ:'pu',ぺ:'pe',ぽ:'po',
-  ゔ:'vu',ぁ:'a',ぃ:'i',ぅ:'u',ぇ:'e',ぉ:'o'
+  あ:'a',い:'i',う:'u',え:'e',お:'o',か:'ka',き:'ki',く:'ku',け:'ke',こ:'ko',さ:'sa',し:'shi',す:'su',せ:'se',そ:'so',た:'ta',ち:'chi',つ:'tsu',て:'te',と:'to',な:'na',に:'ni',ぬ:'nu',ね:'ne',の:'no',は:'ha',ひ:'hi',ふ:'fu',へ:'he',ほ:'ho',ま:'ma',み:'mi',む:'mu',め:'me',も:'mo',や:'ya',ゆ:'yu',よ:'yo',ら:'ra',り:'ri',る:'ru',れ:'re',ろ:'ro',わ:'wa',を:'o',ん:'n',が:'ga',ぎ:'gi',ぐ:'gu',げ:'ge',ご:'go',ざ:'za',じ:'ji',ず:'zu',ぜ:'ze',ぞ:'zo',だ:'da',ぢ:'ji',づ:'zu',で:'de',ど:'do',ば:'ba',び:'bi',ぶ:'bu',べ:'be',ぼ:'bo',ぱ:'pa',ぴ:'pi',ぷ:'pu',ぺ:'pe',ぽ:'po',ゔ:'vu',ぁ:'a',ぃ:'i',ぅ:'u',ぇ:'e',ぉ:'o'
 };
-
-const KANA_PAIR = {
-  きゃ:'kya',きゅ:'kyu',きょ:'kyo',ぎゃ:'gya',ぎゅ:'gyu',ぎょ:'gyo',
-  しゃ:'sha',しゅ:'shu',しょ:'sho',じゃ:'ja',じゅ:'ju',じょ:'jo',
-  ちゃ:'cha',ちゅ:'chu',ちょ:'cho',にゃ:'nya',にゅ:'nyu',にょ:'nyo',
-  ひゃ:'hya',ひゅ:'hyu',ひょ:'hyo',びゃ:'bya',びゅ:'byu',びょ:'byo',
-  ぴゃ:'pya',ぴゅ:'pyu',ぴょ:'pyo',みゃ:'mya',みゅ:'myu',みょ:'myo',
-  りゃ:'rya',りゅ:'ryu',りょ:'ryo',
-  てぃ:'ti',でぃ:'di',とぅ:'tu',どぅ:'du',ふぁ:'fa',ふぃ:'fi',ふぇ:'fe',ふぉ:'fo',
-  ゔぁ:'va',ゔぃ:'vi',ゔぇ:'ve',ゔぉ:'vo'
-};
+const KANA_PAIR = {きゃ:'kya',きゅ:'kyu',きょ:'kyo',ぎゃ:'gya',ぎゅ:'gyu',ぎょ:'gyo',しゃ:'sha',しゅ:'shu',しょ:'sho',じゃ:'ja',じゅ:'ju',じょ:'jo',ちゃ:'cha',ちゅ:'chu',ちょ:'cho',にゃ:'nya',にゅ:'nyu',にょ:'nyo',ひゃ:'hya',ひゅ:'hyu',ひょ:'hyo',びゃ:'bya',びゅ:'byu',びょ:'byo',ぴゃ:'pya',ぴゅ:'pyu',ぴょ:'pyo',みゃ:'mya',みゅ:'myu',みょ:'myo',りゃ:'rya',りゅ:'ryu',りょ:'ryo',てぃ:'ti',でぃ:'di',とぅ:'tu',どぅ:'du',ふぁ:'fa',ふぃ:'fi',ふぇ:'fe',ふぉ:'fo',ゔぁ:'va',ゔぃ:'vi',ゔぇ:'ve',ゔぉ:'vo'};
 
 function katakanaToHiragana(value) {
   let result = '';
@@ -209,10 +184,7 @@ export function kanaToRomaji(value) {
   for (let index = 0; index < text.length; index += 1) {
     const char = text[index];
     if (char === 'ー') continue;
-    if (char === 'っ') {
-      geminate = true;
-      continue;
-    }
+    if (char === 'っ') { geminate = true; continue; }
     const pair = text.slice(index, index + 2);
     let roma = KANA_PAIR[pair];
     if (roma) index += 1;
@@ -263,25 +235,106 @@ export function detectLocationDuplicate({ input, existingLocations = [], brands 
   const candidate = clean(input);
   if (!candidate) return { kind: 'none' };
   const existing = (Array.isArray(existingLocations) ? existingLocations : []).map(clean).filter(Boolean);
-
-  for (const value of existing) {
-    if (isCertainDuplicateName(candidate, value)) return { kind: 'exact', existing: value };
-  }
-
+  for (const value of existing) if (isCertainDuplicateName(candidate, value)) return { kind: 'exact', existing: value };
   const countryBrands = (Array.isArray(brands) ? brands : []).filter((brand) => sameCountry(brand?.country, country));
   for (const brand of countryBrands) {
     const names = brandNames(brand);
     if (!names.some((name) => isCertainDuplicateName(candidate, name))) continue;
     for (const value of existing) {
-      if (names.some((name) => isCertainDuplicateName(value, name))) {
-        return { kind: 'dictionary', existing: value, brand };
-      }
+      if (names.some((name) => isCertainDuplicateName(value, name))) return { kind: 'dictionary', existing: value, brand };
     }
   }
-
-  for (const value of existing) {
-    if (kanaRomajiSimilar(candidate, value)) return { kind: 'similar', existing: value };
-  }
-
+  for (const value of existing) if (kanaRomajiSimilar(candidate, value)) return { kind: 'similar', existing: value };
   return { kind: 'none' };
+}
+
+function aliasesForLanguage(brand, language) {
+  return (Array.isArray(brand?.aliases) ? brand.aliases : [])
+    .filter((alias) => clean(alias?.language) === language)
+    .map((alias) => displayValue(alias?.value))
+    .filter(Boolean);
+}
+
+function uniqueLanguages(values) {
+  const result = [];
+  const seen = new Set();
+  for (const value of values) {
+    const language = clean(value);
+    if (!language || seen.has(language)) continue;
+    seen.add(language);
+    result.push(language);
+  }
+  return result;
+}
+
+export function displayLanguagePriority(country, savedFields = []) {
+  const fields = effectiveLanguageFields(country, savedFields);
+  return uniqueLanguages(['中文', ...fields.filter((field) => field !== '中文' && field !== '其他'), '其他']);
+}
+
+export function mapSearchLanguagePriority(country, savedFields = []) {
+  const fields = effectiveLanguageFields(country, savedFields);
+  return uniqueLanguages([...fields.filter((field) => field !== '中文' && field !== '其他'), '其他']);
+}
+
+export function preferredBrandDisplayName(brand, country, fallback = '', savedFields = []) {
+  if (!brand) return displayValue(fallback);
+  for (const language of displayLanguagePriority(country, savedFields)) {
+    const value = aliasesForLanguage(brand, language)[0];
+    if (value) return value;
+  }
+  return displayValue(brand?.displayName) || displayValue(fallback);
+}
+
+export function preferredBrandMapSearchName(brand, country, fallback = '', savedFields = []) {
+  if (!brand) return displayValue(fallback);
+  for (const language of mapSearchLanguagePriority(country, savedFields)) {
+    const value = aliasesForLanguage(brand, language)[0];
+    if (value) return value;
+  }
+  return displayValue(fallback) || displayValue(brand?.displayName);
+}
+
+export function findBrandForLocationInput(brands, input, country = '') {
+  const candidate = clean(input);
+  if (!candidate) return null;
+  return (Array.isArray(brands) ? brands : []).find((brand) => {
+    if (country && !sameCountry(brand?.country, country)) return false;
+    return brandNames(brand).some((name) => isCertainDuplicateName(candidate, name) || kanaRomajiSimilar(candidate, name));
+  }) || null;
+}
+
+export function brandNeedsLanguageCompletion(brand, country, savedFields = []) {
+  if (!brand) return true;
+  const required = effectiveLanguageFields(country, savedFields).filter((field) => field !== '其他');
+  const present = new Set((Array.isArray(brand.aliases) ? brand.aliases : []).map((alias) => clean(alias?.language)).filter(Boolean));
+  return required.some((language) => !present.has(language));
+}
+
+function pushClassified(result, seen, language, value) {
+  const shown = displayValue(value);
+  const key = comparisonKey(shown);
+  if (!shown || !key || seen.has(`${language}:${key}`)) return;
+  seen.add(`${language}:${key}`);
+  result.push({ language, value: shown });
+}
+
+export function classifyBrandInputAliases(input, country = '') {
+  const text = displayValue(input);
+  const result = [];
+  const seen = new Set();
+  if (!text) return result;
+
+  const latinMatches = text.match(/[\p{Script=Latin}\p{Number}]+(?:[ .&'’\-]+[\p{Script=Latin}\p{Number}]+)*/gu) || [];
+  const kanaMatches = text.match(/[\p{Script=Hiragana}\p{Script=Katakana}ー]+/gu) || [];
+  const hangulMatches = text.match(/[\p{Script=Hangul}]+/gu) || [];
+  const thaiMatches = text.match(/[\p{Script=Thai}]+/gu) || [];
+
+  for (const value of latinMatches) pushClassified(result, seen, '英文', value);
+  if (countryKey(country) === countryKey('日本') || kanaMatches.length) {
+    for (const value of kanaMatches) pushClassified(result, seen, '日文', value);
+  }
+  for (const value of hangulMatches) pushClassified(result, seen, '韓文', value);
+  for (const value of thaiMatches) pushClassified(result, seen, '泰文', value);
+  return result;
 }

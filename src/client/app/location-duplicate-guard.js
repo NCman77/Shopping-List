@@ -1,5 +1,9 @@
 import { DEFAULT_COUNTRY } from './travel-country.js';
-import { detectLocationDuplicate } from './brand-dictionary-core.js';
+import {
+  brandNeedsLanguageCompletion,
+  detectLocationDuplicate,
+  findBrandForLocationInput
+} from './brand-dictionary-core.js';
 
 const APP_ID = 'japan-shopping-app';
 
@@ -55,8 +59,8 @@ export async function initLocationDuplicateGuard({
   if (windowRef.__shoppingListLocationDuplicateGuardInitialized) return () => {};
   windowRef.__shoppingListLocationDuplicateGuardInitialized = true;
 
-  await waitFor(() => typeof window.handleAddLocation === 'function');
-  const originalAddLocation = window.handleAddLocation;
+  await waitFor(() => typeof windowRef.handleAddLocation === 'function');
+  const originalAddLocation = windowRef.handleAddLocation;
   ensureConfirmModal(documentRef);
 
   const [appSdk, authSdk, firestoreSdk] = await Promise.all([
@@ -74,6 +78,7 @@ export async function initLocationDuplicateGuard({
     userId: '',
     locations: [],
     brands: [],
+    languageFieldsByCountry: {},
     pendingLocation: '',
     settingsUnsub: null,
     brandsUnsub: null
@@ -83,6 +88,10 @@ export async function initLocationDuplicateGuard({
     return clean(windowRef.shoppingListActiveTrip?.country)
       || clean(windowRef.shoppingListActiveCountry)
       || DEFAULT_COUNTRY;
+  }
+
+  function savedFields(country = activeCountry()) {
+    return Array.isArray(state.languageFieldsByCountry?.[country]) ? state.languageFieldsByCountry[country] : [];
   }
 
   function closeWarning() {
@@ -104,6 +113,33 @@ export async function initLocationDuplicateGuard({
     modal.classList.add('flex');
   }
 
+  function requestBrandOnboarding(rawLocation, brand, required) {
+    const country = activeCountry();
+    windowRef.dispatchEvent(new CustomEvent('shopping-list:location-brand-onboarding', {
+      detail: {
+        country,
+        rawLocation,
+        brand,
+        required,
+        onComplete: () => originalAddLocation(rawLocation)
+      }
+    }));
+  }
+
+  function continueBrandFlow(rawLocation) {
+    const country = activeCountry();
+    const brand = findBrandForLocationInput(state.brands, rawLocation, country);
+    if (!brand) {
+      requestBrandOnboarding(rawLocation, null, true);
+      return;
+    }
+    if (brandNeedsLanguageCompletion(brand, country, savedFields(country))) {
+      requestBrandOnboarding(rawLocation, brand, false);
+      return;
+    }
+    originalAddLocation(rawLocation);
+  }
+
   function guardedAddLocation(rawLocation) {
     const location = clean(rawLocation);
     if (!location) return originalAddLocation(rawLocation);
@@ -118,13 +154,11 @@ export async function initLocationDuplicateGuard({
       notify('地點已存在', `「${clean(result.existing) || location}」已經在地點清單中，不會重複新增。`, 'warning');
       return;
     }
-
     if (result.kind === 'dictionary' || result.kind === 'similar') {
       openWarning(rawLocation, result);
       return;
     }
-
-    originalAddLocation(rawLocation);
+    continueBrandFlow(rawLocation);
   }
 
   windowRef.handleAddLocation = guardedAddLocation;
@@ -133,7 +167,7 @@ export async function initLocationDuplicateGuard({
   documentRef.getElementById('location-duplicate-confirm')?.addEventListener('click', () => {
     const rawLocation = state.pendingLocation;
     closeWarning();
-    if (clean(rawLocation)) originalAddLocation(rawLocation);
+    if (clean(rawLocation)) continueBrandFlow(rawLocation);
   });
   modal.addEventListener('click', (event) => { if (event.target === modal) closeWarning(); });
   documentRef.addEventListener('keydown', (event) => {
@@ -148,6 +182,7 @@ export async function initLocationDuplicateGuard({
     state.userId = user?.uid || '';
     state.locations = [];
     state.brands = [];
+    state.languageFieldsByCountry = {};
     closeWarning();
     if (!user) return;
 
@@ -157,6 +192,9 @@ export async function initLocationDuplicateGuard({
       if (state.userId !== user.uid) return;
       const data = snapshot.exists() ? snapshot.data() : {};
       state.locations = Array.isArray(data.locations) ? [...data.locations] : [];
+      state.languageFieldsByCountry = data.brandLanguageFields && typeof data.brandLanguageFields === 'object'
+        ? { ...data.brandLanguageFields }
+        : {};
     }, (error) => console.error('Location duplicate settings listener failed:', error));
     state.brandsUnsub = onSnapshot(brandDictionaryRef, (snapshot) => {
       if (state.userId !== user.uid) return;
