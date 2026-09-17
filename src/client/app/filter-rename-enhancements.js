@@ -116,6 +116,7 @@ export async function initFilterRenameEnhancements({
   }
 
   function openRenameModal(kind, value) {
+    if (kind === 'location') return;
     if (!LABEL_BY_KIND[kind] || !value) return;
     state.pendingRename = { kind, value };
     documentRef.getElementById('filter-rename-title').textContent = `重新命名${LABEL_BY_KIND[kind]}`;
@@ -133,6 +134,11 @@ export async function initFilterRenameEnhancements({
     const kind = managementKind(documentRef);
     if (!kind) return;
     const help = documentRef.querySelector('#manage-filter-modal p');
+    if (kind === 'location') {
+      if (help) help.textContent = '按住左側把手拖曳或用箭頭排序；名稱與刪除請至品牌字典管理';
+      manageList.querySelectorAll('.rename-option').forEach((button) => button.remove());
+      return;
+    }
     if (help) help.textContent = '按住左側把手拖曳或用箭頭排序；鉛筆可重新命名';
 
     manageList.querySelectorAll('.manage-row').forEach((row) => {
