@@ -137,7 +137,7 @@ export async function initFilterRenameEnhancements({
 
     manageList.querySelectorAll('.manage-row').forEach((row) => {
       if (row.querySelector('.rename-option')) return;
-      const value = clean(row.querySelector('.manage-option-name')?.textContent);
+      const value = clean(row.dataset?.manageValue || row.querySelector('.manage-option-name')?.textContent);
       const deleteButton = row.querySelector('.delete-option');
       if (!value || !deleteButton) return;
       const button = documentRef.createElement('button');

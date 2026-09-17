@@ -1,5 +1,6 @@
 import { DEFAULT_COUNTRY } from './travel-country.js';
 import { detectLocationDuplicate } from './brand-dictionary-core.js';
+import { resolveLocationDisplayName } from './brand-location-resolver.js';
 
 const APP_ID = 'japan-shopping-app';
 
@@ -85,6 +86,11 @@ export async function initLocationDuplicateGuard({
       || DEFAULT_COUNTRY;
   }
 
+  function displayName(rawLocation) {
+    const raw = clean(rawLocation);
+    return resolveLocationDisplayName(raw, state.brands, activeCountry()) || raw;
+  }
+
   function closeWarning() {
     modal.classList.add('hidden');
     modal.classList.remove('flex');
@@ -94,8 +100,11 @@ export async function initLocationDuplicateGuard({
   function openWarning(rawLocation, result) {
     state.pendingLocation = rawLocation;
     const location = clean(rawLocation);
-    const existing = clean(result.existing) || '既有地點';
-    documentRef.getElementById('location-duplicate-title').textContent = `可能已存在「${existing}」`;
+    const existingRaw = clean(result.existing) || '既有地點';
+    const existingDisplay = displayName(existingRaw) || existingRaw;
+    const title = documentRef.getElementById('location-duplicate-title');
+    title.dataset.brandLocationRaw = existingRaw;
+    title.textContent = `可能已存在「${existingDisplay}」`;
     documentRef.getElementById('location-duplicate-message').textContent = `你輸入的是「${location}」。如果確定要保留兩個名稱，仍可繼續新增。`;
     documentRef.getElementById('location-duplicate-reason').textContent = result.kind === 'dictionary'
       ? `品牌字典顯示這兩個名稱屬於同一品牌（${activeCountry()}）。`
@@ -124,7 +133,8 @@ export async function initLocationDuplicateGuard({
     });
 
     if (result.kind === 'exact') {
-      notify('地點已存在', `「${clean(result.existing) || location}」已經在地點清單中，不會重複新增。`, 'warning');
+      const existingRaw = clean(result.existing) || location;
+      notify('地點已存在', `「${displayName(existingRaw)}」已經在地點清單中，不會重複新增。`, 'warning');
       return;
     }
 
