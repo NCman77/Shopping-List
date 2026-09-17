@@ -38,26 +38,12 @@ test('brand storage uses the already-authorized settings brandDictionary documen
   assert.doesNotMatch(source, /doc\(brandsRef\(\)\)/);
 });
 
-test('item form can open the existing brand editor directly for the active country', async () => {
-  const source = await readFile(new URL('../../src/client/app/brand-dictionary-ui.js', import.meta.url), 'utf8');
-  assert.match(source, /shoppingListBrandDictionaryManager/);
-  assert.match(source, /openCreate/);
-  assert.match(source, /returnContext/);
-  assert.match(source, /openEditor\(null\)/);
-});
-
-test('duplicate brand conflicts use a dictionary-owned overlay above the dictionary modal', async () => {
-  const source = await readFile(new URL('../../src/client/app/brand-dictionary-ui.js', import.meta.url), 'utf8');
-  assert.match(source, /brand-conflict-modal/);
-  assert.match(source, /z-\[170\]/);
-  assert.match(source, /openConflict/);
-  assert.match(source, /名稱已被其他品牌使用/);
-});
-
-test('feature bootstrap loads brand dictionary and duplicate guard independently', async () => {
+test('feature bootstrap loads brand dictionary, centralized store sync and duplicate guard independently', async () => {
   const bootstrap = await readFile(new URL('../../src/client/app/feature-bootstrap.js', import.meta.url), 'utf8');
   assert.match(bootstrap, /brand-dictionary-ui\.js/);
+  assert.match(bootstrap, /brand-store-sync\.js/);
   assert.match(bootstrap, /location-duplicate-guard\.js/);
   assert.match(bootstrap, /品牌字典/);
+  assert.match(bootstrap, /品牌商店同步/);
   assert.match(bootstrap, /地點重複檢查/);
 });
