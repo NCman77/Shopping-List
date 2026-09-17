@@ -91,8 +91,9 @@ export async function initLocationDuplicateGuard({
     state.pendingLocation = '';
   }
 
-  function openWarning(location, result) {
-    state.pendingLocation = location;
+  function openWarning(rawLocation, result) {
+    state.pendingLocation = rawLocation;
+    const location = clean(rawLocation);
     const existing = clean(result.existing) || '既有地點';
     documentRef.getElementById('location-duplicate-title').textContent = `可能已存在「${existing}」`;
     documentRef.getElementById('location-duplicate-message').textContent = `你輸入的是「${location}」。如果確定要保留兩個名稱，仍可繼續新增。`;
@@ -119,20 +120,20 @@ export async function initLocationDuplicateGuard({
     }
 
     if (result.kind === 'dictionary' || result.kind === 'similar') {
-      openWarning(location, result);
+      openWarning(rawLocation, result);
       return;
     }
 
-    originalAddLocation(location);
+    originalAddLocation(rawLocation);
   }
 
   windowRef.handleAddLocation = guardedAddLocation;
 
   documentRef.getElementById('location-duplicate-cancel')?.addEventListener('click', closeWarning);
   documentRef.getElementById('location-duplicate-confirm')?.addEventListener('click', () => {
-    const location = state.pendingLocation;
+    const rawLocation = state.pendingLocation;
     closeWarning();
-    if (location) originalAddLocation(location);
+    if (clean(rawLocation)) originalAddLocation(rawLocation);
   });
   modal.addEventListener('click', (event) => { if (event.target === modal) closeWarning(); });
   documentRef.addEventListener('keydown', (event) => {
