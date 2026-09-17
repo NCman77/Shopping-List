@@ -202,6 +202,8 @@ export async function initBrandStoreSync({
       return false;
     }
 
+    state.externalContext = context;
+    state.externalEditorOpened = false;
     if (context === 'coupon') {
       const couponModal = documentRef.getElementById('coupon-management-modal');
       state.couponWasVisible = Boolean(couponModal && !couponModal.classList.contains('hidden'));
@@ -226,7 +228,6 @@ export async function initBrandStoreSync({
       return false;
     }
     addButton.click();
-    state.externalContext = context;
     state.externalEditorOpened = true;
     applyAlertLayer();
     return true;
