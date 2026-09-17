@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 
 const layoutPath = new URL('../../src/client/app/item-modal-layout.js', import.meta.url);
 const bootstrapPath = new URL('../../src/client/app/feature-bootstrap.js', import.meta.url);
+const indexPath = new URL('../../index.html', import.meta.url);
 
 async function readLayoutSource() {
   return readFile(layoutPath, 'utf8').catch(() => '');
@@ -26,6 +27,19 @@ test('selected where-to-buy chips span the full row below both form columns', as
   assert.match(source, /insertAdjacentElement\('afterend', chipsRow\)/);
   assert.match(source, /chipsRow\.appendChild\(chips\)/);
   assert.match(source, /width:\s*100%/);
+});
+
+test('add-item where-to-buy add button opens the shared brand dictionary editor instead of the legacy text modal', async () => {
+  const source = await readLayoutSource();
+  assert.match(source, /shoppingListBrandDictionaryManager/);
+  assert.match(source, /openCreate/);
+  assert.match(source, /returnContext:\s*['"]item['"]/);
+  assert.doesNotMatch(source, /title:\s*['"]新增地點['"][\s\S]*handlerName:\s*['"]handleAddLocation['"]/);
+});
+
+test('homepage no longer exposes a separate add-location button', async () => {
+  const index = await readFile(indexPath, 'utf8');
+  assert.doesNotMatch(index, /openInputModal\('新增地點',\s*'輸入新地點\.\.\.',\s*handleAddLocation\)/);
 });
 
 test('product detail back and edit actions live in a true fixed modal footer outside the scrolling area', async () => {
