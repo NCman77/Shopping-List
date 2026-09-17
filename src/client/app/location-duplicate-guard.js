@@ -110,7 +110,7 @@ export async function initLocationDuplicateGuard({
       requestBrand(rawLocation, originalAddLocation);
       return;
     }
-    originalAddLocation(rawLocation);
+    notify('品牌字典載入中', '品牌資料尚未準備完成，請稍後再新增地點。', 'warning');
   }
 
   function guardedAddLocation(rawLocation) {
