@@ -1,4 +1,4 @@
-import { findItemsUsingOption, moveOption, removeOption } from './filter-management.js';
+import { buildLocationDeletionPlan, findItemsUsingOption, moveOption, removeOption } from './filter-management.js';
 
 const APP_ID = 'japan-shopping-app';
 const FIELD_BY_KIND = { category: 'categories', location: 'locations' };
@@ -173,7 +173,7 @@ export async function initHomeUiEnhancements() {
   const app = appSdk.getApps()[0] || appSdk.getApp();
   const auth = authSdk.getAuth(app);
   const db = firestoreSdk.getFirestore(app);
-  const { collection, doc, onSnapshot, setDoc } = firestoreSdk;
+  const { collection, doc, onSnapshot, setDoc, writeBatch } = firestoreSdk;
 
   const state = {
     userId: null,
@@ -262,10 +262,14 @@ export async function initHomeUiEnhancements() {
         row.textContent = item.name || '未命名商品';
         usageList.appendChild(row);
       });
-      note.textContent = `刪除後，上面這些既有商品仍會保留「${value}」文字；只是之後新增或編輯商品時，不會再出現在${LABEL_BY_KIND[kind]}選單中。`;
+      note.textContent = kind === 'location'
+        ? `刪除後，上面這些既有商品會同步移除「${value}」地點；品牌字典與優惠券資料都會保留，不會一起刪除。`
+        : `刪除後，上面這些既有商品仍會保留「${value}」文字；只是之後新增或編輯商品時，不會再出現在分類選單中。`;
     } else {
       summary.textContent = `目前沒有商品使用這個${LABEL_BY_KIND[kind]}。`;
-      note.textContent = `刪除後，「${value}」將不再出現在${LABEL_BY_KIND[kind]}選單中。`;
+      note.textContent = kind === 'location'
+        ? `刪除後，「${value}」將不再出現在地點選單中；品牌字典與優惠券資料都會保留。`
+        : `刪除後，「${value}」將不再出現在分類選單中。`;
     }
 
     warningModal.classList.remove('hidden');
@@ -391,8 +395,27 @@ export async function initHomeUiEnhancements() {
     const button = document.getElementById('confirm-filter-delete');
     button.disabled = true;
     try {
-      const next = removeOption(valuesFor(pending.kind), pending.value);
-      await persistValues(pending.kind, next);
+      if (pending.kind === 'location') {
+        if (!state.userId) throw new Error('請先登入 Google 帳號。');
+        const nextLocations = removeOption(valuesFor('location'), pending.value);
+        const plan = buildLocationDeletionPlan(state.items, pending.value);
+        if (plan.writeCount > 499) {
+          notify('無法刪除', '使用這個地點的商品超過單次安全更新上限，未進行任何變更。', 'warning');
+          return;
+        }
+        const settingsRef = doc(db, 'artifacts', APP_ID, 'users', state.userId, 'settings', 'preferences');
+        const batch = writeBatch(db);
+        batch.set(settingsRef, { locations: nextLocations }, { merge: true });
+        for (const entry of plan.affected) {
+          const itemRef = doc(db, 'artifacts', APP_ID, 'users', state.userId, 'items', entry.id);
+          batch.update(itemRef, entry.patch);
+        }
+        await batch.commit();
+        state.locations = nextLocations;
+        renderManageList();
+      } else {
+        await persistValues('category', removeOption(valuesFor('category'), pending.value));
+      }
       const allSelector = pending.kind === 'category'
         ? '#category-filters [data-cat="all"]'
         : '#location-filters [data-loc="all"]';
