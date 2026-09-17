@@ -38,10 +38,12 @@ test('brand storage uses the already-authorized settings brandDictionary documen
   assert.doesNotMatch(source, /doc\(brandsRef\(\)\)/);
 });
 
-test('feature bootstrap loads brand dictionary and duplicate guard independently', async () => {
+test('feature bootstrap loads brand dictionary, centralized store sync and duplicate guard independently', async () => {
   const bootstrap = await readFile(new URL('../../src/client/app/feature-bootstrap.js', import.meta.url), 'utf8');
   assert.match(bootstrap, /brand-dictionary-ui\.js/);
+  assert.match(bootstrap, /brand-store-sync\.js/);
   assert.match(bootstrap, /location-duplicate-guard\.js/);
   assert.match(bootstrap, /品牌字典/);
+  assert.match(bootstrap, /品牌商店同步/);
   assert.match(bootstrap, /地點重複檢查/);
 });

@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 
 const layoutPath = new URL('../../src/client/app/item-modal-layout.js', import.meta.url);
 const bootstrapPath = new URL('../../src/client/app/feature-bootstrap.js', import.meta.url);
+const syncPath = new URL('../../src/client/app/brand-store-sync.js', import.meta.url);
 
 async function readLayoutSource() {
   return readFile(layoutPath, 'utf8').catch(() => '');
@@ -28,6 +29,19 @@ test('selected where-to-buy chips span the full row below both form columns', as
   assert.match(source, /width:\s*100%/);
 });
 
+test('add-item where-to-buy add button is intercepted by the brand dictionary sync bridge', async () => {
+  const source = await readFile(syncPath, 'utf8');
+  assert.match(source, /item-inline-add-location/);
+  assert.match(source, /stopImmediatePropagation/);
+  assert.match(source, /openBrandCreate\(\{ country: activeCountry\(\), context: 'item' \}\)/);
+});
+
+test('homepage add-location control is removed at runtime instead of being restored', async () => {
+  const source = await readFile(syncPath, 'utf8');
+  assert.match(source, /removeHomepageLegacyAddButton/);
+  assert.match(source, /handleAddLocation/);
+});
+
 test('product detail back and edit actions live in a true fixed modal footer outside the scrolling area', async () => {
   const source = await readLayoutSource();
 
@@ -48,10 +62,11 @@ test('edit-only copy-to-trip action is moved outside the scrolling area into a f
   assert.match(source, /item-copy-fixed-footer/);
 });
 
-test('modal layout enhancement is bootstrapped without re-enabling retired store features', async () => {
+test('modal layout enhancement and brand store sync are bootstrapped without re-enabling retired store features', async () => {
   const bootstrap = await readFile(bootstrapPath, 'utf8');
 
   assert.match(bootstrap, /item-modal-layout\.js/);
   assert.match(bootstrap, /initItemModalLayout/);
+  assert.match(bootstrap, /brand-store-sync\.js/);
   assert.doesNotMatch(bootstrap, /initStoreLocationEnhancements/);
 });

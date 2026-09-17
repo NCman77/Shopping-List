@@ -17,6 +17,26 @@ function unique(values = []) {
   return out;
 }
 
+export function ensureBrandLocationDefinitions(preferredLocations = [], brands = []) {
+  const result = unique(preferredLocations);
+
+  for (const brand of Array.isArray(brands) ? brands : []) {
+    const id = clean(brand?.id);
+    if (!id) continue;
+    const alreadyRepresented = result.some((location) => {
+      const matched = findBrandForLocation([brand], location, brand?.country);
+      return Boolean(matched && clean(matched.id) === id);
+    });
+    if (alreadyRepresented) continue;
+
+    const fallback = clean(brand?.displayName)
+      || clean((Array.isArray(brand?.aliases) ? brand.aliases : []).find((alias) => clean(alias?.value))?.value);
+    if (fallback && !result.includes(fallback)) result.push(fallback);
+  }
+
+  return result;
+}
+
 export function deriveUsedManagedLocations(items = [], preferredLocations = []) {
   const discovered = [];
   const used = new Set();

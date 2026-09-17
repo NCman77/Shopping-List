@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 
 import {
   deriveUsedManagedLocations,
+  ensureBrandLocationDefinitions,
   mergeManagedLocationOrder,
   buildBrandDeletionPlan
 } from '../../src/client/app/brand-driven-location-management.js';
@@ -16,6 +17,32 @@ test('managed locations only include raw locations currently used by items and p
   assert.deepEqual(
     deriveUsedManagedLocations(items, ['A', 'Unused', 'C', 'B']),
     ['A', 'C', 'B']
+  );
+});
+
+test('brand location definitions add one missing canonical raw location per brand without duplicating an existing alias', () => {
+  const brands = [
+    {
+      id: 'matsumoto',
+      country: '日本',
+      displayName: '松本清',
+      aliases: [
+        { language: '日文', value: 'マツモトキヨシ' },
+        { language: '英文', value: 'Matsumoto Kiyoshi' }
+      ]
+    },
+    {
+      id: 'donki',
+      country: '日本',
+      displayName: '唐吉訶德',
+      aliases: [{ language: '日文', value: 'ドン・キホーテ' }]
+    },
+    { id: 'blank', country: '日本', displayName: '   ', aliases: [] }
+  ];
+
+  assert.deepEqual(
+    ensureBrandLocationDefinitions(['Matsumoto Kiyoshi', '既有舊地點'], brands),
+    ['Matsumoto Kiyoshi', '既有舊地點', '唐吉訶德']
   );
 });
 
