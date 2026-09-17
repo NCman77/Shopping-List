@@ -1,9 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { buildItemCouponEditorRows } from '../../src/client/app/item-coupon-ui.js';
+import {
+  buildItemCouponEditorRows,
+  buildItemDetailCouponRows
+} from '../../src/client/app/item-coupon-ui.js';
 
 const sourceUrl = new URL('../../src/client/app/item-coupon-ui.js', import.meta.url);
+const workflowSourceUrl = new URL('../../src/client/app/item-workflow-enhancements.js', import.meta.url);
 
 const brands = [
   {
@@ -59,6 +63,46 @@ test('unresolved location stays visible without guessing a coupon brand', () => 
   }]);
 });
 
+test('item detail resolves every distinct active coupon and excludes future or expired coupons', () => {
+  const rows = buildItemDetailCouponRows({
+    locations: ['Matsumoto Kiyoshi', 'ツルハドラッグ TSURUHA', 'マツモトキヨシ'],
+    brands,
+    coupons: [
+      {
+        brandId: 'matsumoto', country: '日本', couponUrl: 'https://m.example/coupon?code=10#use',
+        validFrom: '2026-09-01', validUntil: '2026-09-30'
+      },
+      {
+        brandId: 'tsuruha', country: '日本', couponUrl: 'https://t.example/coupon',
+        validFrom: '2026-09-10', validUntil: '2026-10-31'
+      }
+    ],
+    country: '日本',
+    todayKey: '2026-09-17'
+  });
+  assert.equal(rows.length, 2);
+  assert.deepEqual(rows.map((row) => row.displayName), ['松本清', '鶴羽藥妝']);
+  assert.equal(rows[0].coupon.couponUrl, 'https://m.example/coupon?code=10#use');
+
+  const inactive = buildItemDetailCouponRows({
+    locations: ['Matsumoto Kiyoshi', 'ツルハドラッグ TSURUHA'],
+    brands,
+    coupons: [
+      {
+        brandId: 'matsumoto', country: '日本', couponUrl: 'https://m.example/future',
+        validFrom: '2026-10-01', validUntil: '2026-10-31'
+      },
+      {
+        brandId: 'tsuruha', country: '日本', couponUrl: 'https://t.example/expired',
+        validFrom: '2026-08-01', validUntil: '2026-08-31'
+      }
+    ],
+    country: '日本',
+    todayKey: '2026-09-17'
+  });
+  assert.deepEqual(inactive, []);
+});
+
 test('item coupon UI is derived from raw multi-location state and never writes coupon data into item documents', async () => {
   const source = await readFile(sourceUrl, 'utf8');
   assert.match(source, /item-coupon-section/);
@@ -75,4 +119,15 @@ test('coupon UI rerenders from coupon manager subscription without resetting the
   assert.doesNotMatch(source, /openAddModal\(/);
   assert.doesNotMatch(source, /openEditModal\(/);
   assert.doesNotMatch(source, /resetItem/i);
+});
+
+test('item detail coupon renderer opens the exact live URL and is wired after detail render', async () => {
+  const [source, workflowSource] = await Promise.all([
+    readFile(sourceUrl, 'utf8'),
+    readFile(workflowSourceUrl, 'utf8')
+  ]);
+  assert.match(source, /item-detail-coupon-section/);
+  assert.match(source, /開啟優惠券/);
+  assert.match(source, /openWindow\([^,]+,\s*['_"]?_blank['"]?,\s*['"]noopener,noreferrer['"]\)/);
+  assert.match(workflowSource, /shoppingListItemCouponUi\?\.renderItemDetailCoupons\?\./);
 });
