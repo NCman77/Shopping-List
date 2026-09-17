@@ -14,6 +14,8 @@ function waitFor(predicate, timeout = 12000) {
   });
 }
 
+const editDetailState = new WeakMap();
+
 function installStyles(documentRef) {
   if (!documentRef?.head || documentRef.getElementById('item-modal-layout-styles')) return;
   const style = documentRef.createElement('style');
@@ -82,39 +84,98 @@ function installStyles(documentRef) {
       margin-bottom: 0 !important;
     }
 
-    .workflow-edit-mode #item-edit-photo-field { order: 1; }
-    .workflow-edit-mode #item-edit-photo-controls { order: 2; }
-    .workflow-edit-mode #item-edit-name-field { order: 3; }
-    .workflow-edit-mode .item-edit-purchase-card { order: 4; }
-    .workflow-edit-mode #item-multi-location-chips-row { order: 5; }
-    .workflow-edit-mode #price-research-section { order: 6; }
-    .workflow-edit-mode #item-edit-address-field { order: 7; }
-    .workflow-edit-mode #item-edit-website-field { order: 8; }
-    .workflow-edit-mode #item-edit-notes-field { order: 9; }
-
-    .workflow-edit-mode #item-edit-photo-field,
-    .workflow-edit-mode #item-edit-photo-controls,
-    .workflow-edit-mode #item-edit-name-field,
-    .workflow-edit-mode .item-edit-purchase-card,
-    .workflow-edit-mode #price-research-section,
-    .workflow-edit-mode #item-edit-address-field,
-    .workflow-edit-mode #item-edit-website-field,
-    .workflow-edit-mode #item-edit-notes-field,
-    .workflow-edit-mode #item-multi-location-chips-row {
-      border: 2px solid #5C4033 !important;
-      border-radius: 1.25rem !important;
-      padding: 0.75rem !important;
-      box-shadow: 2px 2px 0 rgba(92, 64, 51, 0.12);
+    .workflow-edit-mode #item-edit-photo-field {
+      order: 1;
+      display: flex;
+      justify-content: center;
     }
 
-    .workflow-edit-mode #item-edit-photo-field,
-    .workflow-edit-mode #item-edit-name-field { background: #fff !important; }
-    .workflow-edit-mode .item-edit-purchase-card,
-    .workflow-edit-mode #item-multi-location-chips-row { background: rgba(213, 229, 242, 0.34) !important; }
-    .workflow-edit-mode #price-research-section { background: rgba(255, 241, 185, 0.32) !important; }
-    .workflow-edit-mode #item-edit-address-field { background: rgba(252, 213, 206, 0.28) !important; }
-    .workflow-edit-mode #item-edit-website-field { background: rgba(208, 240, 192, 0.28) !important; }
-    .workflow-edit-mode #item-edit-notes-field { background: #fff !important; }
+    .workflow-edit-mode #item-edit-photo-controls {
+      order: 2;
+      width: 100%;
+      max-width: 100%;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .workflow-edit-mode #item-edit-detail-card {
+      order: 3;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      width: 100%;
+      padding: 0.75rem;
+      color: #5C4033;
+      background: #fff;
+      border: 2px solid #5C4033;
+      border-radius: 2rem;
+      box-shadow: 4px 4px 0 rgba(92, 64, 51, 0.14);
+    }
+
+    @media (min-width: 640px) {
+      .workflow-edit-mode #item-edit-detail-card { padding: 1rem; }
+    }
+
+    .workflow-edit-mode #item-edit-name-field {
+      padding: 0.25rem 0.25rem 0.75rem;
+      border-bottom: 2px solid rgba(92, 64, 51, 0.10);
+    }
+
+    .workflow-edit-mode #item-edit-name-field label,
+    .workflow-edit-mode #item-edit-detail-card label {
+      margin-left: 0 !important;
+      margin-bottom: 0.35rem !important;
+      color: #5C4033 !important;
+    }
+
+    .workflow-edit-mode .item-edit-purchase-card {
+      display: grid !important;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+      column-gap: 0.75rem !important;
+      align-items: start;
+      padding: 0.75rem;
+      background: rgba(213, 229, 242, 0.28);
+      border: 2px solid rgba(92, 64, 51, 0.30);
+      border-radius: 1rem;
+    }
+
+    .workflow-edit-mode #item-multi-location-chips-row {
+      width: 100%;
+      margin-top: 0 !important;
+      padding: 0.65rem 0.75rem;
+      background: rgba(255, 241, 185, 0.26);
+      border: 2px solid rgba(92, 64, 51, 0.24);
+      border-radius: 1rem;
+    }
+
+    .workflow-edit-mode #price-research-section {
+      padding: 0.75rem !important;
+      background: rgba(252, 213, 206, 0.25) !important;
+      border: 2px solid rgba(92, 64, 51, 0.30) !important;
+      border-radius: 1rem !important;
+      box-shadow: none !important;
+    }
+
+    .workflow-edit-mode #item-edit-address-field {
+      padding: 0.75rem;
+      background: rgba(208, 240, 192, 0.24);
+      border: 2px solid rgba(92, 64, 51, 0.30);
+      border-radius: 1rem;
+    }
+
+    .workflow-edit-mode #item-edit-website-field {
+      padding: 0.75rem;
+      background: rgba(213, 229, 242, 0.20);
+      border: 2px solid rgba(92, 64, 51, 0.30);
+      border-radius: 1rem;
+    }
+
+    .workflow-edit-mode #item-edit-notes-field {
+      padding: 0.75rem;
+      background: rgba(255, 241, 185, 0.20);
+      border: 2px solid rgba(92, 64, 51, 0.30);
+      border-radius: 1rem;
+    }
 
     .workflow-edit-mode #item-edit-photo-field label[for="item-photo"] {
       margin-left: auto;
@@ -131,14 +192,11 @@ function installStyles(documentRef) {
       width: 100%;
     }
 
-    .workflow-edit-mode .item-edit-purchase-card {
-      column-gap: 0.75rem !important;
-    }
-
-    .workflow-edit-mode #item-edit-form-scroll input,
-    .workflow-edit-mode #item-edit-form-scroll select,
-    .workflow-edit-mode #item-edit-form-scroll textarea {
+    .workflow-edit-mode #item-edit-detail-card input,
+    .workflow-edit-mode #item-edit-detail-card select,
+    .workflow-edit-mode #item-edit-detail-card textarea {
       background: #fff !important;
+      border-color: #5C4033 !important;
     }
   `;
   documentRef.head.appendChild(style);
@@ -255,8 +313,11 @@ export function syncItemFormColumns(documentRef = typeof document !== 'undefined
 
 function syncEditFormHooks(documentRef) {
   const name = documentRef.getElementById('item-name');
-  const scroll = name?.parentElement?.parentElement;
-  if (scroll) scroll.id = 'item-edit-form-scroll';
+  let scroll = documentRef.getElementById('item-edit-form-scroll');
+  if (!scroll) {
+    scroll = name?.closest?.('.overflow-y-auto') || name?.parentElement?.parentElement || null;
+    if (scroll && scroll.id !== 'item-edit-detail-card') scroll.id = 'item-edit-form-scroll';
+  }
 
   const photoInput = documentRef.getElementById('item-photo');
   const photoField = photoInput?.closest?.('label')?.parentElement;
@@ -285,6 +346,68 @@ function syncModalMode(documentRef) {
   const existing = Boolean(String(documentRef.getElementById('item-id')?.value || '').trim());
   setClassState(modalContent, 'workflow-edit-mode', !viewMode && existing);
   setClassState(modalContent, 'workflow-add-mode', !viewMode && !existing);
+}
+
+function restoreItemEditDetailStyle(documentRef) {
+  const card = documentRef?.getElementById?.('item-edit-detail-card');
+  if (!card) return false;
+  const state = editDetailState.get(card);
+  if (state?.entries) {
+    for (const { node, marker } of state.entries) {
+      if (marker?.parentNode) marker.parentNode.insertBefore(node, marker);
+      marker?.remove?.();
+    }
+  }
+  card.remove();
+  editDetailState.delete(card);
+  return true;
+}
+
+export function applyItemEditDetailStyle(documentRef = typeof document !== 'undefined' ? document : null) {
+  if (!documentRef) return false;
+  installStyles(documentRef);
+  const modalContent = documentRef.getElementById('add-modal-content');
+  if (!modalContent?.classList?.contains('workflow-edit-mode')) {
+    restoreItemEditDetailStyle(documentRef);
+    return false;
+  }
+
+  const existingCard = documentRef.getElementById('item-edit-detail-card');
+  if (existingCard) return true;
+
+  const scroll = documentRef.getElementById('item-edit-form-scroll');
+  if (!scroll) return false;
+
+  const nodes = [
+    documentRef.getElementById('item-edit-name-field'),
+    documentRef.getElementById('item-purchase-meta-row'),
+    documentRef.getElementById('item-multi-location-chips-row'),
+    documentRef.getElementById('price-research-section'),
+    documentRef.getElementById('item-edit-address-field'),
+    documentRef.getElementById('item-edit-website-field'),
+    documentRef.getElementById('item-edit-notes-field')
+  ].filter(Boolean);
+
+  if (!nodes.length) return false;
+  const card = documentRef.createElement('section');
+  card.id = 'item-edit-detail-card';
+  card.setAttribute('aria-label', '修改商品內容');
+
+  const entries = [];
+  for (const node of nodes) {
+    const parent = node.parentNode;
+    if (!parent) continue;
+    const marker = documentRef.createComment(`item-edit-detail:${node.id || 'field'}`);
+    parent.insertBefore(marker, node);
+    entries.push({ node, marker });
+    card.appendChild(node);
+  }
+
+  if (!entries.length) return false;
+  const firstMarker = entries[0].marker;
+  firstMarker.parentNode?.insertBefore(card, firstMarker);
+  editDetailState.set(card, { entries });
+  return true;
 }
 
 function findDetailAction(documentRef, label) {
@@ -378,6 +501,7 @@ export async function initItemModalLayout({
     syncItemDetailActions(documentRef);
     syncCopyActionFooter(documentRef);
     syncModalMode(documentRef);
+    applyItemEditDetailStyle(documentRef);
   };
   const schedule = () => {
     if (scheduled) return;
