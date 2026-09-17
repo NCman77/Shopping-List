@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 
 import {
   highestVisibleOverlayZIndex,
+  initSystemMessageLayer,
   nextSystemMessageZIndex
 } from '../../src/client/app/system-message-layer.js';
 
@@ -34,6 +35,29 @@ test('global system messages rise above the highest currently visible fixed over
 
   highest.computedStyle.zIndex = '250';
   assert.equal(nextSystemMessageZIndex({ documentRef, windowRef, excluded }), 260);
+});
+
+test('system message layer waits for index module to define showMsg before wrapping it', async () => {
+  const modal = { style: {}, classList: { contains: () => false } };
+  const documentRef = {
+    getElementById: (id) => id === 'msg-modal' ? modal : null,
+    querySelectorAll: () => [modal]
+  };
+  const windowRef = {
+    getComputedStyle: () => ({ zIndex: '70', display: 'block', visibility: 'visible' })
+  };
+  const originalShowMsg = () => 'shown';
+
+  const ready = initSystemMessageLayer({ documentRef, windowRef });
+  setTimeout(() => { windowRef.showMsg = originalShowMsg; }, 10);
+  const cleanup = await ready;
+
+  assert.equal(typeof cleanup, 'function');
+  assert.notEqual(windowRef.showMsg, originalShowMsg);
+  windowRef.showMsg('訊息', '內容');
+  assert.equal(modal.style.zIndex, '200');
+  cleanup();
+  assert.equal(windowRef.showMsg, originalShowMsg);
 });
 
 test('system message layer is bootstrapped globally', async () => {
