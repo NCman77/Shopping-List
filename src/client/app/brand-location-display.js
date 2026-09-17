@@ -81,6 +81,15 @@ function findLocationChoice(documentRef, raw) {
 }
 
 function updateVisibleLocationPicker(documentRef, brands, country) {
+  documentRef.querySelectorAll('#item-multi-location-options .multi-location-choice[data-location]').forEach((button) => {
+    const raw = clean(button.dataset?.location);
+    if (!raw) return;
+    const pickerLabel = resolveLocationPickerLabel(raw, brands, country) || raw;
+    if (clean(button.dataset?.brandLocationPickerLabel) !== pickerLabel) {
+      button.dataset.brandLocationPickerLabel = pickerLabel;
+    }
+  });
+
   documentRef.querySelectorAll('#item-multi-location-select option[value]').forEach((option) => {
     const raw = clean(option.value);
     if (!raw) return;
