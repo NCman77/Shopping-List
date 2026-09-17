@@ -95,25 +95,33 @@ function installStyles(documentRef) {
       color: #5C4033;
     }
     .workflow-view-mode #item-coupon-section { display: none !important; }
+    .workflow-edit-mode #item-coupon-section { margin-top: 0 !important; }
   `;
   documentRef.head.appendChild(style);
 }
 
 function ensureSection(documentRef) {
   let section = documentRef.getElementById('item-coupon-section');
-  if (section) return section;
-  section = documentRef.createElement('section');
-  section.id = 'item-coupon-section';
-  section.innerHTML = `
-    <div class="flex items-center gap-2 mb-2">
-      <span class="w-7 h-7 shrink-0 rounded-full bg-pastelPink border-2 border-warmBrown flex items-center justify-center text-warmBrown text-xs"><i class="fas fa-ticket"></i></span>
-      <div class="flex-1 min-w-0"><h4 class="text-sm font-bold text-warmBrown">優惠券</h4><p class="text-[10px] text-warmBrown/55">依「哪裡買」自動帶入品牌優惠券</p></div>
-    </div>
-    <div id="item-coupon-rows" class="space-y-2"></div>`;
+  if (!section) {
+    section = documentRef.createElement('section');
+    section.id = 'item-coupon-section';
+    section.innerHTML = `
+      <div class="flex items-center gap-2 mb-2">
+        <span class="w-7 h-7 shrink-0 rounded-full bg-pastelPink border-2 border-warmBrown flex items-center justify-center text-warmBrown text-xs"><i class="fas fa-ticket"></i></span>
+        <div class="flex-1 min-w-0"><h4 class="text-sm font-bold text-warmBrown">優惠券</h4><p class="text-[10px] text-warmBrown/55">依「哪裡買」自動帶入品牌優惠券</p></div>
+      </div>
+      <div id="item-coupon-rows" class="space-y-2"></div>`;
+  }
 
   const chipsRow = documentRef.getElementById('item-multi-location-chips-row');
-  if (chipsRow?.parentElement) chipsRow.insertAdjacentElement('afterend', section);
-  else {
+  if (chipsRow?.parentElement) {
+    if (section.parentElement !== chipsRow.parentElement || section.previousElementSibling !== chipsRow) {
+      chipsRow.insertAdjacentElement('afterend', section);
+    }
+    return section;
+  }
+
+  if (!section.parentElement) {
     const field = documentRef.getElementById('item-multi-location-field');
     const purchaseRow = field?.parentElement;
     if (purchaseRow?.parentElement) purchaseRow.insertAdjacentElement('afterend', section);
@@ -242,6 +250,17 @@ export async function initItemCouponUi({
     attributeFilter: ['aria-pressed', 'disabled']
   });
 
+  const modalContent = documentRef.getElementById('add-modal-content');
+  const layoutObserver = modalContent ? new MutationObserverImpl((mutations) => {
+    if (mutations.some((mutation) => !mutation.target?.closest?.('#item-coupon-section'))) schedule();
+  }) : null;
+  layoutObserver?.observe(modalContent, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['class']
+  });
+
   const unsubscribeCoupons = windowRef.shoppingListCouponManager.subscribe(schedule);
   windowRef.addEventListener('shopping-list:active-country-changed', schedule);
   windowRef.addEventListener('shopping-list:active-trip-changed', schedule);
@@ -253,6 +272,7 @@ export async function initItemCouponUi({
 
   return () => {
     observer.disconnect();
+    layoutObserver?.disconnect();
     unsubscribeCoupons?.();
     windowRef.removeEventListener('shopping-list:active-country-changed', schedule);
     windowRef.removeEventListener('shopping-list:active-trip-changed', schedule);
