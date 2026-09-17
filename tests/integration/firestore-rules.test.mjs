@@ -76,6 +76,23 @@ rulesTest('legacy migration can create a trip and assign its existing item in on
   assert.equal((await getDoc(doc(alice, `${root}/alice/items/old`))).data().tripId, 'legacy-japan');
 });
 
+rulesTest('brand dictionary documents are private to their owner', async () => {
+  await env.clearFirestore();
+  const alice = env.authenticatedContext('alice').firestore();
+  const bob = env.authenticatedContext('bob').firestore();
+  const brand = doc(alice, `${root}/alice/brands/matsumoto`);
+  await setDoc(brand, {
+    country: '日本',
+    displayName: 'Matsumoto Kiyoshi',
+    aliases: [{ language: '日文', value: 'マツモトキヨシ' }]
+  });
+  assert.equal((await getDoc(brand)).data().country, '日本');
+  await updateDoc(brand, { displayName: 'Matsumoto Kiyoshi' });
+  await assertFails(getDoc(doc(bob, `${root}/alice/brands/matsumoto`)));
+  await assertFails(setDoc(doc(bob, `${root}/alice/brands/other`), { country: '日本', displayName: 'Bad write' }));
+  await deleteDoc(brand);
+});
+
 rulesTest('client error reports are bounded, append-only, and private', async () => {
   await env.clearFirestore();
   const alice = env.authenticatedContext('alice').firestore();
