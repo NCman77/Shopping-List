@@ -1,6 +1,7 @@
 import { deriveItemCouponRows, findUniqueBrandMatch } from './coupon-core.js';
 import { resolveLocationDisplayName } from './brand-location-resolver.js';
 import { buildLocationPickerModel } from './location-picker-chips.js';
+import { resolveItemLocations } from '../pricing/location-selection.js';
 import { DEFAULT_COUNTRY } from './travel-country.js';
 
 function clean(value) {
@@ -75,6 +76,23 @@ export function buildItemCouponEditorRows({
   return result;
 }
 
+export function buildItemDetailCouponRows({
+  locations,
+  brands,
+  coupons,
+  country,
+  todayKey
+} = {}) {
+  return deriveItemCouponRows({
+    locations,
+    brands,
+    coupons,
+    country,
+    todayKey,
+    includeInactive: false
+  });
+}
+
 function currentCountry(windowRef) {
   return clean(windowRef?.shoppingListActiveTrip?.country)
     || clean(windowRef?.shoppingListActiveCountry)
@@ -96,6 +114,15 @@ function installStyles(documentRef) {
     }
     .workflow-view-mode #item-coupon-section { display: none !important; }
     .workflow-edit-mode #item-coupon-section { margin-top: 0 !important; }
+    #item-detail-coupon-section {
+      width: 100%;
+      margin-top: 0.75rem;
+      padding: 0.75rem;
+      border: 2px solid rgba(92,64,51,.24);
+      border-radius: 1rem;
+      background: rgba(255,241,185,.22);
+      color: #5C4033;
+    }
   `;
   documentRef.head.appendChild(style);
 }
@@ -141,6 +168,72 @@ function button(documentRef, label, className) {
   node.className = className;
   node.textContent = label;
   return node;
+}
+
+function formatCouponDate(value) {
+  return clean(value).replace(/-/g, '/');
+}
+
+export function renderItemDetailCoupons(container, item, {
+  windowRef = typeof window !== 'undefined' ? window : null,
+  openWindow = (...args) => windowRef?.open?.(...args)
+} = {}) {
+  const documentRef = container?.ownerDocument || (typeof document !== 'undefined' ? document : null);
+  if (!container || !documentRef || !windowRef) return [];
+  container.querySelector?.('#item-detail-coupon-section')?.remove?.();
+
+  const manager = windowRef.shoppingListCouponManager;
+  if (!manager) return [];
+  const country = clean(item?.country) || currentCountry(windowRef);
+  const rows = buildItemDetailCouponRows({
+    locations: resolveItemLocations(item),
+    brands: manager.brands(),
+    coupons: manager.coupons(),
+    country,
+    todayKey: manager.todayKey()
+  });
+  if (!rows.length) return [];
+
+  const section = documentRef.createElement('section');
+  section.id = 'item-detail-coupon-section';
+  section.setAttribute('aria-label', '優惠券');
+
+  const title = documentRef.createElement('div');
+  title.className = 'flex items-center gap-2 mb-2';
+  title.innerHTML = '<span class="w-7 h-7 shrink-0 rounded-full bg-pastelYellow border-2 border-warmBrown flex items-center justify-center text-warmBrown text-xs"><i class="fas fa-ticket"></i></span><h4 class="text-sm font-bold text-warmBrown">優惠券</h4>';
+  section.appendChild(title);
+
+  const cards = documentRef.createElement('div');
+  cards.className = 'space-y-2';
+  for (const row of rows) {
+    const card = documentRef.createElement('div');
+    card.className = 'rounded-xl border border-warmBrown/20 bg-white px-3 py-3';
+    card.dataset.couponBrandId = row.brandId;
+
+    const name = documentRef.createElement('p');
+    name.className = 'text-sm font-bold text-warmBrown';
+    name.textContent = row.displayName;
+
+    const period = documentRef.createElement('p');
+    period.className = 'text-xs text-gray-500 mt-1';
+    period.textContent = `有效期間：${formatCouponDate(row.coupon.validFrom)} ～ ${formatCouponDate(row.coupon.validUntil)}`;
+
+    const action = button(
+      documentRef,
+      '開啟優惠券',
+      'mt-2 w-full py-2 rounded-xl border-2 border-warmBrown bg-pastelYellow text-xs font-bold text-warmBrown shadow-[2px_2px_0_rgba(92,64,51,.16)]'
+    );
+    action.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      openWindow(row.coupon.couponUrl, '_blank', 'noopener,noreferrer');
+    });
+    card.append(name, period, action);
+    cards.appendChild(card);
+  }
+  section.appendChild(cards);
+  container.appendChild(section);
+  return rows;
 }
 
 export function renderItemCouponEditorRows({
@@ -267,7 +360,11 @@ export async function initItemCouponUi({
   render();
 
   windowRef.shoppingListItemCouponUi = {
-    renderItemCouponEditorRows: render
+    renderItemCouponEditorRows: render,
+    renderItemDetailCoupons: (container, item, options) => renderItemDetailCoupons(container, item, {
+      windowRef,
+      ...options
+    })
   };
 
   return () => {
