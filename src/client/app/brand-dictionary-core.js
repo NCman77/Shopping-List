@@ -2,6 +2,10 @@ function clean(value) {
   return String(value ?? '').normalize('NFKC').trim();
 }
 
+function displayValue(value) {
+  return String(value ?? '').trim();
+}
+
 function countryKey(value) {
   return clean(value).toLocaleLowerCase().replace(/\s+/g, '');
 }
@@ -52,7 +56,7 @@ export function parseAliasValues(value) {
   const result = [];
   const seen = new Set();
   for (const raw of String(value ?? '').split(/[\n,，、;；]+/u)) {
-    const alias = clean(raw);
+    const alias = displayValue(raw);
     const key = comparisonKey(alias);
     if (!alias || !key || seen.has(key)) continue;
     seen.add(key);
