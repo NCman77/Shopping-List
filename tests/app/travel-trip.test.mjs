@@ -57,15 +57,15 @@ test('active-trip resolution prefers ongoing over a manually persisted future tr
   assert.equal(resolveActiveTrip({ trips, persistedTripId: 'future-manual', today: '2026-09-15' }).id, 'ongoing-trip');
 });
 
-test('active-trip resolution keeps a manually selected future trip when no trip is ongoing', () => {
+test('startup active-trip resolution chooses the dated trip nearest today instead of a stale persisted future trip', () => {
   const trips = [
-    { id: 'nearest', kind: 'trip', country: '日本', startDate: '2026-10-01', endDate: '2026-10-05' },
+    { id: 'nearest', kind: 'trip', country: '韓國', startDate: '2026-10-01', endDate: '2026-10-05' },
     { id: 'manual', kind: 'trip', country: '日本', startDate: '2027-03-01', endDate: '2027-03-05' }
   ];
-  assert.equal(resolveActiveTrip({ trips, persistedTripId: 'manual', today: '2026-09-15' }).id, 'manual');
+  assert.equal(resolveActiveTrip({ trips, persistedTripId: 'manual', today: '2026-09-15' }).id, 'nearest');
 });
 
-test('active-trip resolution falls back to nearest upcoming, most recent past, then legacy', () => {
+test('active-trip resolution chooses the dated trip with the nearest date boundary, then legacy', () => {
   const upcoming = [
     { id: 'later', kind: 'trip', country: '日本', startDate: '2027-03-01', endDate: '2027-03-05' },
     { id: 'near', kind: 'trip', country: '日本', startDate: '2026-10-01', endDate: '2026-10-05' }
@@ -74,9 +74,15 @@ test('active-trip resolution falls back to nearest upcoming, most recent past, t
 
   const past = [
     { id: 'old', kind: 'trip', country: '日本', startDate: '2026-01-01', endDate: '2026-01-05' },
-    { id: 'recent', kind: 'trip', country: '日本', startDate: '2026-08-01', endDate: '2026-08-07' }
+    { id: 'recent', kind: 'trip', country: '泰國', startDate: '2026-09-01', endDate: '2026-09-14' }
   ];
   assert.equal(resolveActiveTrip({ trips: past, persistedTripId: '', today: '2026-09-15' }).id, 'recent');
+
+  const mixed = [
+    { id: 'future-five-days', kind: 'trip', country: '韓國', startDate: '2026-09-20', endDate: '2026-09-25' },
+    { id: 'past-yesterday', kind: 'trip', country: '泰國', startDate: '2026-09-10', endDate: '2026-09-14' }
+  ];
+  assert.equal(resolveActiveTrip({ trips: mixed, persistedTripId: '', today: '2026-09-15' }).id, 'past-yesterday');
 
   assert.equal(resolveActiveTrip({ trips: [{ id: 'legacy-jp', kind: 'legacy', country: '日本', startDate: null, endDate: null }], persistedTripId: '', today: '2026-09-15' }).id, 'legacy-jp');
   assert.equal(resolveActiveTrip({ trips: [], persistedTripId: '', today: '2026-09-15' }), null);

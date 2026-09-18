@@ -100,3 +100,11 @@ test('opening the all picker does not autofocus search on mobile', async () => {
   const source = await readFile(sourcePath, 'utf8');
   assert.doesNotMatch(source, /filter-picker-search[^\n]*focus|search\?\.focus\(\)/s);
 });
+
+
+test('all-chip enhancement resolves its filter config before reading the icon class', async () => {
+  const source = await readFile(sourcePath, 'utf8');
+  const body = source.match(/function enhanceAllChip\(type\) \{([\s\S]*?)\n  \}/)?.[1] || '';
+  assert.match(body, /const config = FILTERS\[type\]/);
+  assert.match(body, /config\.iconClass/);
+});

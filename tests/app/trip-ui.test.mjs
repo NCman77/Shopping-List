@@ -167,3 +167,11 @@ test('trip picker cards have visible vertical spacing', async () => {
   const source = await readFile(sourcePath, 'utf8');
   assert.match(source, /#trip-picker-view \.trip-picker-row \{ margin-bottom: \.55rem; \}/);
 });
+
+
+test('trip form country options do not inject Japan when no configured or active country exists', async () => {
+  const source = await readFile(sourcePath, 'utf8');
+  assert.doesNotMatch(source, /countries:\s*\[DEFAULT_COUNTRY\]/);
+  assert.doesNotMatch(source, /normalizeCountries\(\[\.\.\.state\.countries, selectedCountry \|\| DEFAULT_COUNTRY\]\)/);
+  assert.doesNotMatch(source, /window\.shoppingListActiveCountry \|\| DEFAULT_COUNTRY/);
+});

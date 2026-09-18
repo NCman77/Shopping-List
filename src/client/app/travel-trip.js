@@ -90,30 +90,46 @@ export function sortTripsForPicker(trips = [], today = todayIso()) {
     });
 }
 
+function isoDayNumber(value) {
+  if (!validIsoDate(value)) return null;
+  const [year, month, day] = value.split('-').map(Number);
+  return Math.floor(Date.UTC(year, month - 1, day) / 86400000);
+}
+
+function tripDistanceFromToday(trip, today) {
+  const type = classifyTrip(trip, today);
+  if (type === 'ongoing') return 0;
+  const todayDay = isoDayNumber(today);
+  if (todayDay === null) return Number.POSITIVE_INFINITY;
+  if (type === 'upcoming') {
+    const startDay = isoDayNumber(trip.startDate);
+    return startDay === null ? Number.POSITIVE_INFINITY : Math.abs(startDay - todayDay);
+  }
+  if (type === 'past') {
+    const endDay = isoDayNumber(trip.endDate);
+    return endDay === null ? Number.POSITIVE_INFINITY : Math.abs(todayDay - endDay);
+  }
+  return Number.POSITIVE_INFINITY;
+}
+
 export function resolveActiveTrip({ trips = [], persistedTripId = '', today = todayIso() } = {}) {
+  void persistedTripId;
   const normalized = (Array.isArray(trips) ? trips : []).map(normalizeTrip).filter((trip) => trip.id);
   if (!normalized.length) return null;
 
-  const ongoing = normalized
-    .filter((trip) => classifyTrip(trip, today) === 'ongoing')
-    .sort((a, b) => String(a.startDate).localeCompare(String(b.startDate)))[0];
-  if (ongoing) return ongoing;
-
-  const persisted = normalized.find((trip) => trip.id === clean(persistedTripId));
-  if (persisted) {
-    const type = classifyTrip(persisted, today);
-    if (type === 'ongoing' || type === 'upcoming') return persisted;
-  }
-
-  const upcoming = normalized
-    .filter((trip) => classifyTrip(trip, today) === 'upcoming')
-    .sort((a, b) => String(a.startDate).localeCompare(String(b.startDate)))[0];
-  if (upcoming) return upcoming;
-
-  const past = normalized
-    .filter((trip) => classifyTrip(trip, today) === 'past')
-    .sort((a, b) => String(b.endDate).localeCompare(String(a.endDate)))[0];
-  if (past) return past;
+  const dated = normalized
+    .filter((trip) => classifyTrip(trip, today) !== 'legacy')
+    .sort((a, b) => {
+      const distance = tripDistanceFromToday(a, today) - tripDistanceFromToday(b, today);
+      if (distance) return distance;
+      const typeA = classifyTrip(a, today);
+      const typeB = classifyTrip(b, today);
+      const rank = sortGroupRank(typeA) - sortGroupRank(typeB);
+      if (rank) return rank;
+      if (typeA === 'past') return String(b.endDate || '').localeCompare(String(a.endDate || ''));
+      return String(a.startDate || '').localeCompare(String(b.startDate || ''));
+    });
+  if (dated.length) return dated[0];
 
   return normalized.find((trip) => classifyTrip(trip, today) === 'legacy') || null;
 }

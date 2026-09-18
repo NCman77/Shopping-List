@@ -88,10 +88,12 @@ test('travel country management exposes edit and delete controls without rewriti
   assert.doesNotMatch(source, /collection\(db, ['"]artifacts['"], APP_ID, ['"]users['"], .*?['"]trips['"]\)/s);
 });
 
-test('default and active countries are protected from edit/delete', async () => {
+test('only the active trip country is protected; Japan is not a special locked default', async () => {
   const source = await readFile(new URL('../../src/client/app/account-settings.js', import.meta.url), 'utf8');
-  assert.match(source, /country === DEFAULT_COUNTRY/);
-  assert.match(source, /country === state\.activeCountry/);
+  const lockBody = source.match(/function countryLockedReason\(country\) \{([\s\S]*?)\n  \}/)?.[1] || '';
+  assert.doesNotMatch(lockBody, /DEFAULT_COUNTRY/);
+  assert.match(lockBody, /country === state\.activeCountry/);
   assert.match(source, /edit\.disabled = Boolean\(countryLockedReason\(country\)\)/);
   assert.match(source, /remove\.disabled = Boolean\(countryLockedReason\(country\)\)/);
+  assert.doesNotMatch(source, /country === DEFAULT_COUNTRY \? '預設'/);
 });
