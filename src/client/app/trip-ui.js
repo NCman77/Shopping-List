@@ -77,14 +77,14 @@ function installStyles() {
     #active-trip-selector {
       width: auto;
       max-width: 10.75rem;
-      min-height: 2.5rem;
-      padding: .35rem .6rem;
+      height: 2.5rem;
+      padding: .25rem .6rem;
       gap: .45rem;
       border-radius: 9999px;
     }
     #active-trip-selector > span:first-child {
-      width: 2rem;
-      height: 2rem;
+      width: 1.75rem;
+      height: 1.75rem;
     }
     #active-trip-title {
       font-size: .75rem;
