@@ -34,11 +34,13 @@ test('background accepts static JPEG, PNG, and WebP photos only', () => {
   assert.equal(backgroundKindForMime('image/gif'), 'image');
 });
 
-test('background load key changes only when the account or persisted file changes', () => {
-  assert.equal(backgroundLoadKey('user-a', { backgroundFileId: 'file-1' }), 'user-a:file-1');
-  assert.equal(backgroundLoadKey('user-a', { backgroundFileId: 'file-1', backgroundScale: 2 }), 'user-a:file-1');
-  assert.notEqual(backgroundLoadKey('user-a', { backgroundFileId: 'file-1' }), backgroundLoadKey('user-a', { backgroundFileId: 'file-2' }));
-  assert.notEqual(backgroundLoadKey('user-a', { backgroundFileId: 'file-1' }), backgroundLoadKey('user-b', { backgroundFileId: 'file-1' }));
+test('background load key changes when account, mode, color, or persisted media changes', () => {
+  const media = backgroundLoadKey('user-a', { mode: 'media', backgroundFileId: 'file-1' });
+  assert.equal(media, backgroundLoadKey('user-a', { mode: 'media', backgroundFileId: 'file-1', backgroundScale: 2 }));
+  assert.notEqual(media, backgroundLoadKey('user-a', { mode: 'media', backgroundFileId: 'file-2' }));
+  assert.notEqual(media, backgroundLoadKey('user-b', { mode: 'media', backgroundFileId: 'file-1' }));
+  assert.notEqual(media, backgroundLoadKey('user-a', { mode: 'color', color: '#FFFFFF', backgroundFileId: 'file-1' }));
+  assert.notEqual(backgroundLoadKey('user-a', { mode: 'color', color: '#FFFFFF' }), backgroundLoadKey('user-a', { mode: 'color', color: '#FCD5CE' }));
 });
 
 test('background editor provides per-photo framing controls without pan controls', async () => {
