@@ -72,11 +72,15 @@ function ensureModal() {
         <div id="account-country-view" class="hidden bg-white max-h-[68vh] overflow-y-auto">
           <div id="account-country-header" class="sticky top-0 z-10 bg-pastelBlue border-b-4 border-warmBrown px-5 py-4 flex items-center gap-3">
             <button id="account-country-back" type="button" class="w-9 h-9 rounded-full bg-white border-2 border-warmBrown text-warmBrown"><i class="fas fa-chevron-left"></i></button>
-            <div><h3 class="text-xl font-bold text-warmBrown">旅遊國家</h3><p class="text-[11px] text-warmBrown/60 font-bold mt-1">國家管理 · 新旅程建立時可從這裡的清單選擇</p></div>
+            <div><h3 class="text-xl font-bold text-warmBrown">旅遊國家</h3></div>
           </div>
           <div class="p-4">
             <div id="account-country-list" class="space-y-2"></div>
-            <div class="mt-5 pt-4 border-t-2 border-warmBrown/15">
+            <div id="account-country-actions" class="grid grid-cols-2 gap-2 mt-4 pt-4 border-t-2 border-warmBrown/10">
+              <button id="account-country-new" type="button" class="py-2.5 rounded-xl bg-pastelGreen border-2 border-warmBrown text-warmBrown text-sm font-bold">＋ 新增國家</button>
+              <button id="account-country-manage" type="button" class="py-2.5 rounded-xl bg-pastelBlue border-2 border-warmBrown text-warmBrown text-sm font-bold">管理旅遊國家</button>
+            </div>
+            <div id="account-country-editor" class="hidden mt-5 pt-4 border-t-2 border-warmBrown/15">
               <label id="account-country-input-label" for="account-country-input" class="block text-xs font-bold text-warmBrown mb-2">新增國家</label>
               <div class="flex gap-2">
                 <input id="account-country-input" type="text" autocomplete="off" class="flex-1 min-w-0 px-4 py-2.5 rounded-xl bg-shinBg border-2 border-warmBrown text-warmBrown font-bold outline-none" placeholder="例如：韓國、泰國、美國">
@@ -151,6 +155,8 @@ export async function initAccountSettings() {
   const countryView = document.getElementById('account-country-view');
   const mapsView = document.getElementById('account-maps-view');
   const countryList = document.getElementById('account-country-list');
+  const countryActions = document.getElementById('account-country-actions');
+  const countryEditor = document.getElementById('account-country-editor');
   const countryInput = document.getElementById('account-country-input');
 
   const accountMenuOrder = [
@@ -185,6 +191,8 @@ export async function initAccountSettings() {
     mapsApiKeys: { primary: '', backup: '' },
     mapsKeyGeneration: 0,
     editingCountry: '',
+    countryViewMode: 'picker',
+    countryEditorReturnMode: 'picker',
     settingsUnsub: null
   };
 
@@ -248,7 +256,10 @@ export async function initAccountSettings() {
     rootView.classList.add('hidden');
     mapsView.classList.add('hidden');
     countryView.classList.remove('hidden');
-    renderCountries();
+    state.editingCountry = '';
+    state.countryEditorReturnMode = 'picker';
+    countryInput.value = '';
+    setCountryViewMode('picker');
   }
   function showMapsView() {
     rootView.classList.add('hidden');
@@ -265,6 +276,13 @@ export async function initAccountSettings() {
     return '';
   }
 
+  function setCountryViewMode(mode) {
+    state.countryViewMode = mode;
+    countryActions.classList.toggle('hidden', mode !== 'picker');
+    countryEditor.classList.toggle('hidden', mode !== 'editor');
+    renderCountries();
+  }
+
   function syncCountryEditor() {
     const editing = Boolean(state.editingCountry);
     const label = document.getElementById('account-country-input-label');
@@ -279,14 +297,25 @@ export async function initAccountSettings() {
     state.editingCountry = '';
     countryInput.value = '';
     syncCountryEditor();
+    setCountryViewMode(state.countryEditorReturnMode || 'picker');
+  }
+
+  function beginCountryAdd() {
+    state.editingCountry = '';
+    state.countryEditorReturnMode = 'picker';
+    countryInput.value = '';
+    syncCountryEditor();
+    setCountryViewMode('editor');
   }
 
   function beginCountryEdit(country) {
     const reason = countryLockedReason(country);
     if (reason) return notify('目前不能編輯', reason, 'warning');
     state.editingCountry = country;
+    state.countryEditorReturnMode = 'manage';
     countryInput.value = country;
     syncCountryEditor();
+    setCountryViewMode('editor');
   }
 
   async function deleteCountry(country) {
@@ -322,23 +351,25 @@ export async function initAccountSettings() {
       note.className = 'text-[10px] opacity-50 shrink-0';
       note.textContent = country === state.activeCountry ? '目前旅程' : '可選';
 
-      const edit = document.createElement('button');
-      edit.type = 'button';
-      edit.className = 'w-8 h-8 shrink-0 rounded-full bg-white border-2 border-warmBrown text-warmBrown disabled:opacity-30';
-      edit.innerHTML = '<i class="fas fa-pen text-xs"></i>';
-      edit.setAttribute('aria-label', `編輯${country}`);
-      edit.title = countryLockedReason(country) || '編輯國家';
-      edit.addEventListener('click', () => beginCountryEdit(country));
+      row.append(icon, label, note);
+      if (state.countryViewMode === 'manage') {
+        const edit = document.createElement('button');
+        edit.type = 'button';
+        edit.className = 'w-8 h-8 shrink-0 rounded-full bg-white border-2 border-warmBrown text-warmBrown disabled:opacity-30';
+        edit.innerHTML = '<i class="fas fa-pen text-xs"></i>';
+        edit.setAttribute('aria-label', `編輯${country}`);
+        edit.title = countryLockedReason(country) || '編輯國家';
+        edit.addEventListener('click', () => beginCountryEdit(country));
 
-      const remove = document.createElement('button');
-      remove.type = 'button';
-      remove.className = 'w-8 h-8 shrink-0 rounded-full bg-white border-2 border-warmBrown text-red-500 disabled:opacity-30';
-      remove.innerHTML = '<i class="fas fa-trash text-xs"></i>';
-      remove.setAttribute('aria-label', `刪除${country}`);
-      remove.title = countryLockedReason(country) || '刪除國家';
-      remove.addEventListener('click', () => void deleteCountry(country));
-
-      row.append(icon, label, note, edit, remove);
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'w-8 h-8 shrink-0 rounded-full bg-white border-2 border-warmBrown text-red-500 disabled:opacity-30';
+        remove.innerHTML = '<i class="fas fa-trash text-xs"></i>';
+        remove.setAttribute('aria-label', `刪除${country}`);
+        remove.title = countryLockedReason(country) || '刪除國家';
+        remove.addEventListener('click', () => void deleteCountry(country));
+        row.append(edit, remove);
+      }
       countryList.appendChild(row);
     }
     syncCountryEditor();
@@ -441,7 +472,19 @@ export async function initAccountSettings() {
   document.getElementById('close-account-settings').addEventListener('click', closeModal);
   modal.addEventListener('click', (event) => { if (event.target === modal) closeModal(); });
   document.getElementById('account-open-countries').addEventListener('click', showCountryView);
-  document.getElementById('account-country-back').addEventListener('click', showRootView);
+  document.getElementById('account-country-back').addEventListener('click', () => {
+    if (state.countryViewMode !== 'picker') {
+      state.editingCountry = '';
+      state.countryEditorReturnMode = 'picker';
+      countryInput.value = '';
+      syncCountryEditor();
+      setCountryViewMode('picker');
+      return;
+    }
+    showRootView();
+  });
+  document.getElementById('account-country-new').addEventListener('click', beginCountryAdd);
+  document.getElementById('account-country-manage').addEventListener('click', () => setCountryViewMode('manage'));
   document.getElementById('account-country-add').addEventListener('click', addCountry);
   document.getElementById('account-country-cancel').addEventListener('click', cancelCountryEdit);
   countryInput.addEventListener('keydown', (event) => {
