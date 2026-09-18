@@ -49,12 +49,14 @@ test('homepage exposes an always-visible active trip selector and empty onboardi
 
 
 
-test('homepage trip selector is mounted in the header top-left instead of above the filters', async () => {
+test('homepage trip selector lives in the 52px header toolbar and uses a glass pill', async () => {
   const source = await readFile(sourcePath, 'utf8');
-  assert.match(source, /querySelector\(['"]header['"]\)/);
-  assert.match(source, /header\.appendChild\(shell\)/);
-  assert.match(source, /#active-trip-shell\s*\{[^}]*position:\s*absolute[^}]*top:\s*1rem[^}]*left:\s*1rem/s);
-  assert.doesNotMatch(source, /statusFilters\.parentElement\?\.insertBefore\(shell, statusFilters\)/);
+  assert.match(source, /getElementById\(['"]header-toolbar['"]\)/);
+  assert.match(source, /toolbar\.prepend\(shell\)/);
+  assert.doesNotMatch(source, /#active-trip-shell\s*\{[^}]*position:\s*absolute/s);
+  assert.match(source, /backdrop-blur-md/);
+  assert.match(source, /bg-white\/60/);
+  assert.doesNotMatch(source, /bg-\[#F5E6D3\]/);
 });
 
 test('top-left trip selector uses the same 2.5rem outer height as the account avatar', async () => {
@@ -65,11 +67,11 @@ test('top-left trip selector uses the same 2.5rem outer height as the account av
   assert.doesNotMatch(tripSource, /#active-trip-selector\s*\{[^}]*min-height:\s*2\.5rem/s);
 });
 
-test('top-left trip selector uses an airplane icon and macaron beige background', async () => {
+test('top-left trip selector keeps the airplane icon inside the glass control', async () => {
   const source = await readFile(sourcePath, 'utf8');
   assert.match(source, /fa-plane/);
   assert.doesNotMatch(source, /fa-suitcase-rolling/);
-  assert.match(source, /bg-\[#F5E6D3\]/);
+  assert.match(source, /bg-white\/60/);
 });
 
 test('first-trip onboarding makes the trip form modal visible', async () => {

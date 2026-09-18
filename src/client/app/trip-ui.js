@@ -67,12 +67,10 @@ function installStyles() {
   style.id = 'trip-ui-styles';
   style.textContent = `
     #active-trip-shell {
-      position: absolute;
-      top: 1rem;
-      left: 1rem;
       margin: 0;
       z-index: 30;
       max-width: 10.75rem;
+      min-width: 0;
     }
     #active-trip-selector {
       width: auto;
@@ -100,17 +98,17 @@ function installStyles() {
 function ensureHomepageSelector(statusFilters) {
   let shell = document.getElementById('active-trip-shell');
   if (shell) return shell;
-  const header = document.querySelector('header');
-  if (!header) return null;
+  const toolbar = document.getElementById('header-toolbar');
+  if (!toolbar) return null;
   shell = document.createElement('div');
   shell.id = 'active-trip-shell';
   shell.innerHTML = `
-    <button id="active-trip-selector" type="button" class="flex items-center text-left bg-[#F5E6D3] border-2 border-warmBrown text-warmBrown shadow-[2px_2px_0_rgba(92,64,51,.16)]">
+    <button id="active-trip-selector" type="button" class="flex items-center text-left bg-white/60 backdrop-blur-md border border-white/70 text-warmBrown shadow-[0_2px_10px_rgba(0,0,0,.12)]">
       <span class="shrink-0 rounded-full bg-pastelBlue border-2 border-warmBrown flex items-center justify-center"><i class="fas fa-plane text-xs"></i></span>
       <span class="flex-1 min-w-0"><span id="active-trip-title" class="block font-bold truncate">新增第一趟旅程</span><span id="active-trip-dates" class="block text-xs opacity-60 mt-0.5">建立獨立購物清單</span></span>
       <i class="fas fa-chevron-down text-[10px] shrink-0"></i>
     </button>`;
-  header.appendChild(shell);
+  toolbar.prepend(shell);
   return shell;
 }
 

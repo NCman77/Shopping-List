@@ -1,5 +1,5 @@
 import { createDrivePhotoService, DriveAuthorizationError } from '../photos/drive-photo-service.js';
-import { normalizePersonalization, positionPreset, buildPanStyle } from './personalization-preferences.js';
+import { normalizePersonalization, positionPreset } from './personalization-preferences.js';
 import { createSessionOperationTracker } from './session-operation.js';
 import {
   createBackgroundSlideshowController,
@@ -208,10 +208,6 @@ function installStyles() {
       position: absolute;
       inset: -6%;
       overflow: hidden;
-      animation-duration: 14s;
-      animation-timing-function: ease-in-out;
-      animation-fill-mode: both;
-      animation-direction: alternate;
     }
     #shopping-background-layer .shopping-background-media {
       width: 100%;
@@ -219,14 +215,6 @@ function installStyles() {
       object-fit: cover;
       display: block;
       will-change: transform;
-    }
-    @keyframes shopping-bg-pan-left {
-      from { transform: translateX(3%); }
-      to { transform: translateX(-3%); }
-    }
-    @keyframes shopping-bg-pan-right {
-      from { transform: translateX(-3%); }
-      to { transform: translateX(3%); }
     }
     #background-preview-viewport {
       touch-action: none;
@@ -294,6 +282,8 @@ function ensureEditor() {
             <button id="background-remove" type="button" class="px-3 py-2.5 rounded-xl bg-pastelPink border-2 border-warmBrown text-warmBrown font-bold">移除</button>
           </div>
           <p id="background-file-name" class="text-[11px] text-gray-400 font-bold truncate"></p>
+          <div id="background-thumbnails" class="flex gap-2 overflow-x-auto pb-1"></div>
+          <button id="background-delete-current" type="button" class="w-full py-2 rounded-xl bg-white border-2 border-warmBrown text-warmBrown text-sm font-bold">刪除目前這張</button>
 
           <div>
             <div class="flex justify-between items-center mb-2">
@@ -322,23 +312,6 @@ function ensureEditor() {
             </div>
           </div>
 
-          <div class="rounded-2xl bg-shinBg border-2 border-warmBrown p-3 space-y-3">
-            <label class="flex items-center justify-between gap-3 text-sm font-bold text-warmBrown">
-              <span>連播</span><input id="background-pan-enabled" type="checkbox" class="w-5 h-5 accent-[#5C4033]">
-            </label>
-            <div class="grid grid-cols-2 gap-2">
-              <label class="text-xs font-bold text-warmBrown">方向
-                <select id="background-pan-direction" class="mt-1 w-full px-3 py-2 rounded-xl bg-white border-2 border-warmBrown">
-                  <option value="left">往左連播</option><option value="right">往右連播</option>
-                </select>
-              </label>
-              <label class="text-xs font-bold text-warmBrown">次數
-                <select id="background-pan-iteration" class="mt-1 w-full px-3 py-2 rounded-xl bg-white border-2 border-warmBrown">
-                  <option value="once">1 次</option><option value="infinite">無限</option>
-                </select>
-              </label>
-            </div>
-          </div>
         </div>
         <div class="p-4 border-t-2 border-warmBrown/20 bg-shinBg flex gap-3 shrink-0">
           <button id="cancel-background-personalization" type="button" class="flex-1 py-2.5 rounded-xl bg-white border-2 border-warmBrown text-warmBrown font-bold">取消</button>
@@ -361,7 +334,7 @@ function createMediaElement(kind, url, preferences, id = '') {
     media.muted = true;
     media.playsInline = true;
     media.autoplay = true;
-    media.loop = preferences.panIteration === 'infinite';
+    media.loop = true;
   }
   return media;
 }
@@ -392,9 +365,6 @@ export async function initBackgroundPersonalization() {
   const input = document.getElementById('background-file-input');
   const scaleInput = document.getElementById('background-scale');
   const rotationInput = document.getElementById('background-rotation-interval');
-  const panEnabledInput = document.getElementById('background-pan-enabled');
-  const panDirectionInput = document.getElementById('background-pan-direction');
-  const panIterationInput = document.getElementById('background-pan-iteration');
   const driveNote = document.getElementById('background-drive-note');
   const saveButton = document.getElementById('save-background-personalization');
 
@@ -409,6 +379,7 @@ export async function initBackgroundPersonalization() {
     loadedBackgroundKey: '',
     loadingBackgroundKeys: new Set(),
     settingsUnsub: null,
+    activeEditorIndex: 0,
     drag: null
   };
 
@@ -431,7 +402,7 @@ export async function initBackgroundPersonalization() {
     render: (item) => {
       wrap.replaceChildren();
       const kind = backgroundKindForMime(item.mimeType);
-      const media = createMediaElement(kind, item.objectUrl, slideshowPreferences);
+      const media = createMediaElement(kind, item.objectUrl, { ...slideshowPreferences, ...item });
       wrap.appendChild(media);
       if (kind === 'video') media.play().catch(() => {});
     }
@@ -462,12 +433,12 @@ export async function initBackgroundPersonalization() {
       return;
     }
     slideshowPreferences = normalized;
-    const pan = buildPanStyle(normalized);
-    wrap.style.animationName = pan.animationName;
-    wrap.style.animationIterationCount = pan.animationIterationCount;
-    wrap.style.animationPlayState = normalized.panEnabled ? 'running' : 'paused';
+    const framedItems = items.map((item) => ({
+      ...item,
+      ...(normalized.backgroundFiles.find((file) => file.fileId === item.fileId) || {})
+    }));
     layer.classList.remove('hidden');
-    slideshow.start(items, normalized);
+    slideshow.start(framedItems, normalized);
   }
 
   async function loadPersistedBackground({ force = false } = {}) {
@@ -534,43 +505,115 @@ export async function initBackgroundPersonalization() {
     return token;
   }
 
+  function editorFiles() {
+    return state.editorPreferences.backgroundFiles;
+  }
+
+  function activeEditorFile() {
+    const files = editorFiles();
+    if (!files.length) return null;
+    state.activeEditorIndex = clamp(state.activeEditorIndex, 0, files.length - 1);
+    return files[state.activeEditorIndex];
+  }
+
+  function previewUrlAt(index) {
+    if (state.pendingFiles.length) return state.previewObjectUrls[index] || '';
+    const file = editorFiles()[index];
+    if (!file) return '';
+    return state.loadedItems.find((item) => item.fileId === file.fileId)?.objectUrl || '';
+  }
+
   function currentPreviewUrl() {
-    if (state.previewObjectUrls[0]) return state.previewObjectUrls[0];
-    return state.loadedItems[0]?.objectUrl || '';
+    return previewUrlAt(state.activeEditorIndex);
   }
 
   function currentPreviewMime() {
-    return state.pendingFiles[0]?.type || state.editorPreferences.backgroundFiles[0]?.mimeType || '';
+    if (state.pendingFiles.length) return state.pendingFiles[state.activeEditorIndex]?.type || '';
+    return activeEditorFile()?.mimeType || '';
+  }
+
+  function setEditorFiles(files) {
+    const cleanFiles = Array.isArray(files) ? files : [];
+    state.editorPreferences = normalizePersonalization({
+      ...state.editorPreferences,
+      backgroundFiles: cleanFiles,
+      backgroundFileId: cleanFiles[0]?.fileId || '',
+      backgroundFileName: cleanFiles[0]?.fileName || '',
+      backgroundMimeType: cleanFiles[0]?.mimeType || ''
+    });
+    state.activeEditorIndex = cleanFiles.length ? clamp(state.activeEditorIndex, 0, cleanFiles.length - 1) : 0;
+    state.removeRequested = cleanFiles.length === 0;
+  }
+
+  function updateActiveFrame(patch) {
+    const files = editorFiles();
+    if (!files.length) return;
+    const index = state.activeEditorIndex;
+    const nextFiles = files.map((file, fileIndex) => fileIndex === index ? { ...file, ...patch } : file);
+    setEditorFiles(nextFiles);
+  }
+
+  function renderThumbnails() {
+    const root = document.getElementById('background-thumbnails');
+    root.replaceChildren();
+    editorFiles().forEach((file, index) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.setAttribute('data-background-index', String(index));
+      button.className = `relative w-16 h-16 shrink-0 overflow-hidden rounded-xl border-2 ${index === state.activeEditorIndex ? 'border-warmBrown ring-2 ring-pastelYellow' : 'border-warmBrown/30'} bg-shinBg`;
+      const url = previewUrlAt(index);
+      if (url && backgroundKindForMime(file.mimeType) === 'image') {
+        const image = document.createElement('img');
+        image.src = url;
+        image.alt = file.fileName || `背景 ${index + 1}`;
+        image.className = 'w-full h-full object-cover';
+        button.appendChild(image);
+      } else {
+        const label = document.createElement('span');
+        label.className = 'absolute inset-0 flex items-center justify-center text-xs font-bold text-warmBrown';
+        label.innerHTML = backgroundKindForMime(file.mimeType) === 'video'
+          ? '<i class="fas fa-video"></i>'
+          : String(index + 1);
+        button.appendChild(label);
+      }
+      button.addEventListener('click', () => {
+        state.activeEditorIndex = index;
+        renderEditorPreview();
+      });
+      root.appendChild(button);
+    });
   }
 
   function renderEditorPreview() {
     preview.querySelector('#background-preview-media')?.remove();
     const empty = document.getElementById('background-preview-empty');
+    const file = activeEditorFile();
     const url = state.removeRequested ? '' : currentPreviewUrl();
-    if (!url) {
+    if (!url || !file) {
       empty.classList.remove('hidden');
     } else {
       empty.classList.add('hidden');
       const kind = backgroundKindForMime(currentPreviewMime());
-      const media = createMediaElement(kind, url, state.editorPreferences, 'background-preview-media');
+      const media = createMediaElement(kind, url, file, 'background-preview-media');
       preview.appendChild(media);
       if (kind === 'video') media.play().catch(() => {});
     }
-    const selectedCount = state.pendingFiles.length || state.editorPreferences.backgroundFiles.length;
+
+    const selectedCount = editorFiles().length;
     document.getElementById('background-file-name').textContent = state.removeRequested
       ? '將移除目前背景'
-      : (selectedCount ? `已設定 ${selectedCount} 個背景檔案` : '');
-    scaleInput.value = String(state.editorPreferences.scale);
+      : (selectedCount ? `已設定 ${selectedCount} 個背景檔案，目前第 ${state.activeEditorIndex + 1} 張` : '');
+    scaleInput.value = String(file?.scale ?? 1);
     rotationInput.value = String(state.editorPreferences.rotationIntervalSeconds);
-    document.getElementById('background-scale-value').textContent = `${Math.round(state.editorPreferences.scale * 100)}%`;
-    panEnabledInput.checked = state.editorPreferences.panEnabled;
-    panDirectionInput.value = state.editorPreferences.panDirection;
-    panIterationInput.value = state.editorPreferences.panIteration;
+    document.getElementById('background-scale-value').textContent = `${Math.round((file?.scale ?? 1) * 100)}%`;
+    document.getElementById('background-delete-current').disabled = !selectedCount;
+    renderThumbnails();
   }
 
   function openEditor() {
     state.editorPreferences = normalizePersonalization(state.preferences);
     state.pendingFiles = [];
+    state.activeEditorIndex = 0;
     state.removeRequested = false;
     revokePreviewObjectUrls();
     const activeDrive = driveServiceForUser(state.userId);
@@ -583,6 +626,7 @@ export async function initBackgroundPersonalization() {
   function closeEditor() {
     revokePreviewObjectUrls();
     state.pendingFiles = [];
+    state.activeEditorIndex = 0;
     state.removeRequested = false;
     modal.classList.add('hidden');
     modal.classList.remove('flex');
@@ -602,29 +646,48 @@ export async function initBackgroundPersonalization() {
     }
     revokePreviewObjectUrls();
     state.pendingFiles = files;
-    state.removeRequested = false;
     state.previewObjectUrls = files.map((file) => URL.createObjectURL(file));
+    state.activeEditorIndex = 0;
+    setEditorFiles(files.map((file, index) => ({
+      fileId: `pending:${index}`,
+      fileName: file.name || `背景 ${index + 1}`,
+      mimeType: file.type || '',
+      positionX: 50,
+      positionY: 50,
+      scale: 1
+    })));
+    state.removeRequested = false;
     renderEditorPreview();
   });
 
   document.getElementById('background-remove').addEventListener('click', () => {
     revokePreviewObjectUrls();
     state.pendingFiles = [];
-    state.removeRequested = true;
-    state.editorPreferences = normalizePersonalization({
-      ...state.editorPreferences,
-      backgroundFiles: [],
-      backgroundFileId: '',
-      backgroundFileName: '',
-      backgroundMimeType: ''
-    });
+    state.activeEditorIndex = 0;
+    setEditorFiles([]);
+    renderEditorPreview();
+  });
+
+  document.getElementById('background-delete-current').addEventListener('click', () => {
+    const files = editorFiles();
+    if (!files.length) return;
+    const index = state.activeEditorIndex;
+    if (state.pendingFiles.length) {
+      const removedUrl = state.previewObjectUrls[index];
+      if (removedUrl) URL.revokeObjectURL(removedUrl);
+      state.pendingFiles.splice(index, 1);
+      state.previewObjectUrls.splice(index, 1);
+    }
+    const nextFiles = files.filter((_, fileIndex) => fileIndex !== index);
+    setEditorFiles(nextFiles);
     renderEditorPreview();
   });
 
   scaleInput.addEventListener('input', () => {
-    state.editorPreferences = normalizePersonalization({ ...state.editorPreferences, scale: scaleInput.value });
+    updateActiveFrame({ scale: scaleInput.value });
     renderEditorPreview();
   });
+
   rotationInput.addEventListener('input', () => {
     state.editorPreferences = normalizePersonalization({
       ...state.editorPreferences,
@@ -635,50 +698,39 @@ export async function initBackgroundPersonalization() {
 
   for (const button of document.querySelectorAll('[data-position-preset]')) {
     button.addEventListener('click', () => {
-      state.editorPreferences = normalizePersonalization({
-        ...state.editorPreferences,
-        ...positionPreset(button.dataset.positionPreset)
-      });
+      updateActiveFrame(positionPreset(button.dataset.positionPreset));
       renderEditorPreview();
     });
   }
 
-  panEnabledInput.addEventListener('change', () => {
-    state.editorPreferences = normalizePersonalization({ ...state.editorPreferences, panEnabled: panEnabledInput.checked });
-  });
-  panDirectionInput.addEventListener('change', () => {
-    state.editorPreferences = normalizePersonalization({ ...state.editorPreferences, panDirection: panDirectionInput.value });
-  });
-  panIterationInput.addEventListener('change', () => {
-    state.editorPreferences = normalizePersonalization({ ...state.editorPreferences, panIteration: panIterationInput.value });
-  });
-
   preview.addEventListener('pointerdown', (event) => {
-    if (!currentPreviewUrl() || state.removeRequested) return;
+    const file = activeEditorFile();
+    if (!currentPreviewUrl() || !file || state.removeRequested) return;
     preview.setPointerCapture?.(event.pointerId);
     preview.classList.add('dragging');
     state.drag = {
       pointerId: event.pointerId,
       x: event.clientX,
       y: event.clientY,
-      positionX: state.editorPreferences.positionX,
-      positionY: state.editorPreferences.positionY
+      positionX: file.positionX,
+      positionY: file.positionY
     };
     event.preventDefault();
   });
+
   preview.addEventListener('pointermove', (event) => {
     if (!state.drag || state.drag.pointerId !== event.pointerId) return;
     const rect = preview.getBoundingClientRect();
     const dx = ((event.clientX - state.drag.x) / Math.max(rect.width, 1)) * 100;
     const dy = ((event.clientY - state.drag.y) / Math.max(rect.height, 1)) * 100;
-    state.editorPreferences = normalizePersonalization({
-      ...state.editorPreferences,
+    updateActiveFrame({
       positionX: clamp(state.drag.positionX + dx, 0, 100),
       positionY: clamp(state.drag.positionY + dy, 0, 100)
     });
     renderEditorPreview();
     event.preventDefault();
   });
+
   const finishDrag = (event) => {
     if (!state.drag || state.drag.pointerId !== event.pointerId) return;
     preview.releasePointerCapture?.(event.pointerId);

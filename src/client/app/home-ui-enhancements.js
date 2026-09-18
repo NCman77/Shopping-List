@@ -40,16 +40,20 @@ function installStyles() {
       #add-item-btn { right: 1.5rem !important; }
     }
     #user-panel {
-      position: absolute !important;
-      top: 1rem !important;
-      right: 1rem !important;
+      position: relative !important;
+      width: 2.5rem !important;
+      height: 2.5rem !important;
       margin: 0 !important;
       padding: 0 !important;
-      border: 0 !important;
-      background: transparent !important;
-      box-shadow: none !important;
+      border: 1px solid rgba(255,255,255,.72) !important;
+      border-radius: 9999px !important;
+      background: rgba(255,255,255,.60) !important;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      box-shadow: 0 2px 10px rgba(0,0,0,.12) !important;
       max-width: none !important;
       gap: 0 !important;
+      overflow: hidden;
       cursor: pointer;
     }
     #user-panel #user-name,
