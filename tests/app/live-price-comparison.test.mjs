@@ -55,7 +55,7 @@ test('live calculator is wired to pure calculator country rules and active trip 
 
 test('FX conversion stays on demand without rendering the provider attribution label', async () => {
   const text = await source();
-  assert.match(text, /fetchExchangeRate/);
+  assert.match(text, /fetchRateToTwd/);
   assert.doesNotMatch(text, /匯率來源：Rates By Exchange Rate API/);
   assert.doesNotMatch(text, /exchange-rate-attribution/);
 });
