@@ -33,3 +33,11 @@ test('background UI no longer describes normal backgrounds as stored in Google D
     assert.doesNotMatch(source, /小卡背景仍儲存在 Google Drive/);
   }
 });
+
+
+test('all three personalization modules retry queued Firebase Storage cleanup after login', async () => {
+  for (const path of files) {
+    const source = await readFile(new URL(path, import.meta.url), 'utf8');
+    assert.match(source, /mediaServiceForUser\([^)]*\)\.retryQueuedCleanup\(\)/);
+  }
+});
