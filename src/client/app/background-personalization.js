@@ -402,10 +402,10 @@ export async function initBackgroundPersonalization() {
     userId: '',
     preferences: normalizePersonalization(),
     editorPreferences: normalizePersonalization(),
-    pendingFile: null,
+    pendingFiles: [],
     removeRequested: false,
-    objectUrl: '',
-    previewObjectUrl: '',
+    loadedItems: [],
+    previewObjectUrls: [],
     loadedBackgroundKey: '',
     loadingBackgroundKeys: new Set(),
     settingsUnsub: null,
@@ -424,40 +424,57 @@ export async function initBackgroundPersonalization() {
     return doc(db, 'artifacts', APP_ID, 'users', userId, 'settings', 'preferences');
   }
 
-  function revokeObjectUrl(key) {
-    if (state[key]) URL.revokeObjectURL(state[key]);
-    state[key] = '';
+  const wrap = layer.querySelector('.shopping-background-pan-wrap');
+  let slideshowPreferences = normalizePersonalization();
+
+  const slideshow = createBackgroundSlideshowController({
+    render: (item) => {
+      wrap.replaceChildren();
+      const kind = backgroundKindForMime(item.mimeType);
+      const media = createMediaElement(kind, item.objectUrl, slideshowPreferences);
+      wrap.appendChild(media);
+      if (kind === 'video') media.play().catch(() => {});
+    }
+  });
+
+  function revokeLoadedItems() {
+    for (const item of state.loadedItems) {
+      if (item?.objectUrl) URL.revokeObjectURL(item.objectUrl);
+    }
+    state.loadedItems = [];
+  }
+
+  function revokePreviewObjectUrls() {
+    for (const url of state.previewObjectUrls) URL.revokeObjectURL(url);
+    state.previewObjectUrls = [];
   }
 
   function hideLayer() {
+    slideshow.stop();
     layer.classList.add('hidden');
-    layer.querySelector('.shopping-background-pan-wrap').replaceChildren();
+    wrap.replaceChildren();
   }
 
-  function applyLayer(url, preferences) {
+  function applyPlaylist(items, preferences) {
     const normalized = normalizePersonalization(preferences);
-    const wrap = layer.querySelector('.shopping-background-pan-wrap');
-    wrap.replaceChildren();
-    if (!url || !normalized.backgroundFileId) {
+    if (!items.length) {
       hideLayer();
       return;
     }
-    const kind = backgroundKindForMime(normalized.backgroundMimeType);
-    const media = createMediaElement(kind, url, normalized);
-    wrap.appendChild(media);
+    slideshowPreferences = normalized;
     const pan = buildPanStyle(normalized);
     wrap.style.animationName = pan.animationName;
     wrap.style.animationIterationCount = pan.animationIterationCount;
     wrap.style.animationPlayState = normalized.panEnabled ? 'running' : 'paused';
     layer.classList.remove('hidden');
-    if (kind === 'video') media.play().catch(() => {});
+    slideshow.start(items, normalized);
   }
 
   async function loadPersistedBackground({ force = false } = {}) {
     const capturedUserId = state.userId;
     const loadKey = backgroundLoadKey(capturedUserId, state.preferences);
     if (!force && loadKey === state.loadedBackgroundKey) {
-      if (state.objectUrl) applyLayer(state.objectUrl, state.preferences);
+      if (state.loadedItems.length) applyPlaylist(state.loadedItems, state.preferences);
       return Object.freeze({ status: 'skipped', loadKey });
     }
     if (state.loadingBackgroundKeys.has(loadKey)) {
@@ -465,7 +482,7 @@ export async function initBackgroundPersonalization() {
     }
     state.loadingBackgroundKeys.add(loadKey);
     try {
-      const result = await runBackgroundDownload({
+      const result = await runBackgroundPlaylistDownload({
         tracker,
         userId: capturedUserId,
         preferences: state.preferences,
@@ -473,14 +490,14 @@ export async function initBackgroundPersonalization() {
         createObjectUrl: (blob) => URL.createObjectURL(blob),
         revokeObjectUrl: (url) => URL.revokeObjectURL(url),
         clearBackground: () => {
-          revokeObjectUrl('objectUrl');
+          revokeLoadedItems();
           hideLayer();
         },
         hideBackground: hideLayer,
-        applyBackground: (objectUrl, preferences) => {
-          revokeObjectUrl('objectUrl');
-          state.objectUrl = objectUrl;
-          applyLayer(objectUrl, preferences);
+        applyBackgrounds: (items, preferences) => {
+          revokeLoadedItems();
+          state.loadedItems = items;
+          applyPlaylist(items, preferences);
         },
         onError: (error) => {
           if (!(error instanceof DriveAuthorizationError)) console.error('Background download failed:', error);
