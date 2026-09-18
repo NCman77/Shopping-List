@@ -9,7 +9,7 @@ import {
   runBackgroundPlaylistDownload,
   runBackgroundPlaylistSaveTransaction
 } from './background-playlist.js';
-import { normalizePersonalization, positionPreset } from './personalization-preferences.js';
+import { normalizePersonalization, positionPreset, normalizeRotationIntervalDraft } from './personalization-preferences.js';
 import { createSessionOperationTracker } from './session-operation.js';
 
 const APP_ID = 'japan-shopping-app';
@@ -541,11 +541,24 @@ export async function initHeaderBackgroundPersonalization() {
   });
 
   rotationInput.addEventListener('input', () => {
+    const nextInterval = normalizeRotationIntervalDraft(rotationInput.value);
+    if (nextInterval === null) return;
     state.editorPreferences = normalizePersonalization({
       ...state.editorPreferences,
-      rotationIntervalSeconds: rotationInput.value
+      rotationIntervalSeconds: nextInterval
     });
-    renderEditorPreview();
+  });
+  rotationInput.addEventListener('blur', () => {
+    const nextInterval = normalizeRotationIntervalDraft(rotationInput.value);
+    if (nextInterval === null) {
+      rotationInput.value = String(state.editorPreferences.rotationIntervalSeconds);
+      return;
+    }
+    state.editorPreferences = normalizePersonalization({
+      ...state.editorPreferences,
+      rotationIntervalSeconds: nextInterval
+    });
+    rotationInput.value = String(state.editorPreferences.rotationIntervalSeconds);
   });
 
   for (const button of document.querySelectorAll('[data-header-position-preset]')) {
