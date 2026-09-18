@@ -88,12 +88,20 @@ test('travel country management exposes edit and delete controls without rewriti
   assert.doesNotMatch(source, /collection\(db, ['"]artifacts['"], APP_ID, ['"]users['"], .*?['"]trips['"]\)/s);
 });
 
-test('only the active trip country is protected; Japan is not a special locked default', async () => {
+test('active trip country stays protected but edit and delete remain clickable so the warning can be shown', async () => {
   const source = await readFile(new URL('../../src/client/app/account-settings.js', import.meta.url), 'utf8');
   const lockBody = source.match(/function countryLockedReason\(country\) \{([\s\S]*?)\n  \}/)?.[1] || '';
   assert.doesNotMatch(lockBody, /DEFAULT_COUNTRY/);
   assert.match(lockBody, /country === state\.activeCountry/);
-  assert.match(source, /edit\.disabled = Boolean\(countryLockedReason\(country\)\)/);
-  assert.match(source, /remove\.disabled = Boolean\(countryLockedReason\(country\)\)/);
+  assert.doesNotMatch(source, /edit\.disabled = Boolean\(countryLockedReason\(country\)\)/);
+  assert.doesNotMatch(source, /remove\.disabled = Boolean\(countryLockedReason\(country\)\)/);
+  assert.match(source, /notify\('目前不能編輯', reason, 'warning'\)/);
+  assert.match(source, /notify\('目前不能刪除', reason, 'warning'\)/);
   assert.doesNotMatch(source, /country === DEFAULT_COUNTRY \? '預設'/);
+});
+
+test('account settings can be reopened by child settings pages', async () => {
+  const source = await readFile(new URL('../../src/client/app/account-settings.js', import.meta.url), 'utf8');
+  assert.match(source, /shopping-list:open-account-settings/);
+  assert.match(source, /addEventListener\('shopping-list:open-account-settings',[\s\S]*openModal\(\)/);
 });
