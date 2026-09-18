@@ -34,9 +34,11 @@ jobs:
         run: |
           APP_FILE="src/client/app/app-enhancements.js"
           DRIVE_FILE="src/client/photos/drive-photo-service.js"
+          DRIVE_AUTH_FILE="src/client/auth/google-drive-signin.js"
           grep -q "item-website" "$APP_FILE"
           grep -q "觀看介紹" "$APP_FILE"
-          grep -q "drive.appdata" "$APP_FILE"
+          grep -q "configureGoogleProviderForDrive" "$APP_FILE"
+          grep -q "drive.appdata" "$DRIVE_AUTH_FILE"
           grep -q "itemPhotos" "$APP_FILE"
           grep -q "appDataFolder" "$DRIVE_FILE"
       - name: Firestore schema guard
