@@ -161,9 +161,9 @@ function ensureModal() {
   modal.className = 'fixed inset-0 z-[96] hidden bg-warmBrown/50 backdrop-blur-sm px-4 items-center justify-center';
   modal.innerHTML = `
     <div class="w-full max-w-md max-h-[88vh] overflow-hidden bg-shinBg border-4 border-warmBrown rounded-[2rem] shadow-[8px_8px_0_rgba(92,64,51,.28)]">
-      <div class="bg-pastelGreen border-b-4 border-warmBrown px-5 py-4 flex items-center justify-between">
+      <div id="trip-modal-header" class="bg-pastelBlue border-b-4 border-warmBrown px-5 py-4 flex items-center justify-between">
         <button id="trip-modal-back" type="button" class="hidden w-9 h-9 rounded-full bg-white border-2 border-warmBrown text-warmBrown"><i class="fas fa-chevron-left"></i></button>
-        <div class="flex-1 px-3"><h2 id="trip-modal-title" class="text-lg font-bold text-warmBrown">選擇旅程</h2><p id="trip-modal-subtitle" class="text-[11px] text-warmBrown/60 font-bold mt-0.5"></p></div>
+        <div class="flex-1 px-3"><h2 id="trip-modal-title" class="text-xl font-bold text-warmBrown">選擇旅程</h2><p id="trip-modal-subtitle" class="text-[11px] text-warmBrown/60 font-bold mt-1"></p></div>
         <button id="trip-modal-close" type="button" class="w-9 h-9 rounded-full bg-white border-2 border-warmBrown text-warmBrown"><i class="fas fa-times"></i></button>
       </div>
       <div id="trip-picker-view" class="p-4 bg-white overflow-y-auto max-h-[70vh]"></div>
@@ -295,6 +295,9 @@ export async function initTripUi() {
   function makeTripRow(trip, { manage = false } = {}) {
     const row = document.createElement('div');
     row.className = 'trip-picker-row flex items-center gap-2 p-3 rounded-2xl border-2 border-warmBrown bg-shinBg';
+    const icon = document.createElement('span');
+    icon.className = 'trip-row-icon w-9 h-9 shrink-0 rounded-full bg-white border-2 border-warmBrown flex items-center justify-center text-warmBrown';
+    icon.innerHTML = '<i class="fas fa-plane text-xs"></i>';
     const select = document.createElement('button');
     select.type = 'button';
     select.className = 'flex-1 text-left min-w-0';
@@ -310,7 +313,7 @@ export async function initTripUi() {
         notify('切換失敗', '無法切換這趟旅程，請稍後再試。');
       }
     });
-    row.appendChild(select);
+    row.append(icon, select);
 
     if (manage && trip.kind !== 'legacy') {
       const edit = document.createElement('button');
