@@ -142,3 +142,28 @@ test('ended trips remain below ongoing and upcoming trips and are date-sorted ne
   assert.deepEqual(groups.upcoming.map((trip) => trip.id), ['future-soon', 'future-late']);
   assert.deepEqual(groups.past.map((trip) => trip.id), ['past-new', 'past-old']);
 });
+
+
+test('account travel records opens the trip picker before management', async () => {
+  const source = await readFile(sourcePath, 'utf8');
+  const entryIndex = source.indexOf("accountEntry.addEventListener('click'");
+  const closeIndex = source.indexOf("document.getElementById('trip-modal-close')", entryIndex);
+  assert.ok(entryIndex >= 0 && closeIndex > entryIndex);
+  const slice = source.slice(entryIndex, closeIndex);
+  assert.match(slice, /openModal\('picker'\)/);
+  assert.doesNotMatch(slice, /openModal\('manage'\)/);
+  assert.match(source, /manage\.addEventListener\('click', \(\) => \{ setView\('manage'\); renderManage\(\); \}\)/);
+});
+
+test('trip form returns to the view it came from instead of forcing management', async () => {
+  const source = await readFile(sourcePath, 'utf8');
+  assert.match(source, /formReturnView:\s*'picker'/);
+  assert.match(source, /const returnView = state\.view === 'manage' \? 'manage' : 'picker'/);
+  assert.match(source, /setView\(state\.formReturnView\)/);
+  assert.doesNotMatch(source, /if \(state\.view === 'form'\) \{ setView\('manage'\); renderManage\(\); \}/);
+});
+
+test('trip picker cards have visible vertical spacing', async () => {
+  const source = await readFile(sourcePath, 'utf8');
+  assert.match(source, /#trip-picker-view \.trip-picker-row \{ margin-bottom: \.55rem; \}/);
+});
