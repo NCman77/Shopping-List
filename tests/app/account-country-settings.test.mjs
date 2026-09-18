@@ -136,7 +136,7 @@ test('travel country header matches personalization header styling and country r
   const source = await readFile(new URL('../../src/client/app/account-settings.js', import.meta.url), 'utf8');
   assert.match(source, /account-country-view[\s\S]*?bg-pastelBlue border-b-4 border-warmBrown px-5 py-4/s);
   assert.match(source, /<h3 class="text-xl font-bold text-warmBrown">旅遊國家<\/h3>/);
-  assert.match(source, /國家管理 · 新旅程建立時可從這裡的清單選擇/);
+  assert.doesNotMatch(source, /國家管理 · 新旅程建立時可從這裡的清單選擇/);
   assert.match(source, /fa-earth-asia/);
 });
 
