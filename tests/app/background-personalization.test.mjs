@@ -67,6 +67,41 @@ test('video backgrounds are muted inline and Drive replacement is saved before o
   assert.match(source, /shopping-list:drive-token-ready/);
 });
 
+test('background save can tag a distinct Drive file kind for header backgrounds', async () => {
+  const tracker = createSessionOperationTracker();
+  tracker.advance('user-a');
+  const operation = tracker.capture('user-a');
+  let uploadedOptions = null;
+
+  const result = await runBackgroundSaveTransaction({
+    tracker,
+    operation,
+    getCurrentUserId: () => 'user-a',
+    capturedSettingsRef: { owner: 'user-a' },
+    editorPreferences: {},
+    pendingFile: { name: 'header.jpg', type: 'image/jpeg' },
+    removeRequested: false,
+    oldFileId: '',
+    uploadKind: 'header-background',
+    driveService: {
+      hasAccessToken: () => true,
+      uploadFile: async (options) => {
+        uploadedOptions = options;
+        return { id: 'header-file', name: 'header.jpg', mimeType: 'image/jpeg' };
+      },
+      deletePhoto: async () => {},
+      queueCleanup: () => {}
+    },
+    connectDrive: async () => {},
+    persistSettings: async () => {},
+    afterCommit: async () => {},
+    onError: () => {}
+  });
+
+  assert.equal(result.status, 'saved');
+  assert.equal(uploadedOptions.appProperties.kind, 'header-background');
+});
+
 test('a stale download revokes its own URL without replacing or hiding the newer background', async () => {
   const tracker = createSessionOperationTracker();
   tracker.advance('user-a');
