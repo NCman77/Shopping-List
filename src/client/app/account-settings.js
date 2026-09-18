@@ -77,8 +77,12 @@ function ensureModal() {
           <div class="p-4">
             <div id="account-country-list" class="space-y-2"></div>
             <div class="mt-5 pt-4 border-t-2 border-warmBrown/15">
-              <label for="account-country-input" class="block text-xs font-bold text-warmBrown mb-2">新增國家</label>
-              <div class="flex gap-2"><input id="account-country-input" type="text" autocomplete="off" class="flex-1 min-w-0 px-4 py-2.5 rounded-xl bg-shinBg border-2 border-warmBrown text-warmBrown font-bold outline-none" placeholder="例如：韓國、泰國、美國"><button id="account-country-add" type="button" class="px-4 py-2.5 rounded-xl bg-pastelGreen border-2 border-warmBrown text-warmBrown font-bold">新增</button></div>
+              <label id="account-country-input-label" for="account-country-input" class="block text-xs font-bold text-warmBrown mb-2">新增國家</label>
+              <div class="flex gap-2">
+                <input id="account-country-input" type="text" autocomplete="off" class="flex-1 min-w-0 px-4 py-2.5 rounded-xl bg-shinBg border-2 border-warmBrown text-warmBrown font-bold outline-none" placeholder="例如：韓國、泰國、美國">
+                <button id="account-country-cancel" type="button" class="hidden px-3 py-2.5 rounded-xl bg-white border-2 border-warmBrown text-warmBrown font-bold">取消</button>
+                <button id="account-country-add" type="button" class="px-4 py-2.5 rounded-xl bg-pastelGreen border-2 border-warmBrown text-warmBrown font-bold">新增</button>
+              </div>
             </div>
           </div>
         </div>
@@ -179,6 +183,7 @@ export async function initAccountSettings() {
     activeCountry: DEFAULT_COUNTRY,
     mapsApiKeys: { primary: '', backup: '' },
     mapsKeyGeneration: 0,
+    editingCountry: '',
     settingsUnsub: null
   };
 
@@ -252,36 +257,113 @@ export async function initAccountSettings() {
   function openModal() { showRootView(); modal.classList.remove('hidden'); modal.classList.add('flex'); }
   function closeModal() { modal.classList.add('hidden'); modal.classList.remove('flex'); }
 
+  function countryLockedReason(country) {
+    if (country === DEFAULT_COUNTRY) return '系統預設國家會保留，避免舊資料失去預設國家。';
+    if (country === state.activeCountry) return '目前旅程正在使用這個國家，請先切換到其他旅程。';
+    return '';
+  }
+
+  function syncCountryEditor() {
+    const editing = Boolean(state.editingCountry);
+    const label = document.getElementById('account-country-input-label');
+    const addButton = document.getElementById('account-country-add');
+    const cancelButton = document.getElementById('account-country-cancel');
+    if (label) label.textContent = editing ? `編輯「${state.editingCountry}」` : '新增國家';
+    if (addButton) addButton.textContent = editing ? '儲存' : '新增';
+    cancelButton?.classList.toggle('hidden', !editing);
+  }
+
+  function cancelCountryEdit() {
+    state.editingCountry = '';
+    countryInput.value = '';
+    syncCountryEditor();
+  }
+
+  function beginCountryEdit(country) {
+    const reason = countryLockedReason(country);
+    if (reason) return notify('目前不能編輯', reason, 'warning');
+    state.editingCountry = country;
+    countryInput.value = country;
+    syncCountryEditor();
+    countryInput.focus();
+    countryInput.select?.();
+  }
+
+  async function deleteCountry(country) {
+    const reason = countryLockedReason(country);
+    if (reason) return notify('目前不能刪除', reason, 'warning');
+    if (!window.confirm?.(`確定刪除旅遊國家「${country}」？既有旅遊紀錄不會被改寫。`)) return;
+    const nextCountries = state.countries.filter((value) => value !== country);
+    try {
+      await setDoc(settingsRef(), { countries: nextCountries }, { merge: true });
+      state.countries = nextCountries;
+      if (state.editingCountry === country) cancelCountryEdit();
+      renderCountries();
+    } catch (error) {
+      console.error('Delete country failed:', error);
+      notify('刪除失敗', '無法刪除這個國家，請稍後再試。');
+    }
+  }
+
   function renderCountries() {
     state.activeCountry = String(window.shoppingListActiveTrip?.country || window.shoppingListActiveCountry || state.activeCountry || DEFAULT_COUNTRY).trim() || DEFAULT_COUNTRY;
     document.getElementById('account-active-country').textContent = `國家管理 · 目前 ${state.activeCountry}`;
     countryList.innerHTML = '';
     for (const country of state.countries) {
       const row = document.createElement('div');
-      row.className = 'w-full flex items-center gap-3 px-4 py-3 rounded-2xl border-2 border-warmBrown text-warmBrown bg-shinBg font-bold';
+      row.className = 'w-full flex items-center gap-2 px-3 py-3 rounded-2xl border-2 border-warmBrown text-warmBrown bg-shinBg font-bold';
       const label = document.createElement('span');
-      label.className = 'flex-1';
+      label.className = 'flex-1 min-w-0 truncate';
       label.textContent = country;
       const note = document.createElement('span');
-      note.className = 'text-[10px] opacity-50';
-      note.textContent = country === state.activeCountry ? '目前旅程' : '可選';
-      row.append(label, note);
+      note.className = 'text-[10px] opacity-50 shrink-0';
+      note.textContent = country === state.activeCountry ? '目前旅程' : country === DEFAULT_COUNTRY ? '預設' : '可選';
+
+      const edit = document.createElement('button');
+      edit.type = 'button';
+      edit.className = 'w-8 h-8 shrink-0 rounded-full bg-white border-2 border-warmBrown text-warmBrown disabled:opacity-30';
+      edit.innerHTML = '<i class="fas fa-pen text-xs"></i>';
+      edit.setAttribute('aria-label', `編輯${country}`);
+      edit.disabled = Boolean(countryLockedReason(country));
+      edit.title = countryLockedReason(country) || '編輯國家';
+      edit.addEventListener('click', () => beginCountryEdit(country));
+
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'w-8 h-8 shrink-0 rounded-full bg-white border-2 border-warmBrown text-red-500 disabled:opacity-30';
+      remove.innerHTML = '<i class="fas fa-trash text-xs"></i>';
+      remove.setAttribute('aria-label', `刪除${country}`);
+      remove.disabled = Boolean(countryLockedReason(country));
+      remove.title = countryLockedReason(country) || '刪除國家';
+      remove.addEventListener('click', () => void deleteCountry(country));
+
+      row.append(label, note, edit, remove);
       countryList.appendChild(row);
     }
+    syncCountryEditor();
   }
 
   async function addCountry() {
     const country = String(countryInput.value || '').trim();
     if (!country) return notify('缺少國家', '請輸入國家名稱。', 'warning');
-    const nextCountries = normalizeCountries([...state.countries, country]);
-    countryInput.value = '';
+
+    const editingCountry = state.editingCountry;
+    if (editingCountry && country !== editingCountry && state.countries.includes(country)) {
+      return notify('國家已存在', `「${country}」已經在旅遊國家清單中。`, 'warning');
+    }
+
+    const nextCountries = editingCountry
+      ? state.countries.map((value) => value === editingCountry ? country : value)
+      : normalizeCountries([...state.countries, country]);
+
     try {
       await setDoc(settingsRef(), { countries: nextCountries }, { merge: true });
       state.countries = nextCountries;
+      cancelCountryEdit();
       renderCountries();
     } catch (error) {
-      console.error('Add country failed:', error);
-      notify('新增失敗', '無法新增這個國家，請稍後再試。');
+      console.error(editingCountry ? 'Edit country failed:' : 'Add country failed:', error);
+      notify(editingCountry ? '編輯失敗' : '新增失敗', `無法${editingCountry ? '編輯' : '新增'}這個國家，請稍後再試。`);
     }
   }
 
@@ -360,7 +442,11 @@ export async function initAccountSettings() {
   document.getElementById('account-open-countries').addEventListener('click', showCountryView);
   document.getElementById('account-country-back').addEventListener('click', showRootView);
   document.getElementById('account-country-add').addEventListener('click', addCountry);
-  countryInput.addEventListener('keydown', (event) => { if (event.key === 'Enter') { event.preventDefault(); addCountry(); } });
+  document.getElementById('account-country-cancel').addEventListener('click', cancelCountryEdit);
+  countryInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') { event.preventDefault(); addCountry(); }
+    if (event.key === 'Escape' && state.editingCountry) { event.preventDefault(); cancelCountryEdit(); }
+  });
   document.getElementById('account-open-maps').addEventListener('click', showMapsView);
   document.getElementById('account-maps-back').addEventListener('click', showRootView);
   document.getElementById('account-maps-save').addEventListener('click', saveMapsKeys);
