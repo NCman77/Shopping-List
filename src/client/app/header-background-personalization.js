@@ -199,14 +199,24 @@ function ensureEditor() {
   document.body.appendChild(modal);
 }
 
+export function headerBackgroundTransform(preferences = {}) {
+  const positionX = clamp(Number(preferences.positionX) || 50, 0, 100);
+  const positionY = clamp(Number(preferences.positionY) || 50, 0, 100);
+  const scale = clamp(Number(preferences.scale) || 1, 1, 3);
+  const maxTranslatePercent = ((HEADER_OVERSCAN_PERCENT / 2) / (100 + HEADER_OVERSCAN_PERCENT)) * 100;
+  const translateX = ((positionX - 50) / 50) * maxTranslatePercent;
+  const translateY = ((positionY - 50) / 50) * maxTranslatePercent;
+  return `translate(${translateX}%, ${translateY}%) scale(${scale})`;
+}
+
 function createHeaderMediaElement(kind, url, preferences, id = '') {
   const media = document.createElement(kind === 'video' ? 'video' : 'img');
   if (id) media.id = id;
   media.src = url;
   media.className = id === 'header-background-preview-media' ? '' : 'header-background-media';
-  media.style.objectPosition = `${preferences.positionX}% ${preferences.positionY}%`;
-  media.style.transform = `scale(${preferences.scale})`;
-  media.style.transformOrigin = `${preferences.positionX}% ${preferences.positionY}%`;
+  media.style.objectPosition = '50% 50%';
+  media.style.transform = headerBackgroundTransform(preferences);
+  media.style.transformOrigin = '50% 50%';
   if (kind === 'video') {
     media.muted = true;
     media.playsInline = true;
@@ -243,6 +253,8 @@ export async function initHeaderBackgroundPersonalization() {
   const scaleInput = document.getElementById('header-background-scale');
   const rotationInput = document.getElementById('header-background-rotation-interval');
   const driveNote = document.getElementById('header-background-drive-note');
+  const authRequiredButton = document.getElementById('header-background-auth-required');
+  const thumbnailsRoot = document.getElementById('header-background-thumbnails');
   const saveButton = document.getElementById('save-header-background-personalization');
 
   const state = {
@@ -250,6 +262,8 @@ export async function initHeaderBackgroundPersonalization() {
     preferences: normalizePersonalization(),
     editorPreferences: normalizePersonalization(),
     pendingFiles: [],
+    pendingEntries: [],
+    uploadMode: 'replace',
     removeRequested: false,
     loadedItems: [],
     previewObjectUrls: [],
@@ -257,7 +271,10 @@ export async function initHeaderBackgroundPersonalization() {
     loadingBackgroundKeys: new Set(),
     settingsUnsub: null,
     activeEditorIndex: 0,
-    drag: null
+    drag: null,
+    thumbnailDrag: null,
+    thumbnailLongPressTimer: null,
+    suppressThumbnailClick: false
   };
 
   const tracker = createSessionOperationTracker();
