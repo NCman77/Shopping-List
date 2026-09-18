@@ -11,7 +11,15 @@ import {
   runBackgroundPlaylistDownload,
   runBackgroundPlaylistSaveTransaction
 } from './background-playlist.js';
-import { normalizePersonalization, positionPreset, normalizeRotationIntervalDraft } from './personalization-preferences.js';
+import {
+  normalizePersonalization,
+  positionPreset,
+  normalizeRotationIntervalDraft,
+  backgroundDefaultColor,
+  normalizeBackgroundColor,
+  normalizeBackgroundColorPresets,
+  addBackgroundColorPreset
+} from './personalization-preferences.js';
 import { createSessionOperationTracker } from './session-operation.js';
 import {
   createBackgroundMediaService,
@@ -22,6 +30,8 @@ import {
 const APP_ID = 'japan-shopping-app';
 const MAX_BACKGROUND_BYTES = 25 * 1024 * 1024;
 const HEADER_BACKGROUND_UPLOAD = Object.freeze({ kind: 'header-background' });
+const HEADER_DEFAULT_COLOR = backgroundDefaultColor('header');
+const normalizeHeaderPersonalization = (value = {}) => normalizePersonalization(value, { defaultColor: HEADER_DEFAULT_COLOR });
 const HEADER_OVERSCAN_PERCENT = 12;
 const HEADER_OVERSCAN_OFFSET_PERCENT = HEADER_OVERSCAN_PERCENT / 2;
 const LONG_PRESS_MS = 450;
@@ -153,67 +163,95 @@ function ensureEditor() {
   modal.className = 'fixed inset-0 z-[101] hidden bg-warmBrown/50 backdrop-blur-sm px-3 items-center justify-center';
   modal.innerHTML = `
     <div class="w-full max-w-md max-h-[92vh] overflow-hidden bg-shinBg border-4 border-warmBrown rounded-[2rem] shadow-[8px_8px_0_rgba(92,64,51,.28)] flex flex-col">
-      <div class="bg-pastelYellow border-b-4 border-warmBrown px-5 py-4 flex items-center justify-between shrink-0">
-        <div>
+      <div class="bg-pastelYellow border-b-4 border-warmBrown px-5 py-4 flex items-center gap-3 shrink-0">
+        <button id="header-background-back" type="button" class="w-9 h-9 shrink-0 rounded-full bg-white border-2 border-warmBrown text-warmBrown"><i class="fas fa-chevron-left"></i></button>
+        <div class="flex-1 min-w-0">
           <h2 class="text-xl font-bold text-warmBrown">首頁橫幅背景</h2>
-          <p class="text-[11px] text-warmBrown/60 font-bold mt-1">圖片會依橫幅寬高鋪滿，可上傳多張輪播</p>
+          <p class="text-[11px] text-warmBrown/60 font-bold mt-1">設定單色或自訂圖片背景</p>
         </div>
-        <button id="close-header-background-personalization" type="button" class="w-9 h-9 rounded-full bg-white border-2 border-warmBrown text-warmBrown"><i class="fas fa-times"></i></button>
+        <button id="close-header-background-personalization" type="button" class="w-9 h-9 shrink-0 rounded-full bg-white border-2 border-warmBrown text-warmBrown"><i class="fas fa-times"></i></button>
       </div>
+
       <div class="overflow-y-auto p-4 space-y-5 bg-white">
-        <div id="header-background-preview-viewport" class="relative w-full aspect-[16/9] overflow-hidden rounded-[1.5rem] bg-pastelPink border-2 border-warmBrown shadow-inner">
-          <div id="header-background-preview-empty" class="absolute inset-0 flex flex-col items-center justify-center text-warmBrown/45 text-center px-6">
-            <i class="fas fa-panorama text-4xl mb-3"></i>
-            <span class="text-sm font-bold">選擇橫幅背景後可拖曳調整位置</span>
-          </div>
-        </div>
-
-        <div id="header-background-drive-note" class="hidden rounded-xl bg-pastelYellow/60 border-2 border-warmBrown px-3 py-2 text-xs font-bold text-warmBrown">
-          偵測到舊版 Google Drive 橫幅。完成一次移轉後，橫幅將改由 Firestore 直接載入。
-          <button id="header-background-drive-connect" type="button" class="ml-1 underline">移轉舊橫幅</button>
-        </div>
-
         <div class="grid grid-cols-2 gap-2">
-          <button id="header-background-replace" type="button" class="text-center px-3 py-2.5 rounded-xl bg-pastelYellow border-2 border-warmBrown text-warmBrown font-bold"><i class="fas fa-rotate mr-1"></i>重新上傳</button>
-          <button id="header-background-append" type="button" class="text-center px-3 py-2.5 rounded-xl bg-pastelGreen border-2 border-warmBrown text-warmBrown font-bold"><i class="fas fa-plus mr-1"></i>繼續上傳</button>
-          <input id="header-background-file-input" type="file" multiple accept="image/jpeg,image/png,image/webp" class="hidden">
-        </div>
-        <button id="header-background-remove" type="button" class="w-full px-3 py-2 rounded-xl bg-pastelPink border-2 border-warmBrown text-warmBrown text-sm font-bold">移除全部橫幅</button>
-        <p id="header-background-file-name" class="text-[11px] text-gray-400 font-bold truncate"></p>
-        <div id="header-background-thumbnails" class="flex gap-2 overflow-x-auto pb-1"></div>
-        <button id="header-background-delete-current" type="button" class="w-full py-2 rounded-xl bg-white border-2 border-warmBrown text-warmBrown text-sm font-bold">刪除目前這張</button>
-
-        <div>
-          <div class="flex justify-between items-center mb-2">
-            <label for="header-background-rotation-interval" class="text-sm font-bold text-warmBrown">照片輪播間隔</label>
-            <span class="text-[11px] text-gray-400 font-bold">2–60 秒</span>
-          </div>
-          <div class="flex items-center gap-2">
-            <input id="header-background-rotation-interval" type="number" min="2" max="60" step="1" value="8" class="w-24 px-3 py-2 rounded-xl bg-white border-2 border-warmBrown text-warmBrown font-bold outline-none">
-            <span class="text-sm font-bold text-warmBrown">秒</span>
-          </div>
+          <button type="button" class="header-background-mode-button py-2.5 rounded-xl border-2 border-warmBrown text-sm font-bold text-warmBrown" data-header-background-mode="color">單色</button>
+          <button type="button" class="header-background-mode-button py-2.5 rounded-xl border-2 border-warmBrown text-sm font-bold text-warmBrown" data-header-background-mode="media">自訂圖片</button>
         </div>
 
-        <div>
-          <div class="flex justify-between items-center mb-2">
-            <label for="header-background-scale" class="text-sm font-bold text-warmBrown">縮放</label>
-            <span id="header-background-scale-value" class="text-xs font-bold text-gray-500">100%</span>
+        <div id="header-background-color-panel" class="hidden rounded-2xl bg-shinBg border-2 border-warmBrown p-4 space-y-4">
+          <label class="flex items-center justify-between gap-3 text-sm font-bold text-warmBrown">
+            <span>背景顏色</span>
+            <input id="header-background-color" type="color" value="#FCD5CE" class="w-14 h-10 rounded-lg border-2 border-warmBrown bg-white p-1 cursor-pointer">
+          </label>
+          <div>
+            <label for="header-background-color-hex" class="block text-xs font-bold text-warmBrown mb-2">色碼</label>
+            <div class="flex gap-2">
+              <input id="header-background-color-hex" type="text" maxlength="7" value="#FCD5CE" class="flex-1 min-w-0 px-3 py-2.5 rounded-xl bg-white border-2 border-warmBrown text-warmBrown font-bold uppercase outline-none" placeholder="#FCD5CE">
+              <button id="header-background-save-color" type="button" class="px-3 py-2.5 rounded-xl bg-pastelYellow border-2 border-warmBrown text-warmBrown text-xs font-bold">儲存常用色</button>
+            </div>
           </div>
-          <input id="header-background-scale" type="range" min="1" max="3" step="0.05" value="1" class="w-full accent-[#5C4033]">
+          <div>
+            <p class="text-xs font-bold text-warmBrown mb-2">常用顏色（最多 6 個）</p>
+            <div id="header-background-color-presets" class="grid grid-cols-6 gap-2"></div>
+          </div>
+          <button id="header-background-reset-default" type="button" class="w-full py-2.5 rounded-xl bg-white border-2 border-warmBrown text-warmBrown font-bold">恢復預設</button>
         </div>
 
-        <div>
-          <p class="text-sm font-bold text-warmBrown mb-2">快速位置</p>
-          <div class="grid grid-cols-5 gap-1.5">
-            <button type="button" data-header-position-preset="left" class="py-2 rounded-xl border-2 border-warmBrown text-[11px] font-bold text-warmBrown bg-shinBg">靠左</button>
-            <button type="button" data-header-position-preset="right" class="py-2 rounded-xl border-2 border-warmBrown text-[11px] font-bold text-warmBrown bg-shinBg">靠右</button>
-            <button type="button" data-header-position-preset="center" class="py-2 rounded-xl border-2 border-warmBrown text-[11px] font-bold text-warmBrown bg-pastelYellow">置中</button>
-            <button type="button" data-header-position-preset="top" class="py-2 rounded-xl border-2 border-warmBrown text-[11px] font-bold text-warmBrown bg-shinBg">靠上</button>
-            <button type="button" data-header-position-preset="bottom" class="py-2 rounded-xl border-2 border-warmBrown text-[11px] font-bold text-warmBrown bg-shinBg">靠下</button>
+        <div id="header-background-media-panel" class="hidden space-y-5">
+          <div id="header-background-preview-viewport" class="relative w-full aspect-[16/9] overflow-hidden rounded-[1.5rem] bg-pastelPink border-2 border-warmBrown shadow-inner">
+            <div id="header-background-preview-empty" class="absolute inset-0 flex flex-col items-center justify-center text-warmBrown/45 text-center px-6">
+              <i class="fas fa-panorama text-4xl mb-3"></i>
+              <span class="text-sm font-bold">選擇自訂圖片後可拖曳調整位置</span>
+            </div>
+          </div>
+
+          <div id="header-background-drive-note" class="hidden rounded-xl bg-pastelYellow/60 border-2 border-warmBrown px-3 py-2 text-xs font-bold text-warmBrown">
+            偵測到舊版 Google Drive 橫幅。完成一次移轉後，橫幅將改由 Firestore 直接載入。
+            <button id="header-background-drive-connect" type="button" class="ml-1 underline">移轉舊橫幅</button>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2">
+            <button id="header-background-replace" type="button" class="text-center px-3 py-2.5 rounded-xl bg-pastelYellow border-2 border-warmBrown text-warmBrown font-bold"><i class="fas fa-rotate mr-1"></i>重新上傳</button>
+            <button id="header-background-append" type="button" class="text-center px-3 py-2.5 rounded-xl bg-pastelGreen border-2 border-warmBrown text-warmBrown font-bold"><i class="fas fa-plus mr-1"></i>繼續上傳</button>
+            <input id="header-background-file-input" type="file" multiple accept="image/jpeg,image/png,image/webp" class="hidden">
+          </div>
+          <button id="header-background-remove" type="button" class="w-full px-3 py-2 rounded-xl bg-pastelPink border-2 border-warmBrown text-warmBrown text-sm font-bold">移除全部圖片</button>
+          <p id="header-background-file-name" class="text-[11px] text-gray-400 font-bold truncate"></p>
+          <div id="header-background-thumbnails" class="flex gap-2 overflow-x-auto pb-1"></div>
+          <button id="header-background-delete-current" type="button" class="w-full py-2 rounded-xl bg-white border-2 border-warmBrown text-warmBrown text-sm font-bold">刪除目前這張</button>
+
+          <div>
+            <div class="flex justify-between items-center mb-2">
+              <label for="header-background-rotation-interval" class="text-sm font-bold text-warmBrown">照片輪播間隔</label>
+              <span class="text-[11px] text-gray-400 font-bold">2–60 秒</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <input id="header-background-rotation-interval" type="number" min="2" max="60" step="1" value="8" class="w-24 px-3 py-2 rounded-xl bg-white border-2 border-warmBrown text-warmBrown font-bold outline-none">
+              <span class="text-sm font-bold text-warmBrown">秒</span>
+            </div>
+          </div>
+
+          <div>
+            <div class="flex justify-between items-center mb-2">
+              <label for="header-background-scale" class="text-sm font-bold text-warmBrown">縮放</label>
+              <span id="header-background-scale-value" class="text-xs font-bold text-gray-500">100%</span>
+            </div>
+            <input id="header-background-scale" type="range" min="1" max="3" step="0.05" value="1" class="w-full accent-[#5C4033]">
+          </div>
+
+          <div>
+            <p class="text-sm font-bold text-warmBrown mb-2">快速位置</p>
+            <div class="grid grid-cols-5 gap-1.5">
+              <button type="button" data-header-position-preset="left" class="py-2 rounded-xl border-2 border-warmBrown text-[11px] font-bold text-warmBrown bg-shinBg">靠左</button>
+              <button type="button" data-header-position-preset="right" class="py-2 rounded-xl border-2 border-warmBrown text-[11px] font-bold text-warmBrown bg-shinBg">靠右</button>
+              <button type="button" data-header-position-preset="center" class="py-2 rounded-xl border-2 border-warmBrown text-[11px] font-bold text-warmBrown bg-pastelYellow">置中</button>
+              <button type="button" data-header-position-preset="top" class="py-2 rounded-xl border-2 border-warmBrown text-[11px] font-bold text-warmBrown bg-shinBg">靠上</button>
+              <button type="button" data-header-position-preset="bottom" class="py-2 rounded-xl border-2 border-warmBrown text-[11px] font-bold text-warmBrown bg-shinBg">靠下</button>
+            </div>
           </div>
         </div>
-
       </div>
+
       <div class="p-4 border-t-2 border-warmBrown/20 bg-shinBg flex gap-3 shrink-0">
         <button id="cancel-header-background-personalization" type="button" class="flex-1 py-2.5 rounded-xl bg-white border-2 border-warmBrown text-warmBrown font-bold">取消</button>
         <button id="save-header-background-personalization" type="button" class="flex-1 py-2.5 rounded-xl bg-pastelYellow border-2 border-warmBrown text-warmBrown font-bold shadow-[2px_2px_0_rgba(92,64,51,.18)]">儲存</button>
@@ -280,6 +318,10 @@ export async function initHeaderBackgroundPersonalization() {
 
   const modal = document.getElementById('header-background-personalization-modal');
   const preview = document.getElementById('header-background-preview-viewport');
+  const colorPanel = document.getElementById('header-background-color-panel');
+  const mediaPanel = document.getElementById('header-background-media-panel');
+  const colorInput = document.getElementById('header-background-color');
+  const colorHexInput = document.getElementById('header-background-color-hex');
   const input = document.getElementById('header-background-file-input');
   const scaleInput = document.getElementById('header-background-scale');
   const rotationInput = document.getElementById('header-background-rotation-interval');
@@ -290,8 +332,10 @@ export async function initHeaderBackgroundPersonalization() {
 
   const state = {
     userId: '',
-    preferences: normalizePersonalization(),
-    editorPreferences: normalizePersonalization(),
+    preferences: normalizeHeaderPersonalization(),
+    editorPreferences: normalizeHeaderPersonalization(),
+    editorMode: 'color',
+    savedColors: [],
     pendingFiles: [],
     pendingEntries: [],
     uploadMode: 'replace',
@@ -333,7 +377,7 @@ export async function initHeaderBackgroundPersonalization() {
   }
 
   const wrap = layer.querySelector('.header-background-pan-wrap');
-  let slideshowPreferences = normalizePersonalization();
+  let slideshowPreferences = normalizeHeaderPersonalization();
 
   const slideshow = createBackgroundSlideshowController({
     render: (item) => {
@@ -362,11 +406,20 @@ export async function initHeaderBackgroundPersonalization() {
   function hideLayer() {
     slideshow.stop();
     layer.classList.add('hidden');
+    layer.style.removeProperty('background-color');
     wrap.replaceChildren();
   }
 
   function applyPlaylist(items, preferences) {
-    const normalized = normalizePersonalization(preferences);
+    const normalized = normalizeHeaderPersonalization(preferences);
+    if (normalized.mode === 'color') {
+      slideshow.stop();
+      wrap.replaceChildren();
+      layer.style.backgroundColor = normalized.color;
+      layer.classList.remove('hidden');
+      return;
+    }
+    layer.style.removeProperty('background-color');
     if (!items.length) {
       hideLayer();
       return;
@@ -383,6 +436,13 @@ export async function initHeaderBackgroundPersonalization() {
   async function loadPersistedBackground({ force = false } = {}) {
     const capturedUserId = state.userId;
     const loadKey = backgroundLoadKey(capturedUserId, state.preferences);
+    if (state.preferences.mode === 'color') {
+      revokeLoadedItems();
+      applyPlaylist([], state.preferences);
+      state.loadedBackgroundKey = loadKey;
+      authRequiredButton.classList.add('hidden');
+      return Object.freeze({ status: 'color', loadKey });
+    }
     if (!force && loadKey === state.loadedBackgroundKey) {
       if (state.loadedItems.length) applyPlaylist(state.loadedItems, state.preferences);
       return Object.freeze({ status: 'skipped', loadKey });
@@ -485,7 +545,7 @@ export async function initHeaderBackgroundPersonalization() {
 
   function setEditorFiles(files) {
     const cleanFiles = Array.isArray(files) ? files : [];
-    state.editorPreferences = normalizePersonalization({
+    state.editorPreferences = normalizeHeaderPersonalization({
       ...state.editorPreferences,
       backgroundFiles: cleanFiles,
       backgroundFileId: cleanFiles[0]?.fileId || '',
@@ -643,8 +703,52 @@ export async function initHeaderBackgroundPersonalization() {
     renderThumbnails();
   }
 
+  function renderColorPresets() {
+    const root = document.getElementById('header-background-color-presets');
+    root.replaceChildren();
+    for (let index = 0; index < 6; index += 1) {
+      const color = state.savedColors[index] || '';
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'h-9 rounded-xl border-2 border-warmBrown/40 bg-white overflow-hidden';
+      button.setAttribute('aria-label', color ? `套用 ${color}` : '尚未儲存顏色');
+      if (color) {
+        button.style.backgroundColor = color;
+        button.title = color;
+        button.addEventListener('click', () => setEditorColor(color));
+      } else {
+        button.disabled = true;
+        button.classList.add('opacity-30');
+      }
+      root.appendChild(button);
+    }
+  }
+
+  function setEditorColor(value) {
+    const color = normalizeBackgroundColor(value, HEADER_DEFAULT_COLOR);
+    state.editorMode = 'color';
+    state.editorPreferences = normalizeHeaderPersonalization({ ...state.editorPreferences, mode: 'color', color });
+    colorInput.value = color;
+    colorHexInput.value = color;
+    renderEditorMode();
+  }
+
+  function renderEditorMode() {
+    document.querySelectorAll('[data-header-background-mode]').forEach((button) => {
+      button.setAttribute('aria-pressed', String(button.dataset.headerBackgroundMode === state.editorMode));
+      button.classList.toggle('bg-pastelYellow', button.dataset.headerBackgroundMode === state.editorMode);
+    });
+    colorPanel.classList.toggle('hidden', state.editorMode !== 'color');
+    mediaPanel.classList.toggle('hidden', state.editorMode !== 'media');
+    colorInput.value = state.editorPreferences.color;
+    colorHexInput.value = state.editorPreferences.color;
+    renderColorPresets();
+    if (state.editorMode === 'media') renderEditorPreview();
+  }
+
   function openEditor() {
-    state.editorPreferences = normalizePersonalization(state.preferences);
+    state.editorPreferences = normalizeHeaderPersonalization(state.preferences);
+    state.editorMode = state.preferences.mode === 'media' ? 'media' : 'color';
     state.pendingFiles = [];
     state.pendingEntries = [];
     state.uploadMode = 'replace';
@@ -653,7 +757,7 @@ export async function initHeaderBackgroundPersonalization() {
     revokePreviewObjectUrls();
     const activeDrive = driveServiceForUser(state.userId);
     driveNote.classList.toggle('hidden', !(state.preferences.backgroundFiles.length && !activeDrive.hasAccessToken()));
-    renderEditorPreview();
+    renderEditorMode();
     modal.classList.remove('hidden');
     modal.classList.add('flex');
   }
@@ -668,6 +772,38 @@ export async function initHeaderBackgroundPersonalization() {
     modal.classList.add('hidden');
     modal.classList.remove('flex');
   }
+
+  document.querySelectorAll('[data-header-background-mode]').forEach((button) => {
+    button.addEventListener('click', () => {
+      state.editorMode = button.dataset.headerBackgroundMode;
+      if (state.editorMode === 'media') state.editorPreferences = { ...state.editorPreferences, mode: 'media' };
+      else state.editorPreferences = normalizeHeaderPersonalization({ ...state.editorPreferences, mode: 'color' });
+      renderEditorMode();
+    });
+  });
+
+  colorInput.addEventListener('input', () => setEditorColor(colorInput.value));
+  colorHexInput.addEventListener('input', () => {
+    const value = String(colorHexInput.value || '').trim().toUpperCase();
+    if (/^#[0-9A-F]{6}$/.test(value)) setEditorColor(value);
+  });
+  document.getElementById('header-background-save-color').addEventListener('click', async () => {
+    const value = String(colorHexInput.value || '').trim().toUpperCase();
+    if (!/^#[0-9A-F]{6}$/.test(value)) {
+      window.showMsg?.('色碼格式錯誤', '請輸入例如 #FCD5CE 的 6 位 HEX 色碼。', 'warning');
+      return;
+    }
+    const next = addBackgroundColorPreset(state.savedColors, value);
+    try {
+      await setDoc(settingsRef(), { backgroundColorPresets: next }, { merge: true });
+      state.savedColors = next;
+      renderColorPresets();
+    } catch (error) {
+      console.error('Save background color preset failed:', error);
+      window.showMsg?.('儲存失敗', '無法儲存常用顏色。', 'error');
+    }
+  });
+  document.getElementById('header-background-reset-default').addEventListener('click', () => setEditorColor(HEADER_DEFAULT_COLOR));
 
   function pendingKey() {
     if (typeof crypto?.randomUUID === 'function') return `pending:${crypto.randomUUID()}`;
@@ -721,7 +857,10 @@ export async function initHeaderBackgroundPersonalization() {
       window.showMsg?.('檔案太大', '每個背景照片請控制在 25MB 以內。', 'warning');
       return;
     }
+    state.editorMode = 'media';
+    state.editorPreferences = { ...state.editorPreferences, mode: 'media' };
     appendPendingFiles(files, { replace: state.uploadMode === 'replace' });
+    renderEditorMode();
   });
 
   document.getElementById('header-background-remove').addEventListener('click', () => {
@@ -758,7 +897,7 @@ export async function initHeaderBackgroundPersonalization() {
   rotationInput.addEventListener('input', () => {
     const nextInterval = normalizeRotationIntervalDraft(rotationInput.value);
     if (nextInterval === null) return;
-    state.editorPreferences = normalizePersonalization({
+    state.editorPreferences = normalizeHeaderPersonalization({
       ...state.editorPreferences,
       rotationIntervalSeconds: nextInterval
     });
@@ -769,7 +908,7 @@ export async function initHeaderBackgroundPersonalization() {
       rotationInput.value = String(state.editorPreferences.rotationIntervalSeconds);
       return;
     }
-    state.editorPreferences = normalizePersonalization({
+    state.editorPreferences = normalizeHeaderPersonalization({
       ...state.editorPreferences,
       rotationIntervalSeconds: nextInterval
     });
@@ -895,10 +1034,10 @@ export async function initHeaderBackgroundPersonalization() {
     if (!state.userId) return;
     const operation = tracker.capture(state.userId);
     const capturedSettingsRef = settingsRef(operation.userId);
-    const capturedEditorPreferences = normalizePersonalization(state.editorPreferences);
-    const capturedPendingFiles = state.pendingFiles.slice();
-    const capturedPendingEntries = state.pendingEntries.map((entry) => ({ ...entry }));
-    const capturedRemoveRequested = state.removeRequested;
+    const capturedEditorPreferences = normalizeHeaderPersonalization({ ...state.editorPreferences, mode: state.editorMode });
+    const capturedPendingFiles = state.editorMode === 'media' ? state.pendingFiles.slice() : [];
+    const capturedPendingEntries = state.editorMode === 'media' ? state.pendingEntries.map((entry) => ({ ...entry })) : [];
+    const capturedRemoveRequested = state.editorMode === 'media' ? state.removeRequested : false;
     const oldFiles = state.preferences.backgroundFiles.slice();
     const capturedMedia = mediaServiceForUser(operation.userId);
     saveButton.disabled = true;
@@ -937,6 +1076,11 @@ export async function initHeaderBackgroundPersonalization() {
     }
   });
 
+  document.getElementById('header-background-back').addEventListener('click', () => {
+    closeEditor();
+    const EventCtor = window.CustomEvent || globalThis.CustomEvent;
+    if (typeof EventCtor === 'function') window.dispatchEvent(new EventCtor('shopping-list:open-personalization'));
+  });
   document.getElementById('close-header-background-personalization').addEventListener('click', closeEditor);
   document.getElementById('cancel-header-background-personalization').addEventListener('click', closeEditor);
   modal.addEventListener('click', (event) => { if (event.target === modal) closeEditor(); });
@@ -956,7 +1100,7 @@ export async function initHeaderBackgroundPersonalization() {
     state.loadedBackgroundKey = '';
     state.loadingBackgroundKeys.clear();
     state.userId = user?.uid || '';
-    state.preferences = normalizePersonalization();
+    state.preferences = normalizeHeaderPersonalization();
 
     if (!user) return;
 
@@ -965,7 +1109,8 @@ export async function initHeaderBackgroundPersonalization() {
     state.settingsUnsub = onSnapshot(settingsRef(user.uid), (snapshot) => {
       if (!tracker.isSessionCurrent(operation, state.userId)) return;
       const data = snapshot.exists() ? snapshot.data() : {};
-      state.preferences = normalizePersonalization(data.headerPersonalization);
+      state.savedColors = normalizeBackgroundColorPresets(data.backgroundColorPresets);
+      state.preferences = normalizeHeaderPersonalization(data.headerPersonalization);
       const legacy = state.preferences.backgroundFiles.some((file) => !String(file.fileId || '').startsWith('firestore:'));
       driveNote.classList.toggle('hidden', !legacy);
       authRequiredButton.classList.toggle('hidden', !(legacy && !driveServiceForUser(state.userId).hasAccessToken()));
