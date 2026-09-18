@@ -62,7 +62,8 @@ test('video backgrounds are muted inline and Drive replacement is saved before o
   assert.match(source, /setDoc/);
   assert.match(source, /deletePhoto/);
   assert.ok(source.indexOf('await setDoc') < source.lastIndexOf('deletePhoto'));
-  assert.match(source, /shopping-list:open-personalization/);
+  assert.match(source, /shopping-list:open-page-background/);
+  assert.doesNotMatch(source, /addEventListener\('shopping-list:open-personalization'/);
   assert.match(source, /shopping-list:drive-token-ready/);
 });
 
