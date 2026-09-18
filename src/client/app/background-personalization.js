@@ -705,21 +705,21 @@ export async function initBackgroundPersonalization() {
     const operation = tracker.capture(state.userId);
     const capturedSettingsRef = settingsRef(operation.userId);
     const capturedEditorPreferences = normalizePersonalization(state.editorPreferences);
-    const capturedPendingFile = state.pendingFile;
+    const capturedPendingFiles = state.pendingFiles.slice();
     const capturedRemoveRequested = state.removeRequested;
-    const oldFileId = state.preferences.backgroundFileId;
+    const oldFiles = state.preferences.backgroundFiles.slice();
     const capturedDrive = driveServiceForUser(operation.userId);
     saveButton.disabled = true;
     try {
-      await runBackgroundSaveTransaction({
+      await runBackgroundPlaylistSaveTransaction({
         tracker,
         operation,
         getCurrentUserId: () => state.userId,
         capturedSettingsRef,
         editorPreferences: capturedEditorPreferences,
-        pendingFile: capturedPendingFile,
+        pendingFiles: capturedPendingFiles,
         removeRequested: capturedRemoveRequested,
-        oldFileId,
+        oldFiles,
         driveService: capturedDrive,
         connectDrive,
         persistSettings: (ref, next) => setDoc(ref, { personalization: next }, { merge: true }),
@@ -754,8 +754,8 @@ export async function initBackgroundPersonalization() {
     });
     state.settingsUnsub?.();
     state.settingsUnsub = null;
-    revokeObjectUrl('objectUrl');
-    revokeObjectUrl('previewObjectUrl');
+    revokeLoadedItems();
+    revokePreviewObjectUrls();
     state.loadedBackgroundKey = '';
     state.loadingBackgroundKeys.clear();
     state.userId = user?.uid || '';
