@@ -10,7 +10,6 @@ export function normalizeCountries(values) {
     const country = cleanCountry(value);
     if (country && !normalized.includes(country)) normalized.push(country);
   }
-  if (!normalized.includes(DEFAULT_COUNTRY)) normalized.push(DEFAULT_COUNTRY);
   return normalized;
 }
 
