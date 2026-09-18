@@ -521,7 +521,7 @@ export async function initBackgroundPersonalization() {
       driveService: capturedDrive,
       mediaService: mediaServiceForUser(operation.userId),
       uploadKind: 'background',
-      persistPreferences: (next) => setDoc(capturedSettingsRef, { personalization: next }, { merge: true })
+      persistPreferences: (next) => setDoc(settingsRef(operation.userId), { personalization: next }, { merge: true })
     });
     if (migration.status === 'migrated') state.preferences = migration.nextPreferences;
     driveNote.classList.add('hidden');
