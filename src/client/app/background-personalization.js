@@ -921,7 +921,16 @@ export async function initBackgroundPersonalization() {
     if (!state.userId) return;
     const operation = tracker.capture(state.userId);
     const capturedSettingsRef = settingsRef(operation.userId);
-    const capturedEditorPreferences = normalizePersonalization({ ...state.editorPreferences, mode: state.editorMode });
+    const capturedEditorPreferences = normalizePersonalization({
+      ...state.editorPreferences,
+      mode: state.editorMode,
+      ...(state.editorMode === 'color' ? {
+        backgroundFiles: state.preferences.backgroundFiles,
+        backgroundFileId: state.preferences.backgroundFileId,
+        backgroundFileName: state.preferences.backgroundFileName,
+        backgroundMimeType: state.preferences.backgroundMimeType
+      } : {})
+    });
     const capturedPendingFiles = state.editorMode === 'media' ? state.pendingFiles.slice() : [];
     const capturedRemoveRequested = state.editorMode === 'media' ? state.removeRequested : false;
     const oldFiles = state.preferences.backgroundFiles.slice();
@@ -981,6 +990,7 @@ export async function initBackgroundPersonalization() {
     state.loadedBackgroundKey = '';
     state.loadingBackgroundKeys.clear();
     state.userId = user?.uid || '';
+    state.savedColors = [];
     state.preferences = normalizePersonalization();
     if (!user) {
       return;
