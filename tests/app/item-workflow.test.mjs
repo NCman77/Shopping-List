@@ -69,11 +69,11 @@ test('pagination uses ten items, reports totals, and clamps requested page', () 
   assert.equal(paginateItems([], 5).totalPages, 1);
 });
 
-test('approved swipe mapping is left previous and right next without wrapping', () => {
-  assert.equal(nextPageForSwipe({ direction: 'left', page: 2, totalPages: 4 }), 1);
-  assert.equal(nextPageForSwipe({ direction: 'right', page: 2, totalPages: 4 }), 3);
-  assert.equal(nextPageForSwipe({ direction: 'left', page: 1, totalPages: 4 }), 1);
-  assert.equal(nextPageForSwipe({ direction: 'right', page: 4, totalPages: 4 }), 4);
+test('swipe mapping follows pager convention: left next and right previous without wrapping', () => {
+  assert.equal(nextPageForSwipe({ direction: 'left', page: 2, totalPages: 4 }), 3);
+  assert.equal(nextPageForSwipe({ direction: 'right', page: 2, totalPages: 4 }), 1);
+  assert.equal(nextPageForSwipe({ direction: 'right', page: 1, totalPages: 4 }), 1);
+  assert.equal(nextPageForSwipe({ direction: 'left', page: 4, totalPages: 4 }), 4);
 });
 
 test('card DOM order is only changed when candidate order actually differs', () => {
