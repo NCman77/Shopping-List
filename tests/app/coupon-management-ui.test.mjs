@@ -54,3 +54,11 @@ test('coupon persistence keeps one record per brandId and cleans expired/orphan 
   assert.match(text, /cleanupCoupons\(/);
   assert.match(text, /removed\.length/);
 });
+
+
+test('coupon manager uses back for settings return and close for exiting the settings flow', async () => {
+  const text = await source();
+  assert.match(text, /coupon-back-settings[^\n]*closeManager\(\{ returnToSettings: true \}\)/);
+  assert.match(text, /coupon-close[^\n]*closeManager\(\)/);
+  assert.doesNotMatch(text, /coupon-close[^\n]*returnToSettings: state\.openedFromSettings/);
+});

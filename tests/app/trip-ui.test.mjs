@@ -150,7 +150,7 @@ test('account travel records opens the trip picker before management', async () 
   const closeIndex = source.indexOf("document.getElementById('trip-modal-close')", entryIndex);
   assert.ok(entryIndex >= 0 && closeIndex > entryIndex);
   const slice = source.slice(entryIndex, closeIndex);
-  assert.match(slice, /openModal\('picker'\)/);
+  assert.match(slice, /openModal\('picker', \{ fromSettings: true \}\)/);
   assert.doesNotMatch(slice, /openModal\('manage'\)/);
   assert.match(source, /manage\.addEventListener\('click', \(\) => \{ setView\('manage'\); renderManage\(\); \}\)/);
 });
@@ -174,4 +174,12 @@ test('trip form country options do not inject Japan when no configured or active
   assert.doesNotMatch(source, /countries:\s*\[DEFAULT_COUNTRY\]/);
   assert.doesNotMatch(source, /normalizeCountries\(\[\.\.\.state\.countries, selectedCountry \|\| DEFAULT_COUNTRY\]\)/);
   assert.doesNotMatch(source, /window\.shoppingListActiveCountry \|\| DEFAULT_COUNTRY/);
+});
+
+
+test('travel records opened from settings can go back to account settings from the picker', async () => {
+  const source = await readFile(sourcePath, 'utf8');
+  assert.match(source, /openedFromSettings/);
+  assert.match(source, /shopping-list:open-account-settings/);
+  assert.match(source, /backButton\.classList\.toggle\('hidden',[\s\S]*openedFromSettings/);
 });

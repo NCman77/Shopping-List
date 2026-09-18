@@ -526,7 +526,7 @@ export async function initCouponManagementUi({
 
   documentRef.getElementById('account-open-coupon-management')?.addEventListener('click', openFromSettings);
   documentRef.getElementById('coupon-back-settings')?.addEventListener('click', () => closeManager({ returnToSettings: true }));
-  documentRef.getElementById('coupon-close')?.addEventListener('click', () => closeManager({ returnToSettings: state.openedFromSettings }));
+  documentRef.getElementById('coupon-close')?.addEventListener('click', () => closeManager());
   documentRef.getElementById('coupon-country-back')?.addEventListener('click', () => { showOnly(countryView); renderCountries(); });
   documentRef.getElementById('coupon-editor-back')?.addEventListener('click', () => {
     if (state.returnContext) closeManager();
@@ -543,7 +543,7 @@ export async function initCouponManagementUi({
   saveButton.addEventListener('click', () => { void saveCoupon(); });
   deleteButton.addEventListener('click', () => { void deleteCoupon(); });
   modal.addEventListener('click', (event) => {
-    if (event.target === modal) closeManager({ returnToSettings: state.openedFromSettings });
+    if (event.target === modal) closeManager();
   });
 
   windowRef.shoppingListCouponManager = {

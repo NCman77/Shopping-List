@@ -211,6 +211,7 @@ export async function initTripUi() {
     itemCounts: new Map(),
     editingTripId: '',
     formReturnView: 'picker',
+    openedFromSettings: false,
     settingsUnsub: null,
     itemsUnsub: null,
     view: 'picker'
@@ -231,12 +232,13 @@ export async function initTripUi() {
     pickerView.classList.toggle('hidden', view !== 'picker');
     manageView.classList.toggle('hidden', view !== 'manage');
     formView.classList.toggle('hidden', view !== 'form');
-    backButton.classList.toggle('hidden', view === 'picker');
+    backButton.classList.toggle('hidden', view === 'picker' && !state.openedFromSettings);
     document.getElementById('trip-modal-title').textContent = view === 'picker' ? '選擇旅程' : view === 'manage' ? '旅遊紀錄' : (state.editingTripId ? '編輯旅程' : '新增旅程');
     document.getElementById('trip-modal-subtitle').textContent = view === 'picker' ? '目前商品只會顯示在選定的這一趟' : '';
   }
 
-  function openModal(view = 'picker') {
+  function openModal(view = 'picker', { fromSettings = false } = {}) {
+    state.openedFromSettings = fromSettings;
     setView(view);
     if (view === 'picker') renderPicker();
     if (view === 'manage') renderManage();
@@ -247,6 +249,13 @@ export async function initTripUi() {
   function closeModal() {
     modal.classList.add('hidden');
     modal.classList.remove('flex');
+    state.openedFromSettings = false;
+  }
+
+  function returnToAccountSettings() {
+    closeModal();
+    const EventCtor = window.CustomEvent || globalThis.CustomEvent;
+    if (typeof EventCtor === 'function') window.dispatchEvent(new EventCtor('shopping-list:open-account-settings'));
   }
 
   let selectorExpanded = false;
@@ -520,6 +529,7 @@ export async function initTripUi() {
 
   document.getElementById('active-trip-selector').addEventListener('click', () => {
     if (!state.trips.length) {
+      state.openedFromSettings = false;
       openForm(null);
       return;
     }
@@ -534,11 +544,15 @@ export async function initTripUi() {
     event.preventDefault();
     event.stopPropagation();
     document.getElementById('account-settings-modal')?.classList.add('hidden');
-    openModal('picker');
+    openModal('picker', { fromSettings: true });
   });
   document.getElementById('trip-modal-close').addEventListener('click', closeModal);
   modal.addEventListener('click', (event) => { if (event.target === modal) closeModal(); });
   backButton.addEventListener('click', () => {
+    if (state.view === 'picker' && state.openedFromSettings) {
+      returnToAccountSettings();
+      return;
+    }
     if (state.view === 'form') {
       setView(state.formReturnView);
       if (state.formReturnView === 'manage') renderManage();

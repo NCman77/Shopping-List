@@ -323,7 +323,6 @@ export async function initAccountSettings() {
       edit.className = 'w-8 h-8 shrink-0 rounded-full bg-white border-2 border-warmBrown text-warmBrown disabled:opacity-30';
       edit.innerHTML = '<i class="fas fa-pen text-xs"></i>';
       edit.setAttribute('aria-label', `編輯${country}`);
-      edit.disabled = Boolean(countryLockedReason(country));
       edit.title = countryLockedReason(country) || '編輯國家';
       edit.addEventListener('click', () => beginCountryEdit(country));
 
@@ -332,7 +331,6 @@ export async function initAccountSettings() {
       remove.className = 'w-8 h-8 shrink-0 rounded-full bg-white border-2 border-warmBrown text-red-500 disabled:opacity-30';
       remove.innerHTML = '<i class="fas fa-trash text-xs"></i>';
       remove.setAttribute('aria-label', `刪除${country}`);
-      remove.disabled = Boolean(countryLockedReason(country));
       remove.title = countryLockedReason(country) || '刪除國家';
       remove.addEventListener('click', () => void deleteCountry(country));
 
@@ -468,6 +466,7 @@ export async function initAccountSettings() {
     try { await authSdk.signOut(auth); }
     catch (error) { console.error('Account settings sign out failed:', error); notify('登出失敗', '無法登出，請稍後再試。'); }
   });
+  window.addEventListener('shopping-list:open-account-settings', () => openModal());
   document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && !modal.classList.contains('hidden')) closeModal(); });
   authSdk.onAuthStateChanged(auth, subscribeUser);
 }

@@ -29,3 +29,12 @@ test('feature bootstrap loads the personalization hub and header background feat
   assert.match(source, /header-background-personalization\.js/);
   assert.match(source, /initHeaderBackgroundPersonalization/);
 });
+
+
+test('personalization hub has a back button to account settings while close still exits the flow', async () => {
+  const source = await sourceOrFail('../../src/client/app/personalization-hub.js', 'personalization hub module is missing');
+  assert.match(source, /personalization-hub-back/);
+  assert.match(source, /fa-chevron-left/);
+  assert.match(source, /shopping-list:open-account-settings/);
+  assert.match(source, /personalization-hub-close/);
+});

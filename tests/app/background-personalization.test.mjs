@@ -34,11 +34,13 @@ test('background accepts static JPEG, PNG, and WebP photos only', () => {
   assert.equal(backgroundKindForMime('image/gif'), 'image');
 });
 
-test('background load key changes only when the account or persisted file changes', () => {
-  assert.equal(backgroundLoadKey('user-a', { backgroundFileId: 'file-1' }), 'user-a:file-1');
-  assert.equal(backgroundLoadKey('user-a', { backgroundFileId: 'file-1', backgroundScale: 2 }), 'user-a:file-1');
-  assert.notEqual(backgroundLoadKey('user-a', { backgroundFileId: 'file-1' }), backgroundLoadKey('user-a', { backgroundFileId: 'file-2' }));
-  assert.notEqual(backgroundLoadKey('user-a', { backgroundFileId: 'file-1' }), backgroundLoadKey('user-b', { backgroundFileId: 'file-1' }));
+test('background load key changes when account, mode, color, or persisted media changes', () => {
+  const media = backgroundLoadKey('user-a', { mode: 'media', backgroundFileId: 'file-1' });
+  assert.equal(media, backgroundLoadKey('user-a', { mode: 'media', backgroundFileId: 'file-1', backgroundScale: 2 }));
+  assert.notEqual(media, backgroundLoadKey('user-a', { mode: 'media', backgroundFileId: 'file-2' }));
+  assert.notEqual(media, backgroundLoadKey('user-b', { mode: 'media', backgroundFileId: 'file-1' }));
+  assert.notEqual(media, backgroundLoadKey('user-a', { mode: 'color', color: '#FFFFFF', backgroundFileId: 'file-1' }));
+  assert.notEqual(backgroundLoadKey('user-a', { mode: 'color', color: '#FFFFFF' }), backgroundLoadKey('user-a', { mode: 'color', color: '#FCD5CE' }));
 });
 
 test('background editor provides per-photo framing controls without pan controls', async () => {
@@ -411,4 +413,24 @@ test('removing a persisted item-card media background deletes its Google Drive f
 
   assert.equal(result.status, 'saved');
   assert.deepEqual(events, ['persist', 'delete:card-bg-1', 'after']);
+});
+
+
+test('page background editor uses the unified color and custom-image tabs with white reset default', async () => {
+  const source = await readFile(new URL('../../src/client/app/background-personalization.js', import.meta.url), 'utf8');
+  assert.match(source, /data-page-background-mode="color"[^>]*>單色</);
+  assert.match(source, /data-page-background-mode="media"[^>]*>自訂圖片</);
+  assert.match(source, /page-background-color-panel/);
+  assert.match(source, /page-background-color-hex/);
+  assert.match(source, /page-background-color-presets/);
+  assert.match(source, /page-background-reset-default/);
+  assert.match(source, /#FFFFFF/);
+  assert.match(source, /page-background-back/);
+  assert.match(source, /shopping-list:open-personalization/);
+});
+
+test('page custom-image mode remains multi-photo with slideshow support', async () => {
+  const source = await readFile(new URL('../../src/client/app/background-personalization.js', import.meta.url), 'utf8');
+  assert.match(source, /id="background-file-input"[^>]*multiple/);
+  assert.match(source, /id="background-rotation-interval"/);
 });

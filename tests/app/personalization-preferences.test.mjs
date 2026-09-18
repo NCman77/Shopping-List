@@ -4,7 +4,11 @@ import {
   DEFAULT_PERSONALIZATION,
   normalizePersonalization,
   positionPreset,
-  normalizeRotationIntervalDraft
+  normalizeRotationIntervalDraft,
+  backgroundDefaultColor,
+  normalizeBackgroundColor,
+  normalizeBackgroundColorPresets,
+  addBackgroundColorPreset
 } from '../../src/client/app/personalization-preferences.js';
 
 test('normalizes legacy background positioning and scale', () => {
@@ -106,4 +110,31 @@ test('rotation interval draft allows a temporarily empty field while typing', ()
   assert.equal(normalizeRotationIntervalDraft('5'), 5);
   assert.equal(normalizeRotationIntervalDraft('1'), 2);
   assert.equal(normalizeRotationIntervalDraft('99'), 60);
+});
+
+
+test('background defaults and shared color presets normalize consistently', () => {
+  assert.equal(backgroundDefaultColor('header'), '#FCD5CE');
+  assert.equal(backgroundDefaultColor('item-card'), '#FFFFFF');
+  assert.equal(backgroundDefaultColor('page'), '#FFFFFF');
+  assert.equal(normalizeBackgroundColor(' #abc123 ', '#FFFFFF'), '#ABC123');
+  assert.equal(normalizeBackgroundColor('bad', '#FCD5CE'), '#FCD5CE');
+  assert.deepEqual(normalizeBackgroundColorPresets(['#111111', '#111111', '#222222', 'bad']), ['#111111', '#222222']);
+  assert.deepEqual(
+    addBackgroundColorPreset(['#111111', '#222222', '#333333', '#444444', '#555555', '#666666'], '#777777'),
+    ['#222222', '#333333', '#444444', '#555555', '#666666', '#777777']
+  );
+});
+
+test('generic background personalization keeps color/media mode and color while preserving legacy images', () => {
+  const color = normalizePersonalization({ mode: 'color', color: '#123456' });
+  assert.equal(color.mode, 'color');
+  assert.equal(color.color, '#123456');
+
+  const legacyMedia = normalizePersonalization({ backgroundFileId: 'legacy', backgroundFileName: 'old.jpg', backgroundMimeType: 'image/jpeg' });
+  assert.equal(legacyMedia.mode, 'media');
+
+  const header = normalizePersonalization({}, { defaultColor: '#FCD5CE' });
+  assert.equal(header.mode, 'color');
+  assert.equal(header.color, '#FCD5CE');
 });
