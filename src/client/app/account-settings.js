@@ -63,7 +63,7 @@ function ensureModal() {
           </button>
           <button id="account-open-personalization" type="button" class="account-setting-row w-full flex items-center gap-3 text-left p-4 rounded-2xl bg-pastelBlue/60 border-2 border-warmBrown text-warmBrown">
             <span class="w-10 h-10 shrink-0 rounded-full bg-white border-2 border-warmBrown flex items-center justify-center"><i class="fas fa-wand-magic-sparkles"></i></span>
-            <span class="flex-1"><span class="block font-bold">個人化</span><span class="block text-xs opacity-60 mt-0.5">背景圖片、GIF、影片與連播</span></span><i class="fas fa-chevron-right text-xs"></i>
+            <span class="flex-1"><span class="block font-bold">個人化</span><span class="block text-xs opacity-60 mt-0.5">背景照片與連播</span></span><i class="fas fa-chevron-right text-xs"></i>
           </button>
           <button id="account-settings-signout" type="button" class="account-setting-row w-full flex items-center gap-3 text-left p-4 rounded-2xl bg-pastelPink/60 border-2 border-warmBrown text-warmBrown">
             <span class="w-10 h-10 shrink-0 rounded-full bg-white border-2 border-warmBrown flex items-center justify-center"><i class="fas fa-right-from-bracket"></i></span><span class="font-bold flex-1">登出</span>

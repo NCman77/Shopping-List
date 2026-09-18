@@ -8,10 +8,10 @@ const files = [
   '../../src/client/app/item-card-personalization.js'
 ];
 
-test('all three personalization background modules initialize Firebase Storage', async () => {
+test('all three personalization background modules initialize Firestore media', async () => {
   for (const path of files) {
     const source = await readFile(new URL(path, import.meta.url), 'utf8');
-    assert.match(source, /firebasejs\/11\.6\.1\/firebase-storage\.js/);
+    assert.match(source, /firebasejs\/11\.6\.1\/firebase-firestore\.js/);
     assert.match(source, /createFirebaseBackgroundStorageService/);
     assert.match(source, /createBackgroundMediaService/);
   }
@@ -35,7 +35,7 @@ test('background UI no longer describes normal backgrounds as stored in Google D
 });
 
 
-test('all three personalization modules retry queued Firebase Storage cleanup after login', async () => {
+test('all three personalization modules retry queued Firestore cleanup after login', async () => {
   for (const path of files) {
     const source = await readFile(new URL(path, import.meta.url), 'utf8');
     assert.match(source, /mediaServiceForUser\([^)]*\)\.retryQueuedCleanup\(\)/);

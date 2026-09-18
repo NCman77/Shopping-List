@@ -20,7 +20,7 @@ import {
 } from './firebase-background-storage.js';
 
 const APP_ID = 'japan-shopping-app';
-const MAX_BACKGROUND_BYTES = 100 * 1024 * 1024;
+const MAX_BACKGROUND_BYTES = 25 * 1024 * 1024;
 const HEADER_BACKGROUND_UPLOAD = Object.freeze({ kind: 'header-background' });
 const HEADER_OVERSCAN_PERCENT = 12;
 const HEADER_OVERSCAN_OFFSET_PERCENT = HEADER_OVERSCAN_PERCENT / 2;
@@ -169,14 +169,14 @@ function ensureEditor() {
         </div>
 
         <div id="header-background-drive-note" class="hidden rounded-xl bg-pastelYellow/60 border-2 border-warmBrown px-3 py-2 text-xs font-bold text-warmBrown">
-          偵測到舊版 Google Drive 橫幅。完成一次移轉後，橫幅將改由 Firebase Storage 直接載入。
+          偵測到舊版 Google Drive 橫幅。完成一次移轉後，橫幅將改由 Firestore 直接載入。
           <button id="header-background-drive-connect" type="button" class="ml-1 underline">移轉舊橫幅</button>
         </div>
 
         <div class="grid grid-cols-2 gap-2">
           <button id="header-background-replace" type="button" class="text-center px-3 py-2.5 rounded-xl bg-pastelYellow border-2 border-warmBrown text-warmBrown font-bold"><i class="fas fa-rotate mr-1"></i>重新上傳</button>
           <button id="header-background-append" type="button" class="text-center px-3 py-2.5 rounded-xl bg-pastelGreen border-2 border-warmBrown text-warmBrown font-bold"><i class="fas fa-plus mr-1"></i>繼續上傳</button>
-          <input id="header-background-file-input" type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm" class="hidden">
+          <input id="header-background-file-input" type="file" multiple accept="image/jpeg,image/png,image/webp" class="hidden">
         </div>
         <button id="header-background-remove" type="button" class="w-full px-3 py-2 rounded-xl bg-pastelPink border-2 border-warmBrown text-warmBrown text-sm font-bold">移除全部橫幅</button>
         <p id="header-background-file-name" class="text-[11px] text-gray-400 font-bold truncate"></p>
@@ -262,12 +262,11 @@ export async function initHeaderBackgroundPersonalization() {
   if (window.__shoppingListHeaderBackgroundPersonalizationInitialized) return;
   window.__shoppingListHeaderBackgroundPersonalizationInitialized = true;
 
-  const [header, appSdk, authSdk, firestoreSdk, storageSdk] = await Promise.all([
+  const [header, appSdk, authSdk, firestoreSdk] = await Promise.all([
     waitFor(() => document.querySelector('header')),
     import('https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js'),
     import('https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js'),
-    import('https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js'),
-    import('https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js')
+    import('https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js')
   ]);
 
   installStyles();
@@ -277,7 +276,6 @@ export async function initHeaderBackgroundPersonalization() {
   const app = appSdk.getApps()[0] || appSdk.getApp();
   const auth = authSdk.getAuth(app);
   const db = firestoreSdk.getFirestore(app);
-  const storage = storageSdk.getStorage(app);
   const { doc, onSnapshot, setDoc } = firestoreSdk;
 
   const modal = document.getElementById('header-background-personalization-modal');
@@ -319,8 +317,8 @@ export async function initHeaderBackgroundPersonalization() {
     getUserId: () => userId
   });
   const firebaseStorageServiceForUser = (userId) => createFirebaseBackgroundStorageService({
-    storageSdk,
-    storage,
+    firestoreSdk,
+    db,
     userId,
     localStorageImpl: window.localStorage
   });
@@ -415,7 +413,7 @@ export async function initHeaderBackgroundPersonalization() {
           if (!(error instanceof DriveAuthorizationError)) console.error('Header background download failed:', error);
         }
       });
-      const legacy = state.preferences.backgroundFiles.some((file) => !String(file.fileId || '').startsWith('storage:'));
+      const legacy = state.preferences.backgroundFiles.some((file) => !String(file.fileId || '').startsWith('firestore:'));
       const needsAuthorization = legacy && !driveServiceForUser(capturedUserId).hasAccessToken();
       authRequiredButton.classList.toggle('hidden', !needsAuthorization);
       if (['applied', 'empty'].includes(result.status) && !legacy) authRequiredButton.classList.add('hidden');
@@ -716,11 +714,11 @@ export async function initHeaderBackgroundPersonalization() {
     input.value = '';
     if (!files.length) return;
     if (files.some((file) => !isSupportedBackgroundFile(file))) {
-      window.showMsg?.('不支援的檔案', '請選擇 JPG、PNG、WebP、GIF、MP4 或 WebM。', 'warning');
+      window.showMsg?.('不支援的檔案', '請選擇 JPG、PNG 或 WebP 照片。', 'warning');
       return;
     }
     if (files.some((file) => file.size > MAX_BACKGROUND_BYTES)) {
-      window.showMsg?.('檔案太大', '每個背景檔案請控制在 100MB 以內。', 'warning');
+      window.showMsg?.('檔案太大', '每個背景照片請控制在 25MB 以內。', 'warning');
       return;
     }
     appendPendingFiles(files, { replace: state.uploadMode === 'replace' });
@@ -877,7 +875,7 @@ export async function initHeaderBackgroundPersonalization() {
     } catch (error) {
       if (!tracker.isSessionCurrent(operation, state.userId)) return;
       console.error('Header background reconnect failed:', error);
-      window.showMsg?.('移轉失敗', '需要最後一次讀取舊 Google Drive 橫幅才能完成 Firebase Storage 移轉。', 'error');
+      window.showMsg?.('移轉失敗', '需要最後一次讀取舊 Google Drive 橫幅才能完成 Firestore 移轉。', 'error');
     }
   });
 
@@ -968,7 +966,7 @@ export async function initHeaderBackgroundPersonalization() {
       if (!tracker.isSessionCurrent(operation, state.userId)) return;
       const data = snapshot.exists() ? snapshot.data() : {};
       state.preferences = normalizePersonalization(data.headerPersonalization);
-      const legacy = state.preferences.backgroundFiles.some((file) => !String(file.fileId || '').startsWith('storage:'));
+      const legacy = state.preferences.backgroundFiles.some((file) => !String(file.fileId || '').startsWith('firestore:'));
       driveNote.classList.toggle('hidden', !legacy);
       authRequiredButton.classList.toggle('hidden', !(legacy && !driveServiceForUser(state.userId).hasAccessToken()));
       if (legacy && driveServiceForUser(state.userId).hasAccessToken()) {

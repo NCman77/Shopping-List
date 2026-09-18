@@ -22,15 +22,15 @@ function deferred() {
   return { promise, resolve, reject };
 }
 
-test('background accepts common images, GIF, MP4 and WebM only', () => {
+test('background accepts static JPEG, PNG, and WebP photos only', () => {
   assert.equal(isSupportedBackgroundFile({ type: 'image/jpeg', name: 'a.jpg' }), true);
   assert.equal(isSupportedBackgroundFile({ type: 'image/png', name: 'a.png' }), true);
   assert.equal(isSupportedBackgroundFile({ type: 'image/webp', name: 'a.webp' }), true);
-  assert.equal(isSupportedBackgroundFile({ type: 'image/gif', name: 'a.gif' }), true);
-  assert.equal(isSupportedBackgroundFile({ type: 'video/mp4', name: 'a.mp4' }), true);
-  assert.equal(isSupportedBackgroundFile({ type: 'video/webm', name: 'a.webm' }), true);
+  assert.equal(isSupportedBackgroundFile({ type: 'image/gif', name: 'a.gif' }), false);
+  assert.equal(isSupportedBackgroundFile({ type: 'video/mp4', name: 'a.mp4' }), false);
+  assert.equal(isSupportedBackgroundFile({ type: 'video/webm', name: 'a.webm' }), false);
   assert.equal(isSupportedBackgroundFile({ type: 'text/plain', name: 'a.txt' }), false);
-  assert.equal(backgroundKindForMime('video/mp4'), 'video');
+  assert.equal(backgroundKindForMime('video/mp4'), 'image');
   assert.equal(backgroundKindForMime('image/gif'), 'image');
 });
 
@@ -55,10 +55,9 @@ test('background editor provides per-photo framing controls without pan controls
   assert.doesNotMatch(source, /buildPanStyle/);
 });
 
-test('video backgrounds are muted inline and Drive replacement is saved before old cleanup', async () => {
+test('background replacement is saved before old cleanup and uses Firestore media', async () => {
   const source = await readFile(new URL('../../src/client/app/background-personalization.js', import.meta.url), 'utf8');
-  assert.match(source, /playsInline = true/);
-  assert.match(source, /muted = true/);
+  assert.match(source, /firebase-firestore/);
   assert.match(source, /uploadFile/);
   assert.match(source, /setDoc/);
   assert.match(source, /deletePhoto/);

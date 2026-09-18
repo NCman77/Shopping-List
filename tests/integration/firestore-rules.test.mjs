@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { initializeTestEnvironment, assertFails } from '@firebase/rules-unit-testing';
-import { deleteDoc, doc, getDoc, serverTimestamp, setDoc, updateDoc, writeBatch } from 'firebase/firestore';
+import { Bytes, deleteDoc, doc, getDoc, serverTimestamp, setDoc, updateDoc, writeBatch } from 'firebase/firestore';
 
 const root = 'artifacts/japan-shopping-app/users';
 const rulesTest = process.env.FIRESTORE_EMULATOR_HOST ? test : test.skip;
@@ -106,4 +106,37 @@ rulesTest('client error reports are bounded, append-only, and private', async ()
   await assertFails(updateDoc(report, { message: 'Changed' }));
   await assertFails(deleteDoc(report));
   await assertFails(setDoc(doc(alice, `${path}/e2`), { name: 'Error', message: 'x'.repeat(301) }));
+});
+
+rulesTest('personalization media is owner-only and validates static image bytes', async () => {
+  await env.clearFirestore();
+  const alice = env.authenticatedContext('alice').firestore();
+  const bob = env.authenticatedContext('bob').firestore();
+  const anonymous = env.unauthenticatedContext().firestore();
+  const path = `${root}/alice/personalizationMedia/photo-1`;
+  const media = doc(alice, path);
+  const valid = {
+    bytes: Bytes.fromUint8Array(new Uint8Array([1, 2, 3])),
+    mimeType: 'image/webp',
+    kind: 'page',
+    fileName: 'page.webp',
+    createdAt: serverTimestamp()
+  };
+
+  await setDoc(media, valid);
+  assert.equal((await getDoc(media)).data().mimeType, 'image/webp');
+  await assertFails(getDoc(doc(bob, path)));
+  await assertFails(getDoc(doc(anonymous, path)));
+  await assertFails(setDoc(doc(bob, `${root}/alice/personalizationMedia/other`), valid));
+  await assertFails(updateDoc(media, { mimeType: 'image/png' }));
+  await assertFails(setDoc(doc(alice, `${root}/alice/personalizationMedia/bad-type`), {
+    ...valid, mimeType: 'image/gif'
+  }));
+  await assertFails(setDoc(doc(alice, `${root}/alice/personalizationMedia/bad-kind`), {
+    ...valid, kind: 'video'
+  }));
+  await assertFails(setDoc(doc(alice, `${root}/alice/personalizationMedia/too-large`), {
+    ...valid, bytes: Bytes.fromUint8Array(new Uint8Array(900001))
+  }));
+  await deleteDoc(media);
 });

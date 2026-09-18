@@ -16,7 +16,7 @@ test('item card personalization supports default, solid color, and media modes',
   assert.match(source, /mode:\s*['"]color['"]/);
   assert.match(source, /mode:\s*['"]media['"]/);
   assert.match(source, /type="color"/);
-  assert.match(source, /accept="image\/jpeg,image\/png,image\/webp,image\/gif,video\/mp4,video\/webm"/);
+  assert.match(source, /accept="image\/jpeg,image\/png,image\/webp"/);
   assert.match(source, /item-card-background-scale/);
   assert.match(source, /data-item-card-position-preset/);
 });

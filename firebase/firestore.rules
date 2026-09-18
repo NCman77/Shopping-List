@@ -54,6 +54,31 @@ service cloud.firestore {
       match /itemPhotoPreviews/{previewId} {
         allow read, write: if isOwner();
       }
+
+      match /personalizationMedia/{mediaId} {
+        function validMedia() {
+          return request.resource.data.keys().hasOnly([
+              'bytes', 'mimeType', 'kind', 'fileName', 'createdAt'
+            ])
+            && request.resource.data.bytes is bytes
+            && request.resource.data.bytes.size() <= 900000
+            && request.resource.data.mimeType is string
+            && (request.resource.data.mimeType == 'image/jpeg'
+              || request.resource.data.mimeType == 'image/png'
+              || request.resource.data.mimeType == 'image/webp')
+            && request.resource.data.kind is string
+            && (request.resource.data.kind == 'header'
+              || request.resource.data.kind == 'page'
+              || request.resource.data.kind == 'item-card')
+            && request.resource.data.fileName is string
+            && request.resource.data.fileName.size() <= 200
+            && request.resource.data.createdAt is timestamp;
+        }
+
+        allow read, delete: if isOwner();
+        allow create: if isOwner() && validMedia();
+        allow update: if false;
+      }
     }
 
     match /artifacts/{appId}/clientErrors/{errorId} {

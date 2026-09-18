@@ -3,56 +3,53 @@ import assert from 'node:assert/strict';
 import {
   createBackgroundMediaService,
   isFirebaseBackgroundId,
-  firebaseBackgroundStoragePath,
+  personalizationMediaPath,
   migrateLegacyPlaylistToFirebase,
   migrateLegacySingleToFirebase
 } from '../../src/client/app/firebase-background-storage.js';
 
-test('Firebase personalization IDs are namespaced by user and kind', () => {
-  const path = firebaseBackgroundStoragePath({
-    userId: 'alice',
-    kind: 'header',
-    token: 'abc123',
-    fileName: '東京 夜景.jpg'
-  });
-  assert.match(path, /^personalization\/alice\/header\/abc123-/);
-  assert.match(path, /\.jpg$/);
-  assert.equal(isFirebaseBackgroundId('storage:' + path), true);
+test('Firestore personalization IDs are namespaced by user documents', () => {
+  assert.equal(isFirebaseBackgroundId('firestore:abc123'), true);
   assert.equal(isFirebaseBackgroundId('legacy-drive-id'), false);
+  assert.equal(
+    personalizationMediaPath({ userId: 'alice', mediaId: 'firestore:abc123' }),
+    'artifacts/japan-shopping-app/users/alice/personalizationMedia/abc123'
+  );
 });
-
-test('hybrid media service stores new uploads in Firebase and routes Firebase delete/download there', async () => {
+test('hybrid media service stores new uploads in Firestore and routes legacy IDs to Drive', async () => {
   const calls = [];
   const firebaseService = {
     uploadFile: async ({ fileName }) => {
-      calls.push('firebase-upload:' + fileName);
-      return { id: 'storage:personalization/alice/header/new.jpg', name: fileName, mimeType: 'image/jpeg' };
+      calls.push('firestore-upload:' + fileName);
+      return { id: 'firestore:new-id', name: fileName, mimeType: 'image/jpeg' };
     },
-    downloadPhoto: async (id) => { calls.push('firebase-download:' + id); return new Blob(['x']); },
-    deletePhoto: async (id) => { calls.push('firebase-delete:' + id); },
-    queueCleanup: async (id) => { calls.push('firebase-queue:' + id); }
+    downloadPhoto: async (id) => { calls.push('firestore-download:' + id); return new Blob(['x']); },
+    deletePhoto: async (id) => { calls.push('firestore-delete:' + id); },
+    queueCleanup: async (id) => { calls.push('firestore-queue:' + id); },
+    retryQueuedCleanup: async () => {}
   };
   const driveService = {
     hasAccessToken: () => true,
     downloadPhoto: async (id) => { calls.push('drive-download:' + id); return new Blob(['old']); },
     deletePhoto: async (id) => { calls.push('drive-delete:' + id); },
-    queueCleanup: async (id) => { calls.push('drive-queue:' + id); }
+    queueCleanup: async (id) => { calls.push('drive-queue:' + id); },
+    retryQueuedCleanup: async () => {}
   };
   const media = createBackgroundMediaService({ firebaseService, driveService });
   const uploaded = await media.uploadFile({ blob: new Blob(['new']), fileName: 'new.jpg', appProperties: { kind: 'header' } });
-  assert.equal(uploaded.id.startsWith('storage:'), true);
+  assert.equal(uploaded.id.startsWith('firestore:'), true);
   await media.downloadPhoto(uploaded.id);
   await media.deletePhoto(uploaded.id);
   await media.downloadPhoto('legacy-drive-id');
   assert.deepEqual(calls, [
-    'firebase-upload:new.jpg',
-    'firebase-download:' + uploaded.id,
-    'firebase-delete:' + uploaded.id,
+    'firestore-upload:new.jpg',
+    'firestore-download:' + uploaded.id,
+    'firestore-delete:' + uploaded.id,
     'drive-download:legacy-drive-id'
   ]);
 });
 
-test('legacy playlist migration persists Firebase IDs before deleting Drive originals', async () => {
+test('legacy playlist migration persists Firestore IDs before deleting Drive originals', async () => {
   const events = [];
   const preferences = {
     backgroundFiles: [
@@ -69,8 +66,8 @@ test('legacy playlist migration persists Firebase IDs before deleting Drive orig
   };
   let seq = 0;
   const mediaService = {
-    uploadFile: async ({ fileName }) => ({ id: 'storage:p/' + (++seq), name: fileName, mimeType: 'image/jpeg' }),
-    deletePhoto: async (id) => events.push('storage-delete:' + id)
+    uploadFile: async ({ fileName }) => ({ id: 'firestore:p' + (++seq), name: fileName, mimeType: 'image/jpeg' }),
+    deletePhoto: async (id) => events.push('firestore-delete:' + id)
   };
   const result = await migrateLegacyPlaylistToFirebase({
     preferences,
@@ -80,7 +77,7 @@ test('legacy playlist migration persists Firebase IDs before deleting Drive orig
   });
   assert.equal(result.status, 'migrated');
   assert.deepEqual(events, [
-    'persist:storage:p/1,storage:p/2',
+    'persist:firestore:p1,firestore:p2',
     'drive-delete:drive-a',
     'drive-delete:drive-b'
   ]);
@@ -92,24 +89,24 @@ test('legacy single background migration preserves framing and deletes Drive ori
     preferences: {
       mode: 'media',
       backgroundFileId: 'drive-card',
-      backgroundFileName: 'card.gif',
-      backgroundMimeType: 'image/gif',
+      backgroundFileName: 'card.jpg',
+      backgroundMimeType: 'image/jpeg',
       positionX: 75,
       positionY: 30,
       scale: 1.5
     },
     driveService: {
       hasAccessToken: () => true,
-      downloadPhoto: async () => new Blob(['gif'], { type: 'image/gif' }),
+      downloadPhoto: async () => new Blob(['photo'], { type: 'image/jpeg' }),
       deletePhoto: async (id) => events.push('drive-delete:' + id),
       queueCleanup: async () => {}
     },
     mediaService: {
-      uploadFile: async () => ({ id: 'storage:card/new', name: 'card.gif', mimeType: 'image/gif' }),
-      deletePhoto: async (id) => events.push('storage-delete:' + id)
+      uploadFile: async () => ({ id: 'firestore:cardnew', name: 'card.jpg', mimeType: 'image/jpeg' }),
+      deletePhoto: async (id) => events.push('firestore-delete:' + id)
     },
     persistPreferences: async (next) => events.push('persist:' + next.backgroundFileId)
   });
   assert.equal(result.status, 'migrated');
-  assert.deepEqual(events, ['persist:storage:card/new', 'drive-delete:drive-card']);
+  assert.deepEqual(events, ['persist:firestore:cardnew', 'drive-delete:drive-card']);
 });

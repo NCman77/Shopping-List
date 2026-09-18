@@ -19,7 +19,7 @@ function ensureHub() {
           <span class="w-11 h-11 shrink-0 rounded-full bg-white border-2 border-warmBrown flex items-center justify-center"><i class="fas fa-panorama"></i></span>
           <span class="flex-1 min-w-0">
             <span class="block font-bold">首頁橫幅背景</span>
-            <span class="block text-xs opacity-60 mt-0.5">修改首頁最上方橫幅，可使用橫式圖片、GIF 或影片</span>
+            <span class="block text-xs opacity-60 mt-0.5">修改首頁最上方橫幅，可使用 JPEG、PNG 或 WebP 照片</span>
           </span>
           <i class="fas fa-chevron-right text-xs"></i>
         </button>
@@ -27,7 +27,7 @@ function ensureHub() {
           <span class="w-11 h-11 shrink-0 rounded-full bg-white border-2 border-warmBrown flex items-center justify-center"><i class="fas fa-clone"></i></span>
           <span class="flex-1 min-w-0">
             <span class="block font-bold">商品小卡背景</span>
-            <span class="block text-xs opacity-60 mt-0.5">設定主頁商品小卡的單色、圖片、GIF 或影片背景</span>
+            <span class="block text-xs opacity-60 mt-0.5">設定主頁商品小卡的單色或照片背景</span>
           </span>
           <i class="fas fa-chevron-right text-xs"></i>
         </button>

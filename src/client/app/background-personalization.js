@@ -19,12 +19,9 @@ const APP_ID = 'japan-shopping-app';
 const ACCEPTED_MIME_TYPES = new Set([
   'image/jpeg',
   'image/png',
-  'image/webp',
-  'image/gif',
-  'video/mp4',
-  'video/webm'
+  'image/webp'
 ]);
-const MAX_BACKGROUND_BYTES = 100 * 1024 * 1024;
+const MAX_BACKGROUND_BYTES = 25 * 1024 * 1024;
 
 function waitFor(predicate, timeout = 10000) {
   return new Promise((resolve, reject) => {
@@ -47,7 +44,7 @@ function clamp(value, min, max) {
 }
 
 export function backgroundKindForMime(mimeType) {
-  return String(mimeType || '').toLowerCase().startsWith('video/') ? 'video' : 'image';
+  return 'image';
 }
 
 export function backgroundLoadKey(userId, preferences = {}) {
@@ -60,7 +57,7 @@ export function isSupportedBackgroundFile(file) {
   const type = String(file.type || '').toLowerCase();
   if (ACCEPTED_MIME_TYPES.has(type)) return true;
   const name = String(file.name || '').toLowerCase();
-  return /\.(jpe?g|png|webp|gif|mp4|webm)$/.test(name);
+  return /\.(jpe?g|png|webp)$/.test(name);
 }
 
 async function cleanupCapturedDriveFile(driveService, fileId) {
@@ -265,7 +262,7 @@ function ensureEditor() {
     <div id="background-personalization-modal" class="fixed inset-0 z-[100] hidden bg-warmBrown/50 backdrop-blur-sm px-3 items-center justify-center">
       <div class="w-full max-w-md max-h-[92vh] overflow-hidden bg-shinBg border-4 border-warmBrown rounded-[2rem] shadow-[8px_8px_0_rgba(92,64,51,0.28)] flex flex-col">
         <div class="bg-pastelBlue border-b-4 border-warmBrown px-5 py-4 flex items-center justify-between shrink-0">
-          <div><h2 class="text-xl font-bold text-warmBrown">個人化背景</h2><p class="text-[11px] text-warmBrown/60 font-bold mt-1">圖片、GIF、MP4、WebM</p></div>
+          <div><h2 class="text-xl font-bold text-warmBrown">個人化背景</h2><p class="text-[11px] text-warmBrown/60 font-bold mt-1">JPEG、PNG 或 WebP 照片</p></div>
           <button id="close-background-personalization" type="button" class="w-9 h-9 rounded-full bg-white border-2 border-warmBrown text-warmBrown"><i class="fas fa-times"></i></button>
         </div>
         <div class="overflow-y-auto p-4 space-y-5 bg-white">
@@ -276,14 +273,14 @@ function ensureEditor() {
           </div>
 
           <div id="background-drive-note" class="hidden rounded-xl bg-pastelYellow/60 border-2 border-warmBrown px-3 py-2 text-xs font-bold text-warmBrown">
-            偵測到舊版 Google Drive 背景。完成一次移轉後，背景將改由 Firebase Storage 直接載入。
+            偵測到舊版 Google Drive 背景。完成一次移轉後，背景將改由 Firestore 直接載入。
             <button id="background-drive-connect" type="button" class="ml-1 underline">移轉舊背景</button>
           </div>
 
           <div class="flex gap-2">
             <label class="flex-1 text-center px-3 py-2.5 rounded-xl bg-pastelGreen border-2 border-warmBrown text-warmBrown font-bold cursor-pointer">
               <i class="fas fa-upload mr-1"></i>選擇背景
-              <input id="background-file-input" type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm" class="hidden">
+              <input id="background-file-input" type="file" multiple accept="image/jpeg,image/png,image/webp" class="hidden">
             </label>
             <button id="background-remove" type="button" class="px-3 py-2.5 rounded-xl bg-pastelPink border-2 border-warmBrown text-warmBrown font-bold">移除</button>
           </div>
@@ -350,12 +347,11 @@ export async function initBackgroundPersonalization() {
   if (window.__shoppingListBackgroundPersonalizationInitialized) return;
   window.__shoppingListBackgroundPersonalizationInitialized = true;
 
-  const [shell, appSdk, authSdk, firestoreSdk, storageSdk] = await Promise.all([
+  const [shell, appSdk, authSdk, firestoreSdk] = await Promise.all([
     waitFor(() => document.getElementById('user-panel')?.closest('div.w-full.max-w-md')),
     import('https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js'),
     import('https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js'),
-    import('https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js'),
-    import('https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js')
+    import('https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js')
   ]);
 
   installStyles();
@@ -365,7 +361,6 @@ export async function initBackgroundPersonalization() {
   const app = appSdk.getApps()[0] || appSdk.getApp();
   const auth = authSdk.getAuth(app);
   const db = firestoreSdk.getFirestore(app);
-  const storage = storageSdk.getStorage(app);
   const { doc, onSnapshot, setDoc } = firestoreSdk;
 
   const modal = document.getElementById('background-personalization-modal');
@@ -398,8 +393,8 @@ export async function initBackgroundPersonalization() {
     getUserId: () => userId
   });
   const firebaseStorageServiceForUser = (userId) => createFirebaseBackgroundStorageService({
-    storageSdk,
-    storage,
+    firestoreSdk,
+    db,
     userId,
     localStorageImpl: window.localStorage
   });
@@ -661,11 +656,11 @@ export async function initBackgroundPersonalization() {
     input.value = '';
     if (!files.length) return;
     if (files.some((file) => !isSupportedBackgroundFile(file))) {
-      window.showMsg?.('不支援的檔案', '請選擇 JPG、PNG、WebP、GIF、MP4 或 WebM。', 'warning');
+      window.showMsg?.('不支援的檔案', '請選擇 JPG、PNG 或 WebP 照片。', 'warning');
       return;
     }
     if (files.some((file) => file.size > MAX_BACKGROUND_BYTES)) {
-      window.showMsg?.('檔案太大', '每個背景檔案請控制在 100MB 以內。', 'warning');
+      window.showMsg?.('檔案太大', '每個背景照片請控制在 25MB 以內。', 'warning');
       return;
     }
     revokePreviewObjectUrls();
@@ -858,7 +853,7 @@ export async function initBackgroundPersonalization() {
       if (!tracker.isSessionCurrent(operation, state.userId)) return;
       const data = snapshot.exists() ? snapshot.data() : {};
       state.preferences = normalizePersonalization(data.personalization);
-      const legacy = state.preferences.backgroundFiles.some((file) => !String(file.fileId || '').startsWith('storage:'));
+      const legacy = state.preferences.backgroundFiles.some((file) => !String(file.fileId || '').startsWith('firestore:'));
       driveNote.classList.toggle('hidden', !legacy);
       if (legacy && driveServiceForUser(state.userId).hasAccessToken()) {
         void migrateLegacyPlaylistToFirebase({

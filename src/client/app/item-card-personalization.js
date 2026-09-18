@@ -19,7 +19,7 @@ import {
 } from './firebase-background-storage.js';
 
 const APP_ID = 'japan-shopping-app';
-const MAX_BACKGROUND_BYTES = 100 * 1024 * 1024;
+const MAX_BACKGROUND_BYTES = 25 * 1024 * 1024;
 const ITEM_CARD_BACKGROUND_UPLOAD = Object.freeze({ kind: 'item-card-background' });
 
 function waitFor(predicate, timeout = 10000) {
@@ -128,7 +128,7 @@ function ensureEditor() {
         <div class="grid grid-cols-3 gap-2">
           <button type="button" class="item-card-mode-button py-2 rounded-xl border-2 border-warmBrown text-xs font-bold text-warmBrown" data-item-card-mode="default">原本樣式</button>
           <button type="button" class="item-card-mode-button py-2 rounded-xl border-2 border-warmBrown text-xs font-bold text-warmBrown" data-item-card-mode="color">單色</button>
-          <button type="button" class="item-card-mode-button py-2 rounded-xl border-2 border-warmBrown text-xs font-bold text-warmBrown" data-item-card-mode="media">圖片／影片</button>
+          <button type="button" class="item-card-mode-button py-2 rounded-xl border-2 border-warmBrown text-xs font-bold text-warmBrown" data-item-card-mode="media">靜態照片</button>
         </div>
 
         <div id="item-card-color-panel" class="hidden rounded-2xl bg-shinBg border-2 border-warmBrown p-4">
@@ -142,18 +142,18 @@ function ensureEditor() {
           <div id="item-card-background-preview" class="relative w-full aspect-[3/2] overflow-hidden rounded-[1.5rem] bg-shinBg border-2 border-warmBrown shadow-inner">
             <div id="item-card-background-preview-empty" class="absolute inset-0 flex flex-col items-center justify-center text-warmBrown/45 text-center px-6">
               <i class="fas fa-image text-4xl mb-3"></i>
-              <span class="text-sm font-bold">選擇圖片、GIF 或影片</span>
+              <span class="text-sm font-bold">選擇 JPEG、PNG 或 WebP 照片</span>
             </div>
           </div>
 
           <div id="item-card-background-drive-note" class="hidden rounded-xl bg-pastelYellow/60 border-2 border-warmBrown px-3 py-2 text-xs font-bold text-warmBrown">
-            偵測到舊版 Google Drive 小卡背景。完成一次移轉後，背景將改由 Firebase Storage 直接載入。
+            偵測到舊版 Google Drive 小卡背景。完成一次移轉後，背景將改由 Firestore 直接載入。
             <button id="item-card-background-drive-connect" type="button" class="ml-1 underline">移轉舊背景</button>
           </div>
 
           <label class="block text-center px-3 py-2.5 rounded-xl bg-pastelGreen border-2 border-warmBrown text-warmBrown font-bold cursor-pointer">
-            <i class="fas fa-upload mr-1"></i>選擇圖片／GIF／影片
-            <input id="item-card-background-file" type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm" class="hidden">
+            <i class="fas fa-upload mr-1"></i>選擇 JPEG、PNG 或 WebP 照片
+            <input id="item-card-background-file" type="file" accept="image/jpeg,image/png,image/webp" class="hidden">
           </label>
           <p id="item-card-background-file-name" class="text-[11px] text-gray-400 font-bold truncate"></p>
 
@@ -208,12 +208,11 @@ export async function initItemCardPersonalization() {
   if (window.__shoppingListItemCardPersonalizationInitialized) return;
   window.__shoppingListItemCardPersonalizationInitialized = true;
 
-  const [list, appSdk, authSdk, firestoreSdk, storageSdk] = await Promise.all([
+  const [list, appSdk, authSdk, firestoreSdk] = await Promise.all([
     waitFor(() => document.getElementById('item-list')),
     import('https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js'),
     import('https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js'),
-    import('https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js'),
-    import('https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js')
+    import('https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js')
   ]);
 
   installStyles();
@@ -222,7 +221,6 @@ export async function initItemCardPersonalization() {
   const app = appSdk.getApps()[0] || appSdk.getApp();
   const auth = authSdk.getAuth(app);
   const db = firestoreSdk.getFirestore(app);
-  const storage = storageSdk.getStorage(app);
   const { doc, onSnapshot, setDoc } = firestoreSdk;
 
   const modal = document.getElementById('item-card-personalization-modal');
@@ -254,8 +252,8 @@ export async function initItemCardPersonalization() {
     getUserId: () => userId
   });
   const firebaseStorageServiceForUser = (userId) => createFirebaseBackgroundStorageService({
-    storageSdk,
-    storage,
+    firestoreSdk,
+    db,
     userId,
     localStorageImpl: window.localStorage
   });
@@ -426,7 +424,7 @@ export async function initItemCardPersonalization() {
     revokeUrl('previewObjectUrl');
     const legacy = state.preferences.mode === 'media'
       && state.preferences.backgroundFileId
-      && !String(state.preferences.backgroundFileId).startsWith('storage:');
+      && !String(state.preferences.backgroundFileId).startsWith('firestore:');
     driveNote.classList.toggle('hidden', !legacy);
     renderMode();
     modal.classList.remove('hidden');
@@ -467,11 +465,11 @@ export async function initItemCardPersonalization() {
     fileInput.value = '';
     if (!file) return;
     if (!isSupportedBackgroundFile(file)) {
-      window.showMsg?.('不支援的檔案', '請選擇 JPG、PNG、WebP、GIF、MP4 或 WebM。', 'warning');
+      window.showMsg?.('不支援的檔案', '請選擇 JPG、PNG 或 WebP 照片。', 'warning');
       return;
     }
     if (file.size > MAX_BACKGROUND_BYTES) {
-      window.showMsg?.('檔案太大', '小卡背景檔案請控制在 100MB 以內。', 'warning');
+      window.showMsg?.('檔案太大', '小卡背景照片請控制在 25MB 以內。', 'warning');
       return;
     }
     revokeUrl('previewObjectUrl');
@@ -649,7 +647,7 @@ export async function initItemCardPersonalization() {
       revokeUrl('objectUrl');
       const legacy = state.preferences.mode === 'media'
         && state.preferences.backgroundFileId
-        && !String(state.preferences.backgroundFileId).startsWith('storage:');
+        && !String(state.preferences.backgroundFileId).startsWith('firestore:');
       driveNote.classList.toggle('hidden', !legacy);
       if (legacy && driveServiceForUser(state.userId).hasAccessToken()) {
         void migrateLegacySingleToFirebase({
