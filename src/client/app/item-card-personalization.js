@@ -12,6 +12,11 @@ import {
 } from './item-card-personalization-core.js';
 import { positionPreset } from './personalization-preferences.js';
 import { createSessionOperationTracker } from './session-operation.js';
+import {
+  createBackgroundMediaService,
+  createFirebaseBackgroundStorageService,
+  migrateLegacySingleToFirebase
+} from './firebase-background-storage.js';
 
 const APP_ID = 'japan-shopping-app';
 const MAX_BACKGROUND_BYTES = 100 * 1024 * 1024;
@@ -142,8 +147,8 @@ function ensureEditor() {
           </div>
 
           <div id="item-card-background-drive-note" class="hidden rounded-xl bg-pastelYellow/60 border-2 border-warmBrown px-3 py-2 text-xs font-bold text-warmBrown">
-            小卡背景仍儲存在 Google Drive，需要重新連結才能預覽。
-            <button id="item-card-background-drive-connect" type="button" class="ml-1 underline">重新連結</button>
+            偵測到舊版 Google Drive 小卡背景。完成一次移轉後，背景將改由 Firebase Storage 直接載入。
+            <button id="item-card-background-drive-connect" type="button" class="ml-1 underline">移轉舊背景</button>
           </div>
 
           <label class="block text-center px-3 py-2.5 rounded-xl bg-pastelGreen border-2 border-warmBrown text-warmBrown font-bold cursor-pointer">
@@ -203,11 +208,12 @@ export async function initItemCardPersonalization() {
   if (window.__shoppingListItemCardPersonalizationInitialized) return;
   window.__shoppingListItemCardPersonalizationInitialized = true;
 
-  const [list, appSdk, authSdk, firestoreSdk] = await Promise.all([
+  const [list, appSdk, authSdk, firestoreSdk, storageSdk] = await Promise.all([
     waitFor(() => document.getElementById('item-list')),
     import('https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js'),
     import('https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js'),
-    import('https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js')
+    import('https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js'),
+    import('https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js')
   ]);
 
   installStyles();
@@ -216,6 +222,7 @@ export async function initItemCardPersonalization() {
   const app = appSdk.getApps()[0] || appSdk.getApp();
   const auth = authSdk.getAuth(app);
   const db = firestoreSdk.getFirestore(app);
+  const storage = storageSdk.getStorage(app);
   const { doc, onSnapshot, setDoc } = firestoreSdk;
 
   const modal = document.getElementById('item-card-personalization-modal');
@@ -245,6 +252,16 @@ export async function initItemCardPersonalization() {
     fetchImpl: window.fetch.bind(window),
     sessionStorageImpl: window.sessionStorage,
     getUserId: () => userId
+  });
+  const firebaseStorageServiceForUser = (userId) => createFirebaseBackgroundStorageService({
+    storageSdk,
+    storage,
+    userId,
+    localStorageImpl: window.localStorage
+  });
+  const mediaServiceForUser = (userId) => createBackgroundMediaService({
+    firebaseService: firebaseStorageServiceForUser(userId),
+    driveService: driveServiceForUser(userId)
   });
 
   function settingsRef(userId = state.userId) {
@@ -308,7 +325,7 @@ export async function initItemCardPersonalization() {
       return;
     }
     const capturedUserId = state.userId;
-    const service = driveServiceForUser(capturedUserId);
+    const service = mediaServiceForUser(capturedUserId);
     const result = await runBackgroundDownload({
       tracker,
       userId: capturedUserId,
@@ -348,6 +365,16 @@ export async function initItemCardPersonalization() {
     const token = credential?.accessToken || '';
     if (!token) throw new DriveAuthorizationError('未取得 Google Drive 授權。');
     capturedDrive.setAccessToken(token);
+    const migration = await migrateLegacySingleToFirebase({
+      preferences: state.preferences,
+      driveService: capturedDrive,
+      mediaService: mediaServiceForUser(operation.userId),
+      uploadKind: ITEM_CARD_BACKGROUND_UPLOAD.kind,
+      persistPreferences: (next) => setDoc(settingsRef(operation.userId), { itemCardPersonalization: next }, { merge: true })
+    });
+    if (migration.status === 'migrated') {
+      state.preferences = normalizeItemCardPersonalization(migration.nextPreferences);
+    }
     driveNote.classList.add('hidden');
     await loadMedia({ force: true });
     return token;
@@ -397,9 +424,10 @@ export async function initItemCardPersonalization() {
     state.editorMode = state.preferences.mode;
     state.pendingFile = null;
     revokeUrl('previewObjectUrl');
-    driveNote.classList.toggle('hidden', !(state.preferences.mode === 'media'
+    const legacy = state.preferences.mode === 'media'
       && state.preferences.backgroundFileId
-      && !driveServiceForUser(state.userId).hasAccessToken()));
+      && !String(state.preferences.backgroundFileId).startsWith('storage:');
+    driveNote.classList.toggle('hidden', !legacy);
     renderMode();
     modal.classList.remove('hidden');
     modal.classList.add('flex');
@@ -532,7 +560,7 @@ export async function initItemCardPersonalization() {
     const operation = tracker.capture(state.userId);
     const ref = settingsRef(operation.userId);
     const oldFileId = state.preferences.backgroundFileId;
-    const capturedDrive = driveServiceForUser(operation.userId);
+    const capturedMedia = mediaServiceForUser(operation.userId);
     const desiredMode = state.editorMode;
     const desiredColor = state.editor.color;
     const desiredFrame = {
@@ -554,7 +582,7 @@ export async function initItemCardPersonalization() {
         removeRequested: desiredMode !== 'media',
         oldFileId,
         uploadKind: ITEM_CARD_BACKGROUND_UPLOAD.kind,
-        driveService: capturedDrive,
+        driveService: capturedMedia,
         connectDrive,
         persistSettings: async (settingsRefValue, nextMedia) => {
           const next = desiredMode === 'media'
@@ -585,9 +613,7 @@ export async function initItemCardPersonalization() {
           console.error('Item card background save failed:', error);
           window.showMsg?.(
             '儲存失敗',
-            error instanceof DriveAuthorizationError
-              ? '請重新連結 Google Drive 後再試。'
-              : (error.message || '無法儲存商品小卡背景。'),
+            error.message || '無法儲存商品小卡背景。',
             'error'
           );
         }
@@ -620,6 +646,20 @@ export async function initItemCardPersonalization() {
       const data = snapshot.exists() ? snapshot.data() : {};
       state.preferences = normalizeItemCardPersonalization(data.itemCardPersonalization);
       revokeUrl('objectUrl');
+      const legacy = state.preferences.mode === 'media'
+        && state.preferences.backgroundFileId
+        && !String(state.preferences.backgroundFileId).startsWith('storage:');
+      driveNote.classList.toggle('hidden', !legacy);
+      if (legacy && driveServiceForUser(state.userId).hasAccessToken()) {
+        void migrateLegacySingleToFirebase({
+          preferences: state.preferences,
+          driveService: driveServiceForUser(state.userId),
+          mediaService: mediaServiceForUser(state.userId),
+          uploadKind: ITEM_CARD_BACKGROUND_UPLOAD.kind,
+          persistPreferences: (next) => setDoc(settingsRef(state.userId), { itemCardPersonalization: next }, { merge: true })
+        }).catch((error) => console.error('Legacy item-card background migration failed:', error));
+        return;
+      }
       void loadMedia({ force: true });
       applyCards();
     }, (error) => {
