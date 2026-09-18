@@ -1,10 +1,14 @@
 export const DRIVE_APPDATA_SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
 
-export function configureGoogleProviderForDrive(provider) {
+export function configureGoogleProviderForDrive(provider, { loginHint = '' } = {}) {
   if (!provider || typeof provider.addScope !== 'function') {
     throw new TypeError('Google provider must support addScope().');
   }
   provider.addScope(DRIVE_APPDATA_SCOPE);
+  const hint = String(loginHint || '').trim();
+  if (hint && typeof provider.setCustomParameters === 'function') {
+    provider.setCustomParameters({ login_hint: hint });
+  }
   return provider;
 }
 
