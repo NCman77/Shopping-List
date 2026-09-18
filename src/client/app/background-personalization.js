@@ -110,6 +110,7 @@ export async function runBackgroundSaveTransaction({
   pendingFile,
   removeRequested,
   oldFileId,
+  uploadKind = 'background',
   driveService,
   connectDrive,
   persistSettings,
@@ -134,7 +135,7 @@ export async function runBackgroundSaveTransaction({
       const uploaded = await driveService.uploadFile({
         blob: pendingFile,
         fileName: pendingFile.name || `background-${Date.now()}`,
-        appProperties: { kind: 'background', owner: operation.userId }
+        appProperties: { kind: uploadKind, owner: operation.userId }
       });
       uploadedFileId = uploaded.id;
       if (!isCurrent()) return staleResult();
@@ -698,7 +699,7 @@ export async function initBackgroundPersonalization() {
   document.getElementById('close-background-personalization').addEventListener('click', closeEditor);
   document.getElementById('cancel-background-personalization').addEventListener('click', closeEditor);
   modal.addEventListener('click', (event) => { if (event.target === modal) closeEditor(); });
-  window.addEventListener('shopping-list:open-personalization', openEditor);
+  window.addEventListener('shopping-list:open-page-background', openEditor);
   window.addEventListener('shopping-list:drive-token-ready', () => loadPersistedBackground({ force: true }));
 
   authSdk.onAuthStateChanged(auth, (user) => {
