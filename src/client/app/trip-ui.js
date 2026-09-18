@@ -163,7 +163,7 @@ function ensureModal() {
     <div class="w-full max-w-md max-h-[88vh] overflow-hidden bg-shinBg border-4 border-warmBrown rounded-[2rem] shadow-[8px_8px_0_rgba(92,64,51,.28)]">
       <div id="trip-modal-header" class="bg-pastelBlue border-b-4 border-warmBrown px-5 py-4 flex items-center justify-between">
         <button id="trip-modal-back" type="button" class="hidden w-9 h-9 rounded-full bg-white border-2 border-warmBrown text-warmBrown"><i class="fas fa-chevron-left"></i></button>
-        <div class="flex-1 px-3"><h2 id="trip-modal-title" class="text-xl font-bold text-warmBrown">選擇旅程</h2><p id="trip-modal-subtitle" class="hidden"></p></div>
+        <div class="flex-1 px-3"><h2 id="trip-modal-title" class="text-xl font-bold text-warmBrown">選擇旅程</h2><p id="trip-modal-subtitle" class="text-[11px] text-warmBrown/60 font-bold mt-1"></p></div>
         <button id="trip-modal-close" type="button" class="w-9 h-9 rounded-full bg-white border-2 border-warmBrown text-warmBrown"><i class="fas fa-times"></i></button>
       </div>
       <div id="trip-picker-view" class="p-4 bg-white overflow-y-auto max-h-[70vh]"></div>
