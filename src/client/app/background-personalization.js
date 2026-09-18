@@ -156,6 +156,7 @@ export async function runBackgroundSaveTransaction({
     } else if (removeRequested) {
       nextPreferences = normalizePersonalization({
         ...nextPreferences,
+        backgroundFiles: [],
         backgroundFileId: '',
         backgroundFileName: '',
         backgroundMimeType: ''
