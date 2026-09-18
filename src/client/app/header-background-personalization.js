@@ -474,12 +474,68 @@ export async function initHeaderBackgroundPersonalization() {
         button.appendChild(label);
       }
       button.addEventListener('click', () => {
+        if (state.suppressThumbnailClick) return;
         state.activeEditorIndex = index;
         renderEditorPreview();
       });
       root.appendChild(button);
     });
   }
+
+  function cancelThumbnailLongPress() {
+    if (state.thumbnailLongPressTimer) clearTimeout(state.thumbnailLongPressTimer);
+    state.thumbnailLongPressTimer = null;
+  }
+
+  function finishThumbnailReorder() {
+    cancelThumbnailLongPress();
+    if (!state.thumbnailDrag) return;
+    thumbnailsRoot.classList.remove('reordering');
+    if (state.thumbnailDrag.active) {
+      state.suppressThumbnailClick = true;
+      setTimeout(() => { state.suppressThumbnailClick = false; }, 0);
+    }
+    state.thumbnailDrag = null;
+  }
+
+  thumbnailsRoot.addEventListener('pointerdown', (event) => {
+    const button = event.target.closest?.('[data-header-background-index]');
+    if (!button) return;
+    cancelThumbnailLongPress();
+    const index = Number(button.dataset.headerBackgroundIndex);
+    state.thumbnailDrag = {
+      pointerId: event.pointerId,
+      index,
+      active: false
+    };
+    state.thumbnailLongPressTimer = setTimeout(() => {
+      if (!state.thumbnailDrag || state.thumbnailDrag.pointerId !== event.pointerId) return;
+      state.thumbnailDrag.active = true;
+      state.activeEditorIndex = index;
+      thumbnailsRoot.classList.add('reordering');
+      thumbnailsRoot.setPointerCapture?.(event.pointerId);
+    }, LONG_PRESS_MS);
+  });
+
+  thumbnailsRoot.addEventListener('pointermove', (event) => {
+    const drag = state.thumbnailDrag;
+    if (!drag || drag.pointerId !== event.pointerId || !drag.active) return;
+    const target = document.elementFromPoint?.(event.clientX, event.clientY)?.closest?.('[data-header-background-index]');
+    const targetIndex = Number(target?.dataset?.headerBackgroundIndex);
+    if (!Number.isInteger(targetIndex) || targetIndex === drag.index) return;
+    const reordered = reorderBackgroundFiles(editorFiles(), drag.index, targetIndex);
+    drag.index = targetIndex;
+    state.activeEditorIndex = targetIndex;
+    setEditorFiles(reordered);
+    renderEditorPreview();
+    event.preventDefault();
+  });
+
+  thumbnailsRoot.addEventListener('pointerup', finishThumbnailReorder);
+  thumbnailsRoot.addEventListener('pointercancel', finishThumbnailReorder);
+  thumbnailsRoot.addEventListener('pointerleave', (event) => {
+    if (!state.thumbnailDrag?.active) cancelThumbnailLongPress();
+  });
 
   function renderEditorPreview() {
     preview.querySelector('#header-background-preview-media')?.remove();
@@ -703,6 +759,7 @@ export async function initHeaderBackgroundPersonalization() {
     const capturedSettingsRef = settingsRef(operation.userId);
     const capturedEditorPreferences = normalizePersonalization(state.editorPreferences);
     const capturedPendingFiles = state.pendingFiles.slice();
+    const capturedPendingEntries = state.pendingEntries.map((entry) => ({ ...entry }));
     const capturedRemoveRequested = state.removeRequested;
     const oldFiles = state.preferences.backgroundFiles.slice();
     const capturedDrive = driveServiceForUser(operation.userId);
@@ -716,6 +773,7 @@ export async function initHeaderBackgroundPersonalization() {
         capturedSettingsRef,
         editorPreferences: capturedEditorPreferences,
         pendingFiles: capturedPendingFiles,
+        pendingEntries: capturedPendingEntries,
         removeRequested: capturedRemoveRequested,
         oldFiles,
         uploadKind: HEADER_BACKGROUND_UPLOAD.kind,
