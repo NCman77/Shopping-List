@@ -80,7 +80,12 @@ export async function runBackgroundPlaylistDownload({
       }
     }
 
-    if (items.length > 1) applyBackgrounds(items, capturedPreferences);
+    if (items.length > 1) {
+      const firstObjectUrl = items[0].objectUrl;
+      items[0] = { ...items[0], objectUrl: createObjectUrl(firstBlob) };
+      revokeObjectUrl(firstObjectUrl);
+      applyBackgrounds(items, capturedPreferences);
+    }
     return Object.freeze({ status: 'applied', operation, items });
   } catch (error) {
     if (!tracker.isLatestRequest(operation, userId)) {
@@ -89,8 +94,9 @@ export async function runBackgroundPlaylistDownload({
     }
     onError(error);
     if (items.length) {
-      applyBackgrounds(items, capturedPreferences);
-      return Object.freeze({ status: 'applied', operation, items, partial: true, error });
+      for (const item of items.slice(1)) revokeObjectUrl(item.objectUrl);
+      const visibleItems = items.slice(0, 1);
+      return Object.freeze({ status: 'applied', operation, items: visibleItems, partial: true, error });
     }
     hideBackground();
     return Object.freeze({ status: 'error', operation, error, items: [] });
