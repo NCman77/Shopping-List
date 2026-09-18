@@ -64,12 +64,12 @@ test('coupon manager uses back for settings return and close for exiting the set
 });
 
 
-test('coupon management top-level header matches personalization styling and country rows show an earth icon', async () => {
+test('coupon management top-level header matches personalization styling and uses country flag rows', async () => {
   const text = await source();
   assert.match(text, /id="coupon-country-header"[^>]*bg-pastelBlue[^>]*border-b-4[^>]*px-5 py-4/);
   assert.match(text, /<h3 class="text-xl font-bold text-warmBrown">優惠券管理<\/h3>/);
   assert.match(text, /coupon-country-icon/);
-  assert.match(text, /fa-earth-asia/);
+  assert.match(text, /createCountryFlagElement/);
 });
 
 
