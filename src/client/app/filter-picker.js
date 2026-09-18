@@ -15,14 +15,16 @@ const FILTERS = {
     selector: '.cat-btn',
     dataKey: 'cat',
     dataAttr: 'data-cat',
-    title: '選擇分類'
+    title: '選擇分類',
+    iconClass: 'fas fa-tag'
   },
   location: {
     rootId: 'location-filters',
     selector: '.loc-btn',
     dataKey: 'loc',
     dataAttr: 'data-loc',
-    title: '選擇地點'
+    title: '選擇地點',
+    iconClass: 'fas fa-map-marker-alt'
   }
 };
 
@@ -51,6 +53,10 @@ export async function initFilterPicker() {
     waitFor(() => document.getElementById('category-filters')),
     waitFor(() => document.getElementById('location-filters'))
   ]);
+
+  document.querySelectorAll('[data-filter-kind-icon="category"], [data-filter-kind-icon="location"]').forEach((icon) => {
+    icon.classList.add('hidden');
+  });
 
   const state = {
     activeType: '',
@@ -170,7 +176,6 @@ export async function initFilterPicker() {
     renderOptions();
     modal?.classList.remove('hidden');
     modal?.classList.add('flex');
-    setTimeout(() => search?.focus(), 60);
   }
 
   function allButtonFor(type) {
@@ -184,7 +189,7 @@ export async function initFilterPicker() {
     if (!button || button.dataset.filterPickerAll === type) return;
     button.dataset.filterPickerAll = type;
     button.dataset.filterPickerLabel = '全部';
-    button.innerHTML = '全部 <i class="fas fa-chevron-down ml-1 text-[9px]"></i>';
+    button.innerHTML = `<i class="${config.iconClass} mr-1"></i>全部 <i class="fas fa-chevron-down ml-1 text-[9px]"></i>`;
     button.addEventListener('click', (event) => {
       if (!event.isTrusted) return;
       event.preventDefault();
