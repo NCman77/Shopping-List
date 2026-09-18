@@ -108,3 +108,22 @@ test('all-chip enhancement resolves its filter config before reading the icon cl
   assert.match(body, /const config = FILTERS\[type\]/);
   assert.match(body, /config\.iconClass/);
 });
+
+
+test('filter picker is vertically centered on mobile and supports multi-select without closing after each choice', async () => {
+  const source = await readFile(sourcePath, 'utf8');
+  assert.match(source, /modal\.className = '[^']*items-center justify-center'/);
+  assert.doesNotMatch(source, /items-end sm:items-center/);
+  assert.match(source, /filter-picker-clear/);
+  assert.match(source, /shopping-list:clear-home-filter/);
+  const optionClick = source.match(/button\.addEventListener\('click', \(\) => \{([\s\S]*?)\n      \}\);/)?.[1] || '';
+  assert.match(optionClick, /sourceButton\.click\(\)/);
+  assert.match(optionClick, /renderOptions\(\)/);
+  assert.doesNotMatch(optionClick, /closeModal\(\)/);
+});
+
+test('filter picker derives selected state from source chip aria-pressed for multi-select rendering', async () => {
+  const source = await readFile(sourcePath, 'utf8');
+  assert.match(source, /getAttribute\('aria-pressed'\) === 'true'/);
+  assert.doesNotMatch(source, /selected:\s*\{\s*category:\s*'all',\s*location:\s*'all'\s*\}/);
+});
