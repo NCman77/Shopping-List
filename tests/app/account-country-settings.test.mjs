@@ -74,3 +74,24 @@ test('account settings keeps the requested feature order and leaves API settings
   for (const id of desired) assert.match(source, new RegExp(id));
   assert.match(source, /MutationObserver/);
 });
+
+
+test('travel country management exposes edit and delete controls without rewriting existing trips', async () => {
+  const source = await readFile(new URL('../../src/client/app/account-settings.js', import.meta.url), 'utf8');
+  assert.match(source, /editingCountry/);
+  assert.match(source, /beginCountryEdit/);
+  assert.match(source, /deleteCountry/);
+  assert.match(source, /account-country-cancel/);
+  assert.match(source, /fa-pen/);
+  assert.match(source, /fa-trash/);
+  assert.match(source, /既有旅遊紀錄不會被改寫/);
+  assert.doesNotMatch(source, /collection\(db, ['"]artifacts['"], APP_ID, ['"]users['"], .*?['"]trips['"]\)/s);
+});
+
+test('default and active countries are protected from edit/delete', async () => {
+  const source = await readFile(new URL('../../src/client/app/account-settings.js', import.meta.url), 'utf8');
+  assert.match(source, /country === DEFAULT_COUNTRY/);
+  assert.match(source, /country === state\.activeCountry/);
+  assert.match(source, /edit\.disabled = Boolean\(countryLockedReason\(country\)\)/);
+  assert.match(source, /remove\.disabled = Boolean\(countryLockedReason\(country\)\)/);
+});
