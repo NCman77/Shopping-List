@@ -25,9 +25,10 @@ test('legacy items without country resolve to Japan', () => {
   assert.equal(resolveItemCountry({ country: ' 韓國 ' }), '韓國');
 });
 
-test('country list is trimmed, de-duplicated and always contains Japan', () => {
+test('country list is trimmed and de-duplicated without injecting a default country', () => {
   assert.deepEqual(normalizeCountries([' 韓國 ', '日本', '韓國', '', null]), ['韓國', '日本']);
-  assert.deepEqual(normalizeCountries([]), ['日本']);
+  assert.deepEqual(normalizeCountries([]), []);
+  assert.deepEqual(normalizeCountries([' 韓國 ', '', null]), ['韓國']);
 });
 
 test('items are strictly filtered to the active country with Japan legacy fallback', () => {
