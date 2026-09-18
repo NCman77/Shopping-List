@@ -7,7 +7,8 @@ import {
   isSupportedBackgroundFile,
   resetBackgroundSessionUi,
   runBackgroundDownload,
-  runBackgroundSaveTransaction
+  runBackgroundSaveTransaction,
+  runBackgroundPlaylistSaveTransaction
 } from '../../src/client/app/background-personalization.js';
 import { createSessionOperationTracker } from '../../src/client/app/session-operation.js';
 
@@ -292,4 +293,51 @@ test('browser handlers delegate download, save, and auth reset to the tested orc
   assert.match(init, /runBackgroundDownload\(\{/);
   assert.match(init, /runBackgroundSaveTransaction\(\{/);
   assert.match(init, /resetBackgroundSessionUi\(\{/);
+});
+
+
+test('page background editor accepts multiple files and exposes a slideshow interval', async () => {
+  const source = await readFile(new URL('../../src/client/app/background-personalization.js', import.meta.url), 'utf8');
+  assert.match(source, /id="background-file-input"[^>]*multiple/);
+  assert.match(source, /id="background-rotation-interval"/);
+  assert.match(source, /rotationIntervalSeconds/);
+  assert.match(source, /setInterval/);
+});
+
+test('playlist save uploads multiple files and persists a backward-compatible first file', async () => {
+  const tracker = createSessionOperationTracker();
+  tracker.advance('user-a');
+  const operation = tracker.capture('user-a');
+  const persisted = [];
+  let sequence = 0;
+
+  const result = await runBackgroundPlaylistSaveTransaction({
+    tracker,
+    operation,
+    getCurrentUserId: () => 'user-a',
+    capturedSettingsRef: { owner: 'user-a' },
+    editorPreferences: { rotationIntervalSeconds: 6 },
+    pendingFiles: [
+      { name: 'one.jpg', type: 'image/jpeg' },
+      { name: 'two.jpg', type: 'image/jpeg' }
+    ],
+    removeRequested: false,
+    oldFiles: [],
+    uploadKind: 'background',
+    driveService: {
+      hasAccessToken: () => true,
+      uploadFile: async ({ blob }) => ({ id: `file-${++sequence}`, name: blob.name, mimeType: blob.type }),
+      deletePhoto: async () => {},
+      queueCleanup: () => {}
+    },
+    connectDrive: async () => {},
+    persistSettings: async (_ref, next) => persisted.push(next),
+    afterCommit: async () => {},
+    onError: () => {}
+  });
+
+  assert.equal(result.status, 'saved');
+  assert.equal(persisted[0].backgroundFiles.length, 2);
+  assert.equal(persisted[0].backgroundFileId, 'file-1');
+  assert.equal(persisted[0].rotationIntervalSeconds, 6);
 });
