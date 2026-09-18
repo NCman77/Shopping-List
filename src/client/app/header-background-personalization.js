@@ -962,6 +962,7 @@ export async function initHeaderBackgroundPersonalization() {
 
     if (!user) return;
 
+    void mediaServiceForUser(user.uid).retryQueuedCleanup();
     const operation = tracker.capture(user.uid);
     state.settingsUnsub = onSnapshot(settingsRef(user.uid), (snapshot) => {
       if (!tracker.isSessionCurrent(operation, state.userId)) return;
