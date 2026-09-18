@@ -185,6 +185,7 @@ export async function initFilterPicker() {
   }
 
   function enhanceAllChip(type) {
+    const config = FILTERS[type];
     const button = allButtonFor(type);
     if (!button || button.dataset.filterPickerAll === type) return;
     button.dataset.filterPickerAll = type;
