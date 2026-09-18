@@ -38,6 +38,18 @@ function compactDate(date) {
   return year && month && day ? { year, month, day } : null;
 }
 
+export function collapsedTripLabel(trip = {}) {
+  const normalized = normalizeTrip(trip);
+  return normalized.country || '旅程';
+}
+
+export function expandedTripLabel(trip = {}) {
+  const normalized = normalizeTrip(trip);
+  const title = tripDisplayTitle(normalized);
+  if (!title || title === normalized.country || title.startsWith(`${normalized.country} ·`)) return title || normalized.country;
+  return `${normalized.country} · ${title}`;
+}
+
 export function formatTripDateRange(trip = {}) {
   const normalized = normalizeTrip(trip);
   if (normalized.kind === 'legacy') return '既有清單';
@@ -76,18 +88,29 @@ function installStyles() {
       width: auto;
       max-width: 10.75rem;
       height: 2.5rem;
-      padding: .25rem .6rem;
-      gap: .45rem;
+      padding: .25rem .5rem;
+      gap: .4rem;
       border-radius: 9999px;
+      overflow: hidden;
+      transition: max-width .28s ease, background-color .2s ease, border-color .2s ease;
     }
     #active-trip-selector > span:first-child {
       width: 1.75rem;
       height: 1.75rem;
     }
-    #active-trip-title {
+    #active-trip-country,
+    #active-trip-expanded {
       font-size: .75rem;
       line-height: 1rem;
+      font-weight: 800;
+      white-space: nowrap;
+      overflow: hidden;
+      transition: max-width .28s ease, opacity .2s ease, margin .28s ease;
     }
+    #active-trip-country { max-width: 4.5rem; opacity: 1; }
+    #active-trip-expanded { max-width: 0; opacity: 0; margin-left: -.25rem; }
+    #active-trip-selector.is-expanded #active-trip-country { max-width: 0; opacity: 0; }
+    #active-trip-selector.is-expanded #active-trip-expanded { max-width: 8.5rem; opacity: 1; margin-left: 0; }
     #active-trip-dates { display: none; }
     .trip-section-title { font-size: .7rem; font-weight: 800; color: rgba(92,64,51,.58); margin: .85rem .2rem .35rem; }
     .trip-picker-row:active { transform: translateY(1px); }
@@ -103,10 +126,11 @@ function ensureHomepageSelector(statusFilters) {
   shell = document.createElement('div');
   shell.id = 'active-trip-shell';
   shell.innerHTML = `
-    <button id="active-trip-selector" type="button" class="flex items-center text-left bg-white/60 backdrop-blur-md border border-white/70 text-warmBrown shadow-[0_2px_10px_rgba(0,0,0,.12)]">
-      <span class="shrink-0 rounded-full bg-pastelBlue border-2 border-warmBrown flex items-center justify-center"><i class="fas fa-plane text-xs"></i></span>
-      <span class="flex-1 min-w-0"><span id="active-trip-title" class="block font-bold truncate">新增第一趟旅程</span><span id="active-trip-dates" class="block text-xs opacity-60 mt-0.5">建立獨立購物清單</span></span>
-      <i class="fas fa-chevron-down text-[10px] shrink-0"></i>
+    <button id="active-trip-selector" type="button" class="flex items-center text-left bg-white/25 backdrop-blur-sm border border-white/40 text-warmBrown shadow-[0_2px_8px_rgba(0,0,0,.08)]">
+      <span class="shrink-0 rounded-full bg-pastelBlue/80 border-2 border-warmBrown flex items-center justify-center"><i class="fas fa-plane text-xs"></i></span>
+      <span id="active-trip-country">旅程</span>
+      <span id="active-trip-expanded"></span>
+      <span id="active-trip-dates" class="hidden"></span>
     </button>`;
   toolbar.prepend(shell);
   return shell;
@@ -223,16 +247,38 @@ export async function initTripUi() {
     modal.classList.remove('flex');
   }
 
+  let selectorExpanded = false;
+  let selectorCollapseTimer = null;
+
+  function collapseSelector() {
+    selectorExpanded = false;
+    if (selectorCollapseTimer) clearTimeout(selectorCollapseTimer);
+    selectorCollapseTimer = null;
+    document.getElementById('active-trip-selector')?.classList.remove('is-expanded');
+  }
+
+  function expandSelector() {
+    selectorExpanded = true;
+    if (selectorCollapseTimer) clearTimeout(selectorCollapseTimer);
+    document.getElementById('active-trip-selector')?.classList.add('is-expanded');
+    selectorCollapseTimer = setTimeout(() => collapseSelector(), 3000);
+  }
+
   function renderSelector() {
-    const title = document.getElementById('active-trip-title');
+    const country = document.getElementById('active-trip-country');
+    const expanded = document.getElementById('active-trip-expanded');
     const dates = document.getElementById('active-trip-dates');
     if (!state.activeTrip) {
-      title.textContent = '新增第一趟旅程';
-      dates.textContent = '建立獨立購物清單';
+      country.textContent = '旅程';
+      expanded.textContent = '新增第一趟旅程';
+      dates.textContent = '';
+      collapseSelector();
       return;
     }
-    title.textContent = `${state.activeTrip.country} · ${tripDisplayTitle(state.activeTrip)}`.replace(`${state.activeTrip.country} · ${state.activeTrip.country} · `, `${state.activeTrip.country} · `);
+    country.textContent = collapsedTripLabel(state.activeTrip);
+    expanded.textContent = expandedTripLabel(state.activeTrip);
     dates.textContent = formatTripDateRange(state.activeTrip);
+    collapseSelector();
   }
 
   function makeTripRow(trip, { manage = false } = {}) {
@@ -289,7 +335,7 @@ export async function initTripUi() {
     const groups = groupTripsForUi(state.trips);
     appendSection(pickerView, '旅行中', groups.ongoing);
     appendSection(pickerView, '即將出發', groups.upcoming);
-    appendSection(pickerView, '過去旅程', groups.past);
+    appendSection(pickerView, '已結束旅程', groups.past);
     appendSection(pickerView, '既有清單', groups.legacy);
 
     if (!state.trips.length) {
@@ -468,8 +514,16 @@ export async function initTripUi() {
   }
 
   document.getElementById('active-trip-selector').addEventListener('click', () => {
-    if (!state.trips.length) openForm(null);
-    else openModal('picker');
+    if (!state.trips.length) {
+      openForm(null);
+      return;
+    }
+    if (!selectorExpanded) {
+      expandSelector();
+      return;
+    }
+    collapseSelector();
+    openModal('picker');
   });
   accountEntry.addEventListener('click', (event) => {
     event.preventDefault();
