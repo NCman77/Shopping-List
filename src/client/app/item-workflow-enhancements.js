@@ -54,11 +54,11 @@ function installStyles() {
     #workflow-pagination {
       position: fixed;
       left: 50%;
-      bottom: max(.75rem, env(safe-area-inset-bottom, 0px));
+      bottom: var(--homepage-pager-inset);
       transform: translateX(-50%);
       width: min(100vw, 28rem);
       z-index: 38;
-      padding: .5rem 5.5rem max(.75rem, env(safe-area-inset-bottom, 0px));
+      padding: .35rem 5.5rem;
       pointer-events: none;
       background: linear-gradient(to top, rgba(250,250,250,.96) 62%, rgba(250,250,250,0));
     }
