@@ -535,12 +535,12 @@ export async function initBackgroundPersonalization() {
   }
 
   function currentPreviewUrl() {
-    if (state.previewObjectUrl) return state.previewObjectUrl;
-    return state.objectUrl;
+    if (state.previewObjectUrls[0]) return state.previewObjectUrls[0];
+    return state.loadedItems[0]?.objectUrl || '';
   }
 
   function currentPreviewMime() {
-    return state.pendingFile?.type || state.editorPreferences.backgroundMimeType;
+    return state.pendingFiles[0]?.type || state.editorPreferences.backgroundFiles[0]?.mimeType || '';
   }
 
   function renderEditorPreview() {
@@ -556,10 +556,12 @@ export async function initBackgroundPersonalization() {
       preview.appendChild(media);
       if (kind === 'video') media.play().catch(() => {});
     }
+    const selectedCount = state.pendingFiles.length || state.editorPreferences.backgroundFiles.length;
     document.getElementById('background-file-name').textContent = state.removeRequested
       ? '將移除目前背景'
-      : (state.pendingFile?.name || state.editorPreferences.backgroundFileName || '');
+      : (selectedCount ? `已設定 ${selectedCount} 個背景檔案` : '');
     scaleInput.value = String(state.editorPreferences.scale);
+    rotationInput.value = String(state.editorPreferences.rotationIntervalSeconds);
     document.getElementById('background-scale-value').textContent = `${Math.round(state.editorPreferences.scale * 100)}%`;
     panEnabledInput.checked = state.editorPreferences.panEnabled;
     panDirectionInput.value = state.editorPreferences.panDirection;
@@ -568,54 +570,50 @@ export async function initBackgroundPersonalization() {
 
   function openEditor() {
     state.editorPreferences = normalizePersonalization(state.preferences);
-    state.pendingFile = null;
+    state.pendingFiles = [];
     state.removeRequested = false;
-    revokeObjectUrl('previewObjectUrl');
+    revokePreviewObjectUrls();
     const activeDrive = driveServiceForUser(state.userId);
-    driveNote.classList.toggle('hidden', !(state.preferences.backgroundFileId && !activeDrive.hasAccessToken()));
+    driveNote.classList.toggle('hidden', !(state.preferences.backgroundFiles.length && !activeDrive.hasAccessToken()));
     renderEditorPreview();
     modal.classList.remove('hidden');
     modal.classList.add('flex');
   }
 
   function closeEditor() {
-    revokeObjectUrl('previewObjectUrl');
-    state.pendingFile = null;
+    revokePreviewObjectUrls();
+    state.pendingFiles = [];
     state.removeRequested = false;
     modal.classList.add('hidden');
     modal.classList.remove('flex');
   }
 
   input.addEventListener('change', () => {
-    const file = input.files?.[0];
+    const files = Array.from(input.files || []);
     input.value = '';
-    if (!file) return;
-    if (!isSupportedBackgroundFile(file)) {
+    if (!files.length) return;
+    if (files.some((file) => !isSupportedBackgroundFile(file))) {
       window.showMsg?.('不支援的檔案', '請選擇 JPG、PNG、WebP、GIF、MP4 或 WebM。', 'warning');
       return;
     }
-    if (file.size > MAX_BACKGROUND_BYTES) {
-      window.showMsg?.('檔案太大', '背景檔案請控制在 100MB 以內。', 'warning');
+    if (files.some((file) => file.size > MAX_BACKGROUND_BYTES)) {
+      window.showMsg?.('檔案太大', '每個背景檔案請控制在 100MB 以內。', 'warning');
       return;
     }
-    revokeObjectUrl('previewObjectUrl');
-    state.pendingFile = file;
+    revokePreviewObjectUrls();
+    state.pendingFiles = files;
     state.removeRequested = false;
-    state.previewObjectUrl = URL.createObjectURL(file);
-    state.editorPreferences = normalizePersonalization({
-      ...state.editorPreferences,
-      backgroundFileName: file.name,
-      backgroundMimeType: file.type
-    });
+    state.previewObjectUrls = files.map((file) => URL.createObjectURL(file));
     renderEditorPreview();
   });
 
   document.getElementById('background-remove').addEventListener('click', () => {
-    revokeObjectUrl('previewObjectUrl');
-    state.pendingFile = null;
+    revokePreviewObjectUrls();
+    state.pendingFiles = [];
     state.removeRequested = true;
     state.editorPreferences = normalizePersonalization({
       ...state.editorPreferences,
+      backgroundFiles: [],
       backgroundFileId: '',
       backgroundFileName: '',
       backgroundMimeType: ''
@@ -625,6 +623,13 @@ export async function initBackgroundPersonalization() {
 
   scaleInput.addEventListener('input', () => {
     state.editorPreferences = normalizePersonalization({ ...state.editorPreferences, scale: scaleInput.value });
+    renderEditorPreview();
+  });
+  rotationInput.addEventListener('input', () => {
+    state.editorPreferences = normalizePersonalization({
+      ...state.editorPreferences,
+      rotationIntervalSeconds: rotationInput.value
+    });
     renderEditorPreview();
   });
 
