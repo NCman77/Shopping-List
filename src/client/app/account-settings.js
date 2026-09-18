@@ -244,7 +244,6 @@ export async function initAccountSettings() {
     mapsView.classList.add('hidden');
     countryView.classList.remove('hidden');
     renderCountries();
-    setTimeout(() => countryInput?.focus(), 80);
   }
   function showMapsView() {
     rootView.classList.add('hidden');
@@ -252,7 +251,6 @@ export async function initAccountSettings() {
     mapsView.classList.remove('hidden');
     mapsPrimaryInput.value = state.mapsApiKeys.primary;
     mapsBackupInput.value = state.mapsApiKeys.backup;
-    setTimeout(() => mapsPrimaryInput?.focus(), 80);
   }
   function openModal() { showRootView(); modal.classList.remove('hidden'); modal.classList.add('flex'); }
   function closeModal() { modal.classList.add('hidden'); modal.classList.remove('flex'); }
@@ -284,8 +282,6 @@ export async function initAccountSettings() {
     state.editingCountry = country;
     countryInput.value = country;
     syncCountryEditor();
-    countryInput.focus();
-    countryInput.select?.();
   }
 
   async function deleteCountry(country) {
