@@ -47,3 +47,10 @@ test('feature bootstrap loads brand dictionary, centralized store sync and dupli
   assert.match(bootstrap, /品牌商店同步/);
   assert.match(bootstrap, /地點重複檢查/);
 });
+
+
+test('opening brand editor does not autofocus an alias input on mobile', async () => {
+  const source = await readFile(new URL('../../src/client/app/brand-dictionary-ui.js', import.meta.url), 'utf8');
+  const body = source.match(/function openEditor\(brand = null\) \{([\s\S]*?)\n  \}\n\n  function collectAliases/)?.[1] || '';
+  assert.doesNotMatch(body, /\.focus\(/);
+});

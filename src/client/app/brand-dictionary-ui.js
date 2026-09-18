@@ -347,7 +347,6 @@ export async function initBrandDictionaryUi({
     renderEditorFields(brand);
     renderLanguageFields();
     showOnly(editorView);
-    setTimeout(() => documentRef.querySelector('.brand-alias-input')?.focus(), 50);
   }
 
   function collectAliases() {

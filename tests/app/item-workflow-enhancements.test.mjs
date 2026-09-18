@@ -89,3 +89,19 @@ test('feature bootstrap loads item workflow independently', async () => {
   assert.match(source, /item-workflow-enhancements\.js/);
   assert.match(source, /initItemWorkflowEnhancements/);
 });
+
+
+test('pagination is fixed to the viewport and remains accessible without scrolling to the list end', async () => {
+  const source = await readFile(enhancementPath, 'utf8');
+  assert.match(source, /#workflow-pagination\s*\{[^}]*position:\s*fixed/s);
+  assert.match(source, /#workflow-pagination\s*\{[^}]*bottom:/s);
+  assert.match(source, /#workflow-pagination\s*\{[^}]*z-index:/s);
+});
+
+test('workflow eligibility honors multi-selected home categories and locations', async () => {
+  const source = await readFile(enhancementPath, 'utf8');
+  assert.match(source, /shoppingListHomeFilterSelections/);
+  assert.match(source, /selectedCategories/);
+  assert.match(source, /itemMatchesLocation\(item, selectedLocations\)/);
+  assert.match(source, /shopping-list:home-filter-changed/);
+});

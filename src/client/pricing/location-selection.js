@@ -44,6 +44,12 @@ export function locationWritePatch(values = []) {
 }
 
 export function itemMatchesLocation(item = {}, location = 'all') {
+  if (Array.isArray(location)) {
+    const selected = normalizeLocations(location).filter((value) => value !== 'all');
+    if (!selected.length) return true;
+    const itemLocations = resolveItemLocations(item);
+    return selected.some((value) => itemLocations.includes(value));
+  }
   const target = clean(location);
   if (!target || target === 'all') return true;
   return resolveItemLocations(item).includes(target);

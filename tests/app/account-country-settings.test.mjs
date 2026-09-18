@@ -105,3 +105,14 @@ test('account settings can be reopened by child settings pages', async () => {
   assert.match(source, /shopping-list:open-account-settings/);
   assert.match(source, /addEventListener\('shopping-list:open-account-settings',[\s\S]*openModal\(\)/);
 });
+
+
+test('opening account country/maps views or starting country edit does not autofocus mobile inputs', async () => {
+  const source = await readFile(new URL('../../src/client/app/account-settings.js', import.meta.url), 'utf8');
+  const countryView = source.match(/function showCountryView\(\) \{([\s\S]*?)\n  \}/)?.[1] || '';
+  const mapsView = source.match(/function showMapsView\(\) \{([\s\S]*?)\n  \}/)?.[1] || '';
+  const editView = source.match(/function beginCountryEdit\(country\) \{([\s\S]*?)\n  \}/)?.[1] || '';
+  assert.doesNotMatch(countryView, /\.focus\(/);
+  assert.doesNotMatch(mapsView, /\.focus\(/);
+  assert.doesNotMatch(editView, /\.focus\(|\.select\(/);
+});

@@ -250,8 +250,6 @@ export async function initPriceComparisonEnhancements() {
     items: new Map(),
     itemUnsub: null,
     selectedLocations: [],
-    locationFilter: 'all',
-    normalizingBaseFilter: false,
     compareItemId: '',
     compareRule: null,
     compareFx: null,
@@ -619,47 +617,31 @@ export async function initPriceComparisonEnhancements() {
     return result;
   };
 
+  function selectedHomeLocations() {
+    const selections = window.shoppingListHomeFilterSelections?.location;
+    if (Array.isArray(selections)) return normalizeLocations(selections);
+    if (Array.isArray(window.shoppingListMultiLocationFilter)) return normalizeLocations(window.shoppingListMultiLocationFilter);
+    return [];
+  }
+
   function styleLocationFilterButtons() {
+    const selected = selectedHomeLocations();
     document.querySelectorAll('#location-filters .loc-btn').forEach((button) => {
-      const active = clean(button.dataset.loc) === state.locationFilter;
+      const value = clean(button.dataset.loc) || 'all';
+      const active = value === 'all' ? selected.length === 0 : selected.includes(value);
       button.classList.toggle('multi-location-filter-selected', active);
       button.classList.toggle('multi-location-filter-unselected', !active);
     });
   }
 
-  function publishLocationFilter(value) {
-    state.locationFilter = clean(value) || 'all';
-    window.shoppingListMultiLocationFilter = state.locationFilter;
-    styleLocationFilterButtons();
-    window.dispatchEvent(new CustomEvent('shopping-list:multi-location-filter-changed', {
-      detail: { location: state.locationFilter }
-    }));
-  }
-
-  document.addEventListener('click', (event) => {
-    const button = event.target.closest?.('#location-filters .loc-btn');
-    if (!button || state.normalizingBaseFilter) return;
-    const selected = clean(button.dataset.loc) || 'all';
-    publishLocationFilter(selected);
-    queueMicrotask(() => {
-      if (selected !== 'all') {
-        const allButton = document.querySelector('#location-filters .loc-btn[data-loc="all"]');
-        if (allButton) {
-          state.normalizingBaseFilter = true;
-          try { allButton.click(); } finally { state.normalizingBaseFilter = false; }
-        }
-      }
-      publishLocationFilter(selected);
-    });
-  }, true);
-
   const locationFilterRoot = document.getElementById('location-filters');
   if (locationFilterRoot) {
-    new MutationObserver(() => queueMicrotask(styleLocationFilterButtons)).observe(locationFilterRoot, { childList: true });
+    new MutationObserver(() => queueMicrotask(styleLocationFilterButtons)).observe(locationFilterRoot, { childList: true, attributes: true, attributeFilter: ['aria-pressed'] });
   }
 
-  window.addEventListener('shopping-list:active-trip-changed', () => publishLocationFilter('all'));
-  publishLocationFilter('all');
+  window.addEventListener('shopping-list:home-filter-changed', styleLocationFilterButtons);
+  window.addEventListener('shopping-list:active-trip-changed', () => queueMicrotask(styleLocationFilterButtons));
+  queueMicrotask(styleLocationFilterButtons);
 
   document.getElementById('close-price-comparison')?.addEventListener('click', closeComparisonModal);
   compareModal.addEventListener('click', (event) => {
