@@ -147,6 +147,30 @@ export async function initAccountSettings() {
   const mapsView = document.getElementById('account-maps-view');
   const countryList = document.getElementById('account-country-list');
   const countryInput = document.getElementById('account-country-input');
+
+  const accountMenuOrder = [
+    'account-open-personalization',
+    'account-open-countries',
+    'account-open-trips',
+    'account-open-brand-dictionary',
+    'account-open-coupon-management',
+    'account-open-maps',
+    'account-settings-signout'
+  ];
+
+  function enforceAccountMenuOrder() {
+    const ordered = accountMenuOrder
+      .map((id) => document.getElementById(id))
+      .filter((element) => element?.parentElement === rootView);
+    const current = [...rootView.children].filter((element) => accountMenuOrder.includes(element.id));
+    if (current.length === ordered.length && current.every((element, index) => element === ordered[index])) return;
+    ordered.forEach((element) => rootView.appendChild(element));
+  }
+
+  const accountMenuObserver = new MutationObserver(enforceAccountMenuOrder);
+  accountMenuObserver.observe(rootView, { childList: true });
+  enforceAccountMenuOrder();
+
   const mapsPrimaryInput = document.getElementById('account-maps-primary-key');
   const mapsBackupInput = document.getElementById('account-maps-backup-key');
   const state = {
