@@ -46,7 +46,7 @@ function ensureModal() {
   wrapper.innerHTML = `
     <div id="account-settings-modal" class="fixed inset-0 z-[90] hidden bg-warmBrown/45 backdrop-blur-sm px-4 items-center justify-center">
       <div class="w-full max-w-sm max-h-[86vh] overflow-hidden bg-shinBg border-4 border-warmBrown rounded-[2rem] shadow-[8px_8px_0_rgba(92,64,51,0.28)]">
-        <div class="bg-pastelPink border-b-4 border-warmBrown px-5 py-4 flex items-center justify-between">
+        <div id="account-settings-header" class="bg-pastelPink border-b-4 border-warmBrown px-5 py-4 flex items-center justify-between">
           <div><h2 class="text-xl font-bold text-warmBrown">帳號設定</h2><p id="account-settings-email" class="text-[11px] text-warmBrown/60 font-bold mt-1 truncate max-w-[15rem]"></p></div>
           <button id="close-account-settings" type="button" class="w-9 h-9 rounded-full bg-white border-2 border-warmBrown text-warmBrown"><i class="fas fa-times"></i></button>
         </div>
@@ -146,6 +146,7 @@ export async function initAccountSettings() {
   const db = firestoreSdk.getFirestore(app);
   const { doc, onSnapshot, setDoc } = firestoreSdk;
   const modal = document.getElementById('account-settings-modal');
+  const accountHeader = document.getElementById('account-settings-header');
   const rootView = document.getElementById('account-settings-root');
   const countryView = document.getElementById('account-country-view');
   const mapsView = document.getElementById('account-maps-view');
@@ -235,11 +236,13 @@ export async function initAccountSettings() {
   }
 
   function showRootView() {
+    accountHeader.classList.remove('hidden');
     rootView.classList.remove('hidden');
     countryView.classList.add('hidden');
     mapsView.classList.add('hidden');
   }
   function showCountryView() {
+    accountHeader.classList.add('hidden');
     rootView.classList.add('hidden');
     mapsView.classList.add('hidden');
     countryView.classList.remove('hidden');
