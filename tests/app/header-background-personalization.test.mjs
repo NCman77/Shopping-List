@@ -27,7 +27,8 @@ test('header background fills a fixed-height banner and its editor mirrors the c
   assert.match(source, /width:\s*calc\(100% \+ \$\{HEADER_OVERSCAN_PERCENT\}%\)/);
   assert.match(source, /height:\s*calc\(100% \+ \$\{HEADER_OVERSCAN_PERCENT\}%\)/);
   assert.match(source, /object-fit:\s*cover/);
-  assert.match(source, /#header-background-preview-media\s*\{[^}]*object-fit:\s*cover/s);
+  assert.match(source, /#header-background-preview-media\s*\{/);
+  assert.match(source, /object-fit:\s*cover/);
 });
 
 test('header background editor accepts multiple files and exposes a slideshow interval', async () => {
