@@ -38,3 +38,22 @@ test('personalization hub has a back button to account settings while close stil
   assert.match(source, /shopping-list:open-account-settings/);
   assert.match(source, /personalization-hub-close/);
 });
+
+
+test('settings top-level headers do not display explanatory subtitle text', async () => {
+  const sources = await Promise.all([
+    sourceOrFail('../../src/client/app/personalization-hub.js', 'personalization hub module is missing'),
+    sourceOrFail('../../src/client/app/account-settings.js', 'account settings module is missing'),
+    sourceOrFail('../../src/client/app/trip-ui.js', 'trip UI module is missing'),
+    sourceOrFail('../../src/client/app/brand-dictionary-ui.js', 'brand dictionary module is missing'),
+    sourceOrFail('../../src/client/app/coupon-management-ui.js', 'coupon management module is missing')
+  ]);
+  const joined = sources.join('\n');
+  for (const text of [
+    '選擇要調整的背景區域',
+    '國家管理 · 新旅程建立時可從這裡的清單選擇',
+    '目前商品只會顯示在選定的這一趟',
+    '每個旅遊國家分開管理，不會混成同一份清單',
+    '每個旅遊國家分開管理，一個品牌最多一張優惠券'
+  ]) assert.doesNotMatch(joined, new RegExp(text));
+});
