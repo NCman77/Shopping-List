@@ -1,5 +1,5 @@
 import { createDrivePhotoService, DriveAuthorizationError } from '../photos/drive-photo-service.js';
-import { normalizePersonalization, positionPreset } from './personalization-preferences.js';
+import { normalizePersonalization, positionPreset, normalizeRotationIntervalDraft } from './personalization-preferences.js';
 import { createSessionOperationTracker } from './session-operation.js';
 import {
   createBackgroundSlideshowController,
@@ -689,11 +689,24 @@ export async function initBackgroundPersonalization() {
   });
 
   rotationInput.addEventListener('input', () => {
+    const nextInterval = normalizeRotationIntervalDraft(rotationInput.value);
+    if (nextInterval === null) return;
     state.editorPreferences = normalizePersonalization({
       ...state.editorPreferences,
-      rotationIntervalSeconds: rotationInput.value
+      rotationIntervalSeconds: nextInterval
     });
-    renderEditorPreview();
+  });
+  rotationInput.addEventListener('blur', () => {
+    const nextInterval = normalizeRotationIntervalDraft(rotationInput.value);
+    if (nextInterval === null) {
+      rotationInput.value = String(state.editorPreferences.rotationIntervalSeconds);
+      return;
+    }
+    state.editorPreferences = normalizePersonalization({
+      ...state.editorPreferences,
+      rotationIntervalSeconds: nextInterval
+    });
+    rotationInput.value = String(state.editorPreferences.rotationIntervalSeconds);
   });
 
   for (const button of document.querySelectorAll('[data-position-preset]')) {
