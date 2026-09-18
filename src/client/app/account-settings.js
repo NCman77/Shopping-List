@@ -466,7 +466,7 @@ export async function initAccountSettings() {
     try { await authSdk.signOut(auth); }
     catch (error) { console.error('Account settings sign out failed:', error); notify('登出失敗', '無法登出，請稍後再試。'); }
   });
-  window.addEventListener('shopping-list:open-account-settings', openModal);
+  window.addEventListener('shopping-list:open-account-settings', () => openModal());
   document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && !modal.classList.contains('hidden')) closeModal(); });
   authSdk.onAuthStateChanged(auth, subscribeUser);
 }
