@@ -51,7 +51,18 @@ function installStyles() {
   style.textContent = `
     .workflow-page-hidden { display: none !important; }
     .workflow-status-action { min-width: 5rem; }
-    #workflow-pagination { padding-bottom: max(.75rem, env(safe-area-inset-bottom, 0px)); }
+    #workflow-pagination {
+      position: fixed;
+      left: 50%;
+      bottom: max(.75rem, env(safe-area-inset-bottom, 0px));
+      transform: translateX(-50%);
+      width: min(100vw, 28rem);
+      z-index: 38;
+      padding: .5rem 5.5rem max(.75rem, env(safe-area-inset-bottom, 0px));
+      pointer-events: none;
+      background: linear-gradient(to top, rgba(250,250,250,.96) 62%, rgba(250,250,250,0));
+    }
+    #workflow-pagination > * { pointer-events: auto; }
     #workflow-pagination button:disabled { opacity: .3; cursor: default; }
     .workflow-view-mode input:not([type="hidden"]),
     .workflow-view-mode textarea,
@@ -263,11 +274,18 @@ export async function initItemWorkflowEnhancements() {
   function eligibleCards() {
     if (!window.shoppingListTripContextReady || !window.shoppingListActiveTrip?.id) return [];
     const result = [];
-    const locationFilter = window.shoppingListMultiLocationFilter || 'all';
+    const homeFilters = window.shoppingListHomeFilterSelections || {};
+    const selectedCategories = Array.isArray(homeFilters.category)
+      ? homeFilters.category.map((value) => String(value || '').trim()).filter(Boolean)
+      : [];
+    const selectedLocations = Array.isArray(homeFilters.location)
+      ? homeFilters.location
+      : (Array.isArray(window.shoppingListMultiLocationFilter) ? window.shoppingListMultiLocationFilter : []);
     for (const [itemId, card] of state.cardCache) {
       const item = state.items.get(itemId);
       if (!item || !itemMatchesActiveTrip(item, window.shoppingListActiveTrip)) continue;
-      if (!itemMatchesLocation(item, locationFilter)) continue;
+      if (selectedCategories.length && !selectedCategories.includes(String(item.category || '').trim())) continue;
+      if (!itemMatchesLocation(item, selectedLocations)) continue;
       const status = resolveShoppingStatus(item);
       if (state.filter !== 'all' && status !== state.filter) continue;
       result.push({ card, item });
@@ -457,6 +475,11 @@ export async function initItemWorkflowEnhancements() {
   });
 
   window.addEventListener('shopping-list:nearby-sort-changed', () => {
+    state.page = 1;
+    scheduleApply();
+  });
+
+  window.addEventListener('shopping-list:home-filter-changed', () => {
     state.page = 1;
     scheduleApply();
   });
