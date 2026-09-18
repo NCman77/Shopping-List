@@ -66,6 +66,10 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       return initHeaderBackgroundPersonalization();
     },
     async () => {
+      const { initItemCardPersonalization } = await import('./item-card-personalization.js');
+      return initItemCardPersonalization();
+    },
+    async () => {
       const { initSettingsMergeGuard } = await import('./settings-merge-guard.js');
       return initSettingsMergeGuard();
     },
@@ -118,7 +122,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       return registerShoppingListServiceWorker();
     }
   ).then((results) => {
-    const labels = ['錯誤監控', '系統訊息層級', '旅程資料', '國家篩選', '帳號設定', '品牌字典', '優惠券管理', '品牌商店同步', '旅程介面', '旅程篩選選項', '完整篩選選單', '分類地點重新命名', '個人化入口', '頁面背景個人化', '首頁橫幅背景個人化', '設定合併保護', '商品旅程儲存', '商品比價', '哪裡買下拉選擇', '新增地點品牌字典', '品牌地點顯示', '商品優惠券', '地點重複檢查', '商品狀態與分頁', '商品照片介面修復', '商品跨旅程複製', '商品表單固定操作列', 'PWA 安裝'];
+    const labels = ['錯誤監控', '系統訊息層級', '旅程資料', '國家篩選', '帳號設定', '品牌字典', '優惠券管理', '品牌商店同步', '旅程介面', '旅程篩選選項', '完整篩選選單', '分類地點重新命名', '個人化入口', '頁面背景個人化', '首頁橫幅背景個人化', '商品小卡背景個人化', '設定合併保護', '商品旅程儲存', '商品比價', '哪裡買下拉選擇', '新增地點品牌字典', '品牌地點顯示', '商品優惠券', '地點重複檢查', '商品狀態與分頁', '商品照片介面修復', '商品跨旅程複製', '商品表單固定操作列', 'PWA 安裝'];
     results.forEach((result, index) => {
       if (result.status === 'rejected') {
         console.error(`${labels[index]}功能載入失敗:`, result.reason);
