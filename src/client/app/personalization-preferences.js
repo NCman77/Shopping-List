@@ -46,6 +46,14 @@ function normalizeBackgroundFiles(source = {}) {
   }];
 }
 
+export function normalizeRotationIntervalDraft(value) {
+  const text = String(value ?? '').trim();
+  if (!text) return null;
+  const number = Number(text);
+  if (!Number.isFinite(number)) return null;
+  return Math.min(60, Math.max(2, number));
+}
+
 export function normalizePersonalization(value = {}) {
   const source = value && typeof value === 'object' ? value : {};
   const backgroundFiles = normalizeBackgroundFiles(source);
