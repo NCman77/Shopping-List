@@ -26,3 +26,10 @@ test('trip selector and avatar share the same vertical center and symmetric tool
   assert.match(source, /#user-panel\s*\{[^}]*width:\s*2\.5rem\s*!important[^}]*height:\s*2\.5rem\s*!important[^}]*align-self:\s*center/s);
   assert.match(source, /#user-panel\s*\{[^}]*margin-left:\s*auto/s);
 });
+
+
+test('core shell never reapplies top/right offsets to the toolbar avatar', async () => {
+  const source = await readFile(new URL('../../src/client/app/auth-session.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(source, /userPanel\?\.classList\?\.add\(['"]absolute['"],\s*['"]top-4['"],\s*['"]right-4['"]\)/);
+  assert.match(source, /userPanel\?\.classList\?\.remove\([^)]*top-4[^)]*right-4/s);
+});
