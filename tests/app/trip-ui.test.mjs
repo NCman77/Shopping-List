@@ -47,6 +47,16 @@ test('homepage exposes an always-visible active trip selector and empty onboardi
   assert.match(source, /既有清單/);
 });
 
+
+
+test('homepage trip selector is mounted in the header top-left instead of above the filters', async () => {
+  const source = await readFile(sourcePath, 'utf8');
+  assert.match(source, /querySelector\(['"]header['"]\)/);
+  assert.match(source, /header\.appendChild\(shell\)/);
+  assert.match(source, /#active-trip-shell\s*\{[^}]*position:\s*absolute[^}]*top:\s*1rem[^}]*left:\s*1rem/s);
+  assert.doesNotMatch(source, /statusFilters\.parentElement\?\.insertBefore\(shell, statusFilters\)/);
+});
+
 test('first-trip onboarding makes the trip form modal visible', async () => {
   const source = (await readFile(sourcePath, 'utf8')).replace(/\r\n?/g, '\n');
   const openFormBody = source.match(/function openForm\(trip\) \{([\s\S]*?)\n  \}\n\n  async function saveTrip/)?.[1] || '';
