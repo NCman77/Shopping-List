@@ -852,6 +852,7 @@ export async function initBackgroundPersonalization() {
     if (!user) {
       return;
     }
+    void mediaServiceForUser(operation.userId).retryQueuedCleanup();
     const ref = settingsRef(operation.userId);
     state.settingsUnsub = onSnapshot(ref, (snapshot) => {
       if (!tracker.isSessionCurrent(operation, state.userId)) return;
