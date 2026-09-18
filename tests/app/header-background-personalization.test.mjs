@@ -121,3 +121,14 @@ test('header thumbnail long-press disables browser image callouts and captures t
   assert.match(source, /preventDefault\(\)/);
   assert.match(source, /button\.setPointerCapture\?\.\(event\.pointerId\)/);
 });
+
+
+test('header thumbnail reorder keeps the captured DOM node alive until pointer release', async () => {
+  const source = await sourceOrFail('../../src/client/app/header-background-personalization.js', 'header background module is missing');
+  assert.match(source, /moveThumbnailDom/);
+  const moveStart = source.indexOf("thumbnailsRoot.addEventListener('pointermove'");
+  const finishStart = source.indexOf('function finishThumbnailReorder', moveStart);
+  const moveHandler = source.slice(moveStart, finishStart > moveStart ? finishStart : source.length);
+  assert.doesNotMatch(moveHandler, /renderEditorPreview\(\)/);
+  assert.match(source, /finishThumbnailReorder[\s\S]*renderEditorPreview\(\)/);
+});
