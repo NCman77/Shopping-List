@@ -24,3 +24,10 @@ test('homepage category and location filter state is multi-select and exposes a 
   assert.match(html, /shopping-list:clear-home-filter/);
   assert.match(html, /aria-pressed/);
 });
+
+
+test('returning from brand dictionary to coupon manager does not autofocus the coupon search field', async () => {
+  const source = await readFile(new URL('../../src/client/app/brand-store-sync.js', import.meta.url), 'utf8');
+  const body = source.match(/function restoreExternalContext\(\) \{([\s\S]*?)\n  \}\n\n  function closeExternalDictionaryAndReturn/)?.[1] || '';
+  assert.doesNotMatch(body, /\.focus\(/);
+});
