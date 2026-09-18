@@ -54,3 +54,38 @@ test('header slideshow interval can be cleared temporarily without immediately r
   assert.match(source, /header-background-rotation-interval/);
   assert.match(source, /if \(nextInterval === null\) return/);
 });
+
+
+test('every header photo uses overscan positioning so both axes visibly move', async () => {
+  const source = await sourceOrFail('../../src/client/app/header-background-personalization.js', 'header background module is missing');
+  assert.match(source, /HEADER_OVERSCAN_PERCENT/);
+  assert.match(source, /headerBackgroundTransform/);
+  assert.match(source, /translate\(/);
+  assert.match(source, /objectPosition = ['"]50% 50%['"]/);
+});
+
+test('header uploader separates replace and append actions', async () => {
+  const source = await sourceOrFail('../../src/client/app/header-background-personalization.js', 'header background module is missing');
+  assert.match(source, /header-background-replace/);
+  assert.match(source, /重新上傳/);
+  assert.match(source, /header-background-append/);
+  assert.match(source, /繼續上傳/);
+  assert.match(source, /uploadMode/);
+  assert.match(source, /appendPendingFiles/);
+});
+
+test('header thumbnails support long-press reordering and playlist order follows the thumbnails', async () => {
+  const source = await sourceOrFail('../../src/client/app/header-background-personalization.js', 'header background module is missing');
+  assert.match(source, /LONG_PRESS_MS\s*=\s*450/);
+  assert.match(source, /pointerdown/);
+  assert.match(source, /pointermove/);
+  assert.match(source, /reorderBackgroundFiles/);
+  assert.match(source, /data-header-background-index/);
+});
+
+test('header background exposes a reconnect action when a browser has no Drive token', async () => {
+  const source = await sourceOrFail('../../src/client/app/header-background-personalization.js', 'header background module is missing');
+  assert.match(source, /header-background-auth-required/);
+  assert.match(source, /authorization-required/);
+  assert.match(source, /connectDrive/);
+});
