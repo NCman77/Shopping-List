@@ -69,7 +69,7 @@ test('top-left trip selector uses the same 2.5rem outer height as the account av
 
 test('top-left trip selector keeps the airplane icon inside the glass control', async () => {
   const source = await readFile(sourcePath, 'utf8');
-  assert.match(source, /fa-plane/);
+  assert.match(source, /createCountryFlagElement/);
   assert.doesNotMatch(source, /fa-suitcase-rolling/);
   assert.match(source, /bg-white\/25/);
 });
@@ -185,13 +185,13 @@ test('travel records opened from settings can go back to account settings from t
 });
 
 
-test('travel records header matches personalization styling and trip rows show a plane icon', async () => {
+test('travel records header matches personalization styling and trip rows use country flags', async () => {
   const source = await readFile(sourcePath, 'utf8');
   assert.match(source, /id="trip-modal-header"[^>]*bg-pastelBlue[^>]*border-b-4[^>]*px-5 py-4/);
   assert.match(source, /id="trip-modal-title" class="text-xl font-bold text-warmBrown"/);
   assert.match(source, /id="trip-modal-subtitle" class="text-\[11px\] text-warmBrown\/60 font-bold mt-1"/);
   assert.match(source, /trip-row-icon/);
-  assert.match(source, /fa-plane/);
+  assert.match(source, /createCountryFlagElement/);
 });
 
 
