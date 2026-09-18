@@ -1,5 +1,16 @@
 import { normalizePersonalization } from './personalization-preferences.js';
 
+export function reorderBackgroundFiles(files = [], fromIndex, toIndex) {
+  const source = Array.isArray(files) ? files.slice() : [];
+  const from = Number(fromIndex);
+  const to = Number(toIndex);
+  if (!Number.isInteger(from) || !Number.isInteger(to)) return source;
+  if (from < 0 || to < 0 || from >= source.length || to >= source.length || from === to) return source;
+  const [moved] = source.splice(from, 1);
+  source.splice(to, 0, moved);
+  return source;
+}
+
 async function cleanupDriveFile(driveService, fileId) {
   if (!fileId) return;
   try {
@@ -65,6 +76,7 @@ export async function runBackgroundPlaylistSaveTransaction({
   capturedSettingsRef,
   editorPreferences,
   pendingFiles = [],
+  pendingEntries = [],
   removeRequested,
   oldFiles = [],
   uploadKind = 'background',
@@ -88,7 +100,41 @@ export async function runBackgroundPlaylistSaveTransaction({
   };
 
   try {
-    if (pendingFiles.length) {
+    if (pendingEntries.length) {
+      if (!driveService.hasAccessToken()) await connectDrive(operation, driveService);
+      if (!isCurrent()) return staleResult();
+
+      const replacements = new Map();
+      for (const entry of pendingEntries) {
+        const pendingFile = entry?.file;
+        const key = String(entry?.key || '').trim();
+        if (!pendingFile || !key) continue;
+        const uploaded = await driveService.uploadFile({
+          blob: pendingFile,
+          fileName: pendingFile.name || `background-${Date.now()}`,
+          appProperties: { kind: uploadKind, owner: operation.userId }
+        });
+        const frame = nextPreferences.backgroundFiles.find((file) => file.fileId === key) || {};
+        const saved = {
+          fileId: uploaded.id,
+          fileName: uploaded.name || pendingFile.name || '',
+          mimeType: uploaded.mimeType || pendingFile.type || '',
+          positionX: frame.positionX,
+          positionY: frame.positionY,
+          scale: frame.scale
+        };
+        replacements.set(key, saved);
+        uploadedFiles.push(saved);
+        if (!isCurrent()) return staleResult();
+      }
+
+      nextPreferences = normalizePersonalization({
+        ...nextPreferences,
+        backgroundFiles: nextPreferences.backgroundFiles
+          .map((file) => replacements.get(file.fileId) || file)
+          .filter((file) => !String(file.fileId || '').startsWith('pending:'))
+      });
+    } else if (pendingFiles.length) {
       if (!driveService.hasAccessToken()) await connectDrive(operation, driveService);
       if (!isCurrent()) return staleResult();
 
