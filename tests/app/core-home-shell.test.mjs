@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { applyCoreHomeShell } from './auth-session.js';
 
 function classList(initial = []) {
@@ -41,4 +42,10 @@ test('core homepage shell is applied without waiting for async enhancement modul
   assert.equal(userPanel.classList.contains('right-4'), true);
   assert.equal(userName.classList.contains('hidden'), true);
   assert.equal(signOut.classList.contains('hidden'), true);
+});
+
+
+test('homepage header does not render the shopping list title', async () => {
+  const source = await readFile(new URL('../../index.html', import.meta.url), 'utf8');
+  assert.doesNotMatch(source, /<h1[^>]*>\s*購物清單\s*🛒\s*<\/h1>/);
 });
