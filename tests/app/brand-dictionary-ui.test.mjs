@@ -54,3 +54,11 @@ test('opening brand editor does not autofocus an alias input on mobile', async (
   const body = source.match(/function openEditor\(brand = null\) \{([\s\S]*?)\n  \}\n\n  function collectAliases/)?.[1] || '';
   assert.doesNotMatch(body, /\.focus\(/);
 });
+
+
+test('brand dictionary top-level header matches personalization styling without changing its existing row icon behavior', async () => {
+  const source = await readFile(new URL('../../src/client/app/brand-dictionary-ui.js', import.meta.url), 'utf8');
+  assert.match(source, /id="brand-country-header"[^>]*bg-pastelBlue[^>]*border-b-4[^>]*px-5 py-4/);
+  assert.match(source, /<h3 class="text-xl font-bold text-warmBrown">品牌字典<\/h3>/);
+  assert.match(source, /fa-store/);
+});

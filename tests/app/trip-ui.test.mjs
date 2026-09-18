@@ -183,3 +183,13 @@ test('travel records opened from settings can go back to account settings from t
   assert.match(source, /shopping-list:open-account-settings/);
   assert.match(source, /backButton\.classList\.toggle\('hidden',[\s\S]*openedFromSettings/);
 });
+
+
+test('travel records header matches personalization styling and trip rows show a plane icon', async () => {
+  const source = await readFile(sourcePath, 'utf8');
+  assert.match(source, /id="trip-modal-header"[^>]*bg-pastelBlue[^>]*border-b-4[^>]*px-5 py-4/);
+  assert.match(source, /id="trip-modal-title" class="text-xl font-bold text-warmBrown"/);
+  assert.match(source, /id="trip-modal-subtitle" class="text-\[11px\] text-warmBrown\/60 font-bold mt-1"/);
+  assert.match(source, /trip-row-icon/);
+  assert.match(source, /fa-plane/);
+});

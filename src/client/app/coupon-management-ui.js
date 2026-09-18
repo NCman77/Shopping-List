@@ -64,9 +64,9 @@ function ensureModal(documentRef) {
   modal.innerHTML = `
     <div class="w-full max-w-md max-h-[88vh] overflow-hidden bg-white border-4 border-warmBrown rounded-[2rem] shadow-[8px_8px_0_rgba(92,64,51,0.28)]">
       <div id="coupon-country-view" class="flex flex-col max-h-[84vh]">
-        <div class="px-4 py-3 bg-pastelPink/60 border-b-4 border-warmBrown flex items-center gap-3">
+        <div id="coupon-country-header" class="bg-pastelBlue border-b-4 border-warmBrown px-5 py-4 flex items-center gap-3">
           <button id="coupon-back-settings" type="button" class="w-9 h-9 rounded-full bg-white border-2 border-warmBrown text-warmBrown"><i class="fas fa-chevron-left"></i></button>
-          <div class="flex-1 min-w-0"><h3 class="font-bold text-warmBrown text-lg">優惠券管理</h3><p class="text-[11px] text-warmBrown/60">每個旅遊國家分開管理，一個品牌最多一張優惠券</p></div>
+          <div class="flex-1 min-w-0"><h3 class="text-xl font-bold text-warmBrown">優惠券管理</h3><p class="text-[11px] text-warmBrown/60 font-bold mt-1">每個旅遊國家分開管理，一個品牌最多一張優惠券</p></div>
           <button id="coupon-close" type="button" class="w-9 h-9 rounded-full bg-white border-2 border-warmBrown text-warmBrown"><i class="fas fa-times"></i></button>
         </div>
         <div id="coupon-country-list" class="p-4 space-y-2 overflow-y-auto bg-white"></div>
@@ -262,6 +262,9 @@ export async function initCouponManagementUi({
       const button = documentRef.createElement('button');
       button.type = 'button';
       button.className = 'w-full flex items-center gap-3 px-4 py-3 rounded-2xl border-2 border-warmBrown bg-shinBg text-left text-warmBrown';
+      const icon = documentRef.createElement('span');
+      icon.className = 'coupon-country-icon w-9 h-9 shrink-0 rounded-full bg-white border-2 border-warmBrown flex items-center justify-center';
+      icon.innerHTML = '<i class="fas fa-earth-asia text-xs"></i>';
       const name = documentRef.createElement('span');
       name.className = 'flex-1 min-w-0 font-bold';
       name.textContent = country;
@@ -270,7 +273,7 @@ export async function initCouponManagementUi({
       countLabel.textContent = `${count} 張優惠券`;
       const chevron = documentRef.createElement('i');
       chevron.className = 'fas fa-chevron-right text-xs';
-      button.append(name, countLabel, chevron);
+      button.append(icon, name, countLabel, chevron);
       button.addEventListener('click', () => openCountry(country));
       root.appendChild(button);
     }

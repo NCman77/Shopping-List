@@ -70,9 +70,9 @@ function ensureModal() {
           </button>
         </div>
         <div id="account-country-view" class="hidden bg-white max-h-[68vh] overflow-y-auto">
-          <div class="sticky top-0 z-10 px-4 py-3 bg-shinBg border-b-2 border-warmBrown/20 flex items-center gap-3">
+          <div id="account-country-header" class="sticky top-0 z-10 bg-pastelBlue border-b-4 border-warmBrown px-5 py-4 flex items-center gap-3">
             <button id="account-country-back" type="button" class="w-9 h-9 rounded-full bg-white border-2 border-warmBrown text-warmBrown"><i class="fas fa-chevron-left"></i></button>
-            <div><h3 class="font-bold text-warmBrown">旅遊國家</h3><p class="text-[11px] text-gray-500">國家管理 · 新旅程建立時可從這裡的清單選擇</p></div>
+            <div><h3 class="text-xl font-bold text-warmBrown">旅遊國家</h3><p class="text-[11px] text-warmBrown/60 font-bold mt-1">國家管理 · 新旅程建立時可從這裡的清單選擇</p></div>
           </div>
           <div class="p-4">
             <div id="account-country-list" class="space-y-2"></div>
@@ -236,12 +236,14 @@ export async function initAccountSettings() {
   }
 
   function showRootView() {
+    accountHeader.style.display = '';
     accountHeader.classList.remove('hidden');
     rootView.classList.remove('hidden');
     countryView.classList.add('hidden');
     mapsView.classList.add('hidden');
   }
   function showCountryView() {
+    accountHeader.style.display = 'none';
     accountHeader.classList.add('hidden');
     rootView.classList.add('hidden');
     mapsView.classList.add('hidden');
@@ -310,6 +312,9 @@ export async function initAccountSettings() {
     for (const country of state.countries) {
       const row = document.createElement('div');
       row.className = 'w-full flex items-center gap-2 px-3 py-3 rounded-2xl border-2 border-warmBrown text-warmBrown bg-shinBg font-bold';
+      const icon = document.createElement('span');
+      icon.className = 'country-row-icon w-9 h-9 shrink-0 rounded-full bg-white border-2 border-warmBrown flex items-center justify-center';
+      icon.innerHTML = '<i class="fas fa-earth-asia text-xs"></i>';
       const label = document.createElement('span');
       label.className = 'flex-1 min-w-0 truncate';
       label.textContent = country;
@@ -333,7 +338,7 @@ export async function initAccountSettings() {
       remove.title = countryLockedReason(country) || '刪除國家';
       remove.addEventListener('click', () => void deleteCountry(country));
 
-      row.append(label, note, edit, remove);
+      row.append(icon, label, note, edit, remove);
       countryList.appendChild(row);
     }
     syncCountryEditor();
