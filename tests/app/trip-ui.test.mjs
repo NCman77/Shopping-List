@@ -57,6 +57,14 @@ test('homepage trip selector is mounted in the header top-left instead of above 
   assert.doesNotMatch(source, /statusFilters\.parentElement\?\.insertBefore\(shell, statusFilters\)/);
 });
 
+test('top-left trip selector uses the same 2.5rem outer height as the account avatar', async () => {
+  const tripSource = await readFile(sourcePath, 'utf8');
+  const homeSource = await readFile(new URL('../../src/client/app/home-ui-enhancements.js', import.meta.url), 'utf8');
+  assert.match(homeSource, /#user-panel #user-avatar,[\s\S]*?height:\s*2\.5rem\s*!important/);
+  assert.match(tripSource, /#active-trip-selector\s*\{[^}]*height:\s*2\.5rem/s);
+  assert.doesNotMatch(tripSource, /#active-trip-selector\s*\{[^}]*min-height:\s*2\.5rem/s);
+});
+
 test('first-trip onboarding makes the trip form modal visible', async () => {
   const source = (await readFile(sourcePath, 'utf8')).replace(/\r\n?/g, '\n');
   const openFormBody = source.match(/function openForm\(trip\) \{([\s\S]*?)\n  \}\n\n  async function saveTrip/)?.[1] || '';
