@@ -98,10 +98,14 @@ export async function runBackgroundPlaylistSaveTransaction({
           fileName: pendingFile.name || `background-${Date.now()}`,
           appProperties: { kind: uploadKind, owner: operation.userId }
         });
+        const frame = nextPreferences.backgroundFiles[uploadedFiles.length] || {};
         const saved = {
           fileId: uploaded.id,
           fileName: uploaded.name || pendingFile.name || '',
-          mimeType: uploaded.mimeType || pendingFile.type || ''
+          mimeType: uploaded.mimeType || pendingFile.type || '',
+          positionX: frame.positionX,
+          positionY: frame.positionY,
+          scale: frame.scale
         };
         uploadedFiles.push(saved);
         if (!isCurrent()) return staleResult();
