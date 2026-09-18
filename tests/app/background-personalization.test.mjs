@@ -41,18 +41,18 @@ test('background load key changes only when the account or persisted file change
   assert.notEqual(backgroundLoadKey('user-a', { backgroundFileId: 'file-1' }), backgroundLoadKey('user-b', { backgroundFileId: 'file-1' }));
 });
 
-test('background editor contains non-destructive framing and pan controls', async () => {
+test('background editor provides per-photo framing controls without pan controls', async () => {
   const source = await readFile(new URL('../../src/client/app/background-personalization.js', import.meta.url), 'utf8');
   assert.match(source, /background-preview-viewport/);
   assert.match(source, /background-scale/);
+  assert.match(source, /background-thumbnails/);
+  assert.match(source, /data-background-index/);
+  assert.match(source, /background-delete-current/);
   assert.match(source, /data-position-preset="center"/);
-  assert.match(source, /data-position-preset="left"/);
-  assert.match(source, /data-position-preset="right"/);
-  assert.match(source, /data-position-preset="top"/);
-  assert.match(source, /data-position-preset="bottom"/);
-  assert.match(source, /background-pan-enabled/);
-  assert.match(source, /background-pan-direction/);
-  assert.match(source, /background-pan-iteration/);
+  assert.doesNotMatch(source, /background-pan-enabled/);
+  assert.doesNotMatch(source, /background-pan-direction/);
+  assert.doesNotMatch(source, /background-pan-iteration/);
+  assert.doesNotMatch(source, /buildPanStyle/);
 });
 
 test('video backgrounds are muted inline and Drive replacement is saved before old cleanup', async () => {
