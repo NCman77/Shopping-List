@@ -23,7 +23,10 @@ test('header background fills a fixed-height banner and its editor mirrors the c
   const html = await readFile(new URL('../../index.html', import.meta.url), 'utf8');
   assert.match(html, /<header[^>]*h-\[196px\]/);
   assert.match(source, /aspect-\[16\/9\]/);
-  assert.match(source, /\.header-background-media\s*\{[^}]*width:\s*calc\(100% \+[^}]*height:\s*calc\(100% \+[^}]*object-fit:\s*cover/s);
+  assert.match(source, /\.header-background-media\s*\{/);
+  assert.match(source, /width:\s*calc\(100% \+ \$\{HEADER_OVERSCAN_PERCENT\}%\)/);
+  assert.match(source, /height:\s*calc\(100% \+ \$\{HEADER_OVERSCAN_PERCENT\}%\)/);
+  assert.match(source, /object-fit:\s*cover/);
   assert.match(source, /#header-background-preview-media\s*\{[^}]*object-fit:\s*cover/s);
 });
 
