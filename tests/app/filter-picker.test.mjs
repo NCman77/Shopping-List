@@ -64,3 +64,26 @@ test('filter picker is bootstrapped independently and does not persist a competi
   const pickerSource = await readFile(sourcePath, 'utf8');
   assert.doesNotMatch(pickerSource, /setDoc\(|updateDoc\(|addDoc\(/);
 });
+
+
+test('homepage filter rows use icon-only kind markers instead of clickable 分類/地點 labels', async () => {
+  const html = await readFile(new URL('../../index.html', import.meta.url), 'utf8');
+  assert.match(html, /data-filter-kind-icon="category"/);
+  assert.match(html, /data-filter-kind-icon="location"/);
+  assert.doesNotMatch(html, />\s*分類\s*<\/div>/);
+  assert.doesNotMatch(html, />\s*地點\s*<\/div>/);
+});
+
+test('all picker includes a manage action that delegates to existing filter management', async () => {
+  const source = await readFile(sourcePath, 'utf8');
+  assert.match(source, /filter-picker-manage/);
+  assert.match(source, /shopping-list:manage-filter/);
+  assert.match(source, /detail:\s*\{\s*kind:\s*state\.activeType\s*\}/);
+});
+
+test('home management listens to picker manage requests instead of enhancing the old left label', async () => {
+  const source = await readFile(new URL('../../src/client/app/home-ui-enhancements.js', import.meta.url), 'utf8');
+  assert.match(source, /shopping-list:manage-filter/);
+  assert.doesNotMatch(source, /setupTrigger\('category-filters'/);
+  assert.doesNotMatch(source, /setupTrigger\('location-filters'/);
+});
