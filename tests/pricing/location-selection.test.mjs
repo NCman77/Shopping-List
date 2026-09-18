@@ -37,6 +37,9 @@ test('an item matches any selected location and all remains inclusive', () => {
   assert.equal(itemMatchesLocation(item, '澀谷'), true);
   assert.equal(itemMatchesLocation(item, '銀座'), false);
   assert.equal(itemMatchesLocation(item, 'all'), true);
+  assert.equal(itemMatchesLocation(item, ['銀座', '澀谷']), true);
+  assert.equal(itemMatchesLocation(item, ['銀座', '池袋']), false);
+  assert.equal(itemMatchesLocation(item, []), true);
 });
 
 test('adding a location preserves order and never duplicates a selected chip', () => {
