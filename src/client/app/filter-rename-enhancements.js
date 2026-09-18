@@ -124,10 +124,6 @@ export async function initFilterRenameEnhancements({
     renameInput.value = value;
     renameModal.classList.remove('hidden');
     renameModal.classList.add('flex');
-    setTimeout(() => {
-      renameInput.focus();
-      renameInput.select();
-    }, 40);
   }
 
   function enhanceManagementRows() {
