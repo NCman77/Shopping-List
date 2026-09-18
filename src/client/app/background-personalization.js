@@ -1,6 +1,13 @@
 import { createDrivePhotoService, DriveAuthorizationError } from '../photos/drive-photo-service.js';
 import { normalizePersonalization, positionPreset, buildPanStyle } from './personalization-preferences.js';
 import { createSessionOperationTracker } from './session-operation.js';
+import {
+  createBackgroundSlideshowController,
+  runBackgroundPlaylistDownload,
+  runBackgroundPlaylistSaveTransaction
+} from './background-playlist.js';
+
+export { runBackgroundPlaylistSaveTransaction };
 
 const APP_ID = 'japan-shopping-app';
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
@@ -39,7 +46,8 @@ export function backgroundKindForMime(mimeType) {
 }
 
 export function backgroundLoadKey(userId, preferences = {}) {
-  return `${String(userId || '').trim()}:${normalizePersonalization(preferences).backgroundFileId}`;
+  const normalized = normalizePersonalization(preferences);
+  return `${String(userId || '').trim()}:${normalized.backgroundFiles.map((file) => file.fileId).join(',')}`;
 }
 
 export function isSupportedBackgroundFile(file) {
