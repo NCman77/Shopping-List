@@ -62,3 +62,12 @@ test('brand dictionary top-level header matches personalization styling without 
   assert.match(source, /<h3 class="text-xl font-bold text-warmBrown">品牌字典<\/h3>/);
   assert.match(source, /fa-store/);
 });
+
+
+test('brand list exposes a visible delete-brand action without adding any country deletion action', async () => {
+  const source = await readFile(new URL('../../src/client/app/brand-dictionary-ui.js', import.meta.url), 'utf8');
+  assert.match(source, /brand-row-delete/);
+  assert.match(source, /aria-label.*刪除品牌|setAttribute\('aria-label',\s*`刪除品牌/);
+  assert.match(source, /removeBrand\(brand\)/);
+  assert.doesNotMatch(source, /deleteCountry|removeCountry|刪除國家/);
+});

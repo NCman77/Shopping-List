@@ -434,3 +434,12 @@ test('page custom-image mode remains multi-photo with slideshow support', async 
   assert.match(source, /id="background-file-input"[^>]*multiple/);
   assert.match(source, /id="background-rotation-interval"/);
 });
+
+
+test('page background quick-position buttons move the selected highlight away from center', async () => {
+  const source = await readFile(new URL('../../src/client/app/background-personalization.js', import.meta.url), 'utf8');
+  assert.match(source, /syncPositionPresetButtons/);
+  assert.match(source, /data-position-preset/);
+  assert.match(source, /classList\.toggle\('bg-pastelYellow',\s*active\)/);
+  assert.match(source, /classList\.toggle\('bg-shinBg',\s*!active\)/);
+});

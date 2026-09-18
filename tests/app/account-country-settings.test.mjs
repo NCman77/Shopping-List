@@ -128,7 +128,7 @@ test('travel country subpage hides the account header and restores it when retur
   assert.match(rootBody, /accountHeader\.style\.display = ''/);
   assert.match(countryBody, /accountHeader\.style\.display = 'none'/);
   assert.match(source, /<h3 class="text-xl font-bold text-warmBrown">旅遊國家<\/h3>/);
-  assert.match(source, /國家管理 · 新旅程建立時可從這裡的清單選擇/);
+  assert.doesNotMatch(source, /國家管理 · 新旅程建立時可從這裡的清單選擇/);
 });
 
 
@@ -136,6 +136,27 @@ test('travel country header matches personalization header styling and country r
   const source = await readFile(new URL('../../src/client/app/account-settings.js', import.meta.url), 'utf8');
   assert.match(source, /account-country-view[\s\S]*?bg-pastelBlue border-b-4 border-warmBrown px-5 py-4/s);
   assert.match(source, /<h3 class="text-xl font-bold text-warmBrown">旅遊國家<\/h3>/);
-  assert.match(source, /國家管理 · 新旅程建立時可從這裡的清單選擇/);
+  assert.doesNotMatch(source, /國家管理 · 新旅程建立時可從這裡的清單選擇/);
   assert.match(source, /fa-earth-asia/);
+});
+
+
+test('travel country landing replaces the always-visible inline editor with add and manage actions', async () => {
+  const source = await readFile(new URL('../../src/client/app/account-settings.js', import.meta.url), 'utf8');
+  assert.match(source, /id="account-country-actions"/);
+  assert.match(source, /id="account-country-new"/);
+  assert.match(source, />＋ 新增國家<\/button>/);
+  assert.match(source, /id="account-country-manage"/);
+  assert.match(source, />管理旅遊國家<\/button>/);
+  assert.match(source, /id="account-country-editor" class="hidden/);
+  assert.match(source, /countryViewMode/);
+  assert.match(source, /countryEditorReturnMode/);
+});
+
+test('travel country management owns edit and delete controls while the picker does not show them', async () => {
+  const source = await readFile(new URL('../../src/client/app/account-settings.js', import.meta.url), 'utf8');
+  const render = source.match(/function renderCountries\(\) \{([\s\S]*?)\n  \}\n\n  async function addCountry/)?.[1] || '';
+  assert.match(render, /state\.countryViewMode === 'manage'/);
+  assert.match(render, /beginCountryEdit/);
+  assert.match(render, /deleteCountry/);
 });

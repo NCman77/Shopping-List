@@ -155,3 +155,12 @@ test('header custom-image mode remains multi-photo with slideshow support', asyn
   assert.match(source, /id="header-background-file-input"[^>]*multiple/);
   assert.match(source, /id="header-background-rotation-interval"/);
 });
+
+
+test('header background quick-position buttons update their selected highlight', async () => {
+  const source = await sourceOrFail('../../src/client/app/header-background-personalization.js', 'header background module is missing');
+  assert.match(source, /syncPositionPresetButtons/);
+  assert.match(source, /data-header-position-preset/);
+  assert.match(source, /classList\.toggle\('bg-pastelYellow',\s*active\)/);
+  assert.match(source, /classList\.toggle\('bg-shinBg',\s*!active\)/);
+});

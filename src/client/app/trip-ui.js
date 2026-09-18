@@ -234,7 +234,7 @@ export async function initTripUi() {
     formView.classList.toggle('hidden', view !== 'form');
     backButton.classList.toggle('hidden', view === 'picker' && !state.openedFromSettings);
     document.getElementById('trip-modal-title').textContent = view === 'picker' ? '選擇旅程' : view === 'manage' ? '旅遊紀錄' : (state.editingTripId ? '編輯旅程' : '新增旅程');
-    document.getElementById('trip-modal-subtitle').textContent = view === 'picker' ? '目前商品只會顯示在選定的這一趟' : '';
+    document.getElementById('trip-modal-subtitle').textContent = '';
   }
 
   function openModal(view = 'picker', { fromSettings = false } = {}) {
@@ -360,18 +360,13 @@ export async function initTripUi() {
     }
 
     const actions = document.createElement('div');
-    actions.className = 'grid grid-cols-2 gap-2 mt-4 pt-4 border-t-2 border-warmBrown/10';
-    const add = document.createElement('button');
-    add.type = 'button';
-    add.className = 'py-2.5 rounded-xl bg-pastelGreen border-2 border-warmBrown text-warmBrown text-sm font-bold';
-    add.textContent = '＋ 新增旅程';
-    add.addEventListener('click', () => openForm(null));
+    actions.className = 'grid grid-cols-1 gap-2 mt-4 pt-4 border-t-2 border-warmBrown/10';
     const manage = document.createElement('button');
     manage.type = 'button';
     manage.className = 'py-2.5 rounded-xl bg-pastelBlue border-2 border-warmBrown text-warmBrown text-sm font-bold';
     manage.textContent = '管理旅遊紀錄';
     manage.addEventListener('click', () => { setView('manage'); renderManage(); });
-    actions.append(add, manage);
+    actions.append(manage);
     pickerView.appendChild(actions);
   }
 

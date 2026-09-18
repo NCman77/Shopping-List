@@ -11,7 +11,6 @@ function ensureHub() {
         <button id="personalization-hub-back" type="button" class="w-9 h-9 shrink-0 rounded-full bg-white border-2 border-warmBrown text-warmBrown"><i class="fas fa-chevron-left"></i></button>
         <div class="flex-1 min-w-0">
           <h2 class="text-xl font-bold text-warmBrown">個人化</h2>
-          <p class="text-[11px] text-warmBrown/60 font-bold mt-1">選擇要調整的背景區域</p>
         </div>
         <button id="personalization-hub-close" type="button" class="w-9 h-9 shrink-0 rounded-full bg-white border-2 border-warmBrown text-warmBrown"><i class="fas fa-times"></i></button>
       </div>

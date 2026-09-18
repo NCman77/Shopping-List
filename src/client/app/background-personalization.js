@@ -862,9 +862,18 @@ export async function initBackgroundPersonalization() {
     rotationInput.value = String(state.editorPreferences.rotationIntervalSeconds);
   });
 
+  function syncPositionPresetButtons(selectedButton) {
+    for (const candidate of document.querySelectorAll('[data-position-preset]')) {
+      const active = candidate === selectedButton;
+      candidate.classList.toggle('bg-pastelYellow', active);
+      candidate.classList.toggle('bg-shinBg', !active);
+    }
+  }
+
   for (const button of document.querySelectorAll('[data-position-preset]')) {
     button.addEventListener('click', () => {
       updateActiveFrame(positionPreset(button.dataset.positionPreset));
+      syncPositionPresetButtons(button);
       renderEditorPreview();
     });
   }
