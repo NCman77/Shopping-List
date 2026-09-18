@@ -1,4 +1,5 @@
 import { createDrivePhotoService, DriveAuthorizationError } from '../photos/drive-photo-service.js';
+import { configureGoogleProviderForDrive } from '../auth/google-drive-signin.js';
 import {
   backgroundKindForMime,
   isSupportedBackgroundFile,
@@ -13,7 +14,6 @@ import { positionPreset } from './personalization-preferences.js';
 import { createSessionOperationTracker } from './session-operation.js';
 
 const APP_ID = 'japan-shopping-app';
-const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
 const MAX_BACKGROUND_BYTES = 100 * 1024 * 1024;
 const ITEM_CARD_BACKGROUND_UPLOAD = Object.freeze({ kind: 'item-card-background' });
 
@@ -341,9 +341,7 @@ export async function initItemCardPersonalization() {
     if (!user || user.uid !== operation.userId || !tracker.isSessionCurrent(operation, state.userId)) {
       throw new Error('登入狀態已變更，請重新操作。');
     }
-    const provider = new authSdk.GoogleAuthProvider();
-    provider.addScope(DRIVE_SCOPE);
-    provider.setCustomParameters({ prompt: 'consent' });
+    const provider = configureGoogleProviderForDrive(new authSdk.GoogleAuthProvider(), { loginHint: user.email || '' });
     const result = await authSdk.reauthenticateWithPopup(user, provider);
     if (!tracker.isSessionCurrent(operation, state.userId)) throw new Error('登入狀態已變更，請重新操作。');
     const credential = authSdk.GoogleAuthProvider.credentialFromResult(result);

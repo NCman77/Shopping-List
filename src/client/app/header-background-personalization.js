@@ -1,4 +1,5 @@
 import { createDrivePhotoService, DriveAuthorizationError } from '../photos/drive-photo-service.js';
+import { configureGoogleProviderForDrive } from '../auth/google-drive-signin.js';
 import {
   backgroundKindForMime,
   backgroundLoadKey,
@@ -14,10 +15,10 @@ import { normalizePersonalization, positionPreset, normalizeRotationIntervalDraf
 import { createSessionOperationTracker } from './session-operation.js';
 
 const APP_ID = 'japan-shopping-app';
-const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
 const MAX_BACKGROUND_BYTES = 100 * 1024 * 1024;
 const HEADER_BACKGROUND_UPLOAD = Object.freeze({ kind: 'header-background' });
 const HEADER_OVERSCAN_PERCENT = 12;
+const HEADER_OVERSCAN_OFFSET_PERCENT = HEADER_OVERSCAN_PERCENT / 2;
 const LONG_PRESS_MS = 450;
 
 function waitFor(predicate, timeout = 10000) {
@@ -63,8 +64,10 @@ function installStyles() {
       position: absolute;
       width: calc(100% + ${HEADER_OVERSCAN_PERCENT}%);
       height: calc(100% + ${HEADER_OVERSCAN_PERCENT}%);
-      left: calc(${HEADER_OVERSCAN_PERCENT}% / -2);
-      top: calc(${HEADER_OVERSCAN_PERCENT}% / -2);
+      left: -${HEADER_OVERSCAN_OFFSET_PERCENT}%;
+      top: -${HEADER_OVERSCAN_OFFSET_PERCENT}%;
+      max-width: none;
+      max-height: none;
       object-fit: cover;
       display: block;
       will-change: transform;
@@ -79,8 +82,10 @@ function installStyles() {
       position: absolute;
       width: calc(100% + ${HEADER_OVERSCAN_PERCENT}%);
       height: calc(100% + ${HEADER_OVERSCAN_PERCENT}%);
-      left: calc(${HEADER_OVERSCAN_PERCENT}% / -2);
-      top: calc(${HEADER_OVERSCAN_PERCENT}% / -2);
+      left: -${HEADER_OVERSCAN_OFFSET_PERCENT}%;
+      top: -${HEADER_OVERSCAN_OFFSET_PERCENT}%;
+      max-width: none;
+      max-height: none;
       object-fit: cover;
       display: block;
       pointer-events: none;
@@ -199,6 +204,14 @@ function ensureEditor() {
   document.body.appendChild(modal);
 }
 
+export function scaleForPinch({ startScale = 1, startDistance = 0, currentDistance = 0 } = {}) {
+  const base = clamp(Number(startScale) || 1, 1, 3);
+  const start = Number(startDistance);
+  const current = Number(currentDistance);
+  if (!Number.isFinite(start) || !Number.isFinite(current) || start <= 0 || current <= 0) return base;
+  return clamp(base * (current / start), 1, 3);
+}
+
 export function headerBackgroundTransform(preferences = {}) {
   const positionX = clamp(Number(preferences.positionX) || 50, 0, 100);
   const positionY = clamp(Number(preferences.positionY) || 50, 0, 100);
@@ -272,6 +285,8 @@ export async function initHeaderBackgroundPersonalization() {
     settingsUnsub: null,
     activeEditorIndex: 0,
     drag: null,
+    previewPointers: new Map(),
+    pinch: null,
     thumbnailDrag: null,
     thumbnailLongPressTimer: null,
     suppressThumbnailClick: false
@@ -389,9 +404,7 @@ export async function initHeaderBackgroundPersonalization() {
     if (!user || user.uid !== operation.userId || !tracker.isSessionCurrent(operation, state.userId)) {
       throw new Error('登入狀態已變更，請重新操作。');
     }
-    const provider = new authSdk.GoogleAuthProvider();
-    provider.addScope(DRIVE_SCOPE);
-    provider.setCustomParameters({ prompt: 'consent' });
+    const provider = configureGoogleProviderForDrive(new authSdk.GoogleAuthProvider(), { loginHint: user.email || '' });
     const result = await authSdk.reauthenticateWithPopup(user, provider);
     if (!tracker.isSessionCurrent(operation, state.userId)) throw new Error('登入狀態已變更，請重新操作。');
     const credential = authSdk.GoogleAuthProvider.credentialFromResult(result);
@@ -709,22 +722,62 @@ export async function initHeaderBackgroundPersonalization() {
     });
   }
 
+  function previewPointerDistance() {
+    const points = [...state.previewPointers.values()];
+    if (points.length < 2) return 0;
+    return Math.hypot(points[1].x - points[0].x, points[1].y - points[0].y);
+  }
+
+  function beginSinglePointerDrag(pointerId, point) {
+    const file = activeEditorFile();
+    if (!file) return;
+    state.drag = {
+      pointerId,
+      x: point.x,
+      y: point.y,
+      positionX: file.positionX,
+      positionY: file.positionY
+    };
+    preview.classList.add('dragging');
+  }
+
   preview.addEventListener('pointerdown', (event) => {
     const file = activeEditorFile();
     if (!currentPreviewUrl() || !file || state.removeRequested) return;
     preview.setPointerCapture?.(event.pointerId);
-    preview.classList.add('dragging');
-    state.drag = {
-      pointerId: event.pointerId,
-      x: event.clientX,
-      y: event.clientY,
-      positionX: file.positionX,
-      positionY: file.positionY
-    };
+    state.previewPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+    if (state.previewPointers.size === 1) {
+      state.pinch = null;
+      beginSinglePointerDrag(event.pointerId, { x: event.clientX, y: event.clientY });
+    } else if (state.previewPointers.size === 2) {
+      state.drag = null;
+      preview.classList.remove('dragging');
+      state.pinch = {
+        startDistance: previewPointerDistance(),
+        startScale: Number(file.scale) || 1
+      };
+    }
     event.preventDefault();
   });
 
   preview.addEventListener('pointermove', (event) => {
+    if (!state.previewPointers.has(event.pointerId)) return;
+    state.previewPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+    if (state.pinch && state.previewPointers.size >= 2) {
+      updateActiveFrame({
+        scale: scaleForPinch({
+          startScale: state.pinch.startScale,
+          startDistance: state.pinch.startDistance,
+          currentDistance: previewPointerDistance()
+        })
+      });
+      renderEditorPreview();
+      event.preventDefault();
+      return;
+    }
+
     if (!state.drag || state.drag.pointerId !== event.pointerId) return;
     const rect = preview.getBoundingClientRect();
     const dx = ((event.clientX - state.drag.x) / Math.max(rect.width, 1)) * 100;
@@ -737,14 +790,22 @@ export async function initHeaderBackgroundPersonalization() {
     event.preventDefault();
   });
 
-  const finishDrag = (event) => {
-    if (!state.drag || state.drag.pointerId !== event.pointerId) return;
-    preview.releasePointerCapture?.(event.pointerId);
-    preview.classList.remove('dragging');
-    state.drag = null;
+  const finishPreviewGesture = (event) => {
+    state.previewPointers.delete(event.pointerId);
+    if (preview.hasPointerCapture?.(event.pointerId)) preview.releasePointerCapture?.(event.pointerId);
+
+    if (state.previewPointers.size < 2) state.pinch = null;
+
+    if (state.previewPointers.size === 1) {
+      const [remainingId, point] = [...state.previewPointers.entries()][0];
+      beginSinglePointerDrag(remainingId, point);
+    } else if (state.previewPointers.size === 0) {
+      state.drag = null;
+      preview.classList.remove('dragging');
+    }
   };
-  preview.addEventListener('pointerup', finishDrag);
-  preview.addEventListener('pointercancel', finishDrag);
+  preview.addEventListener('pointerup', finishPreviewGesture);
+  preview.addEventListener('pointercancel', finishPreviewGesture);
 
   authRequiredButton.addEventListener('click', async () => {
     const operation = tracker.capture(state.userId);

@@ -2,6 +2,7 @@ import { normalizeWebsiteUrl, createGoogleMapsUrl } from './url-utils.js';
 import { compressImage, revokeCompressedImage } from './image-compression.js';
 import { acceptCompressedPhoto } from '../photos/photo-selection.js';
 import { createDrivePhotoService, DriveAuthorizationError } from './drive-photo-service.js';
+import { configureGoogleProviderForDrive } from '../auth/google-drive-signin.js';
 import { groupActivePhotosByItem } from './photo-metadata.js';
 import { createLightweightThumbnail } from '../photos/photo-thumbnail-persistence.js';
 import { runPhotoUploadTransaction } from '../photos/photo-upload-transaction.js';
@@ -17,7 +18,6 @@ import {
 } from './item-save-operation.js';
 
 const APP_ID = 'japan-shopping-app';
-const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
 
 function waitFor(predicate, timeout = 10000) {
   return new Promise((resolve, reject) => {
@@ -202,9 +202,7 @@ export async function initShoppingListEnhancements() {
     driveConnectPromise = (async () => {
       const user = auth.currentUser;
       if (!user) throw new Error('請先登入 Google 帳號。');
-      const provider = new authSdk.GoogleAuthProvider();
-      provider.addScope(DRIVE_SCOPE);
-      provider.setCustomParameters({ prompt: interactive ? 'consent' : 'select_account' });
+      const provider = configureGoogleProviderForDrive(new authSdk.GoogleAuthProvider(), { loginHint: user.email || '' });
       const result = await authSdk.reauthenticateWithPopup(user, provider);
       const credential = authSdk.GoogleAuthProvider.credentialFromResult(result);
       const token = credential?.accessToken || '';

@@ -66,8 +66,8 @@ export function detectHorizontalSwipe({ startX, startY, endX, endY, minDistance 
 export function nextPageForSwipe({ direction, page, totalPages }) {
   const normalizedTotal = Math.max(1, Math.floor(Number(totalPages) || 1));
   const current = Math.min(normalizedTotal, Math.max(1, Math.floor(Number(page) || 1)));
-  if (direction === 'left') return Math.max(1, current - 1);
-  if (direction === 'right') return Math.min(normalizedTotal, current + 1);
+  if (direction === 'left') return Math.min(normalizedTotal, current + 1);
+  if (direction === 'right') return Math.max(1, current - 1);
   return current;
 }
 
