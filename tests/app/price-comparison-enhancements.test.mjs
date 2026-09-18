@@ -90,3 +90,12 @@ test('price comparison no longer renders the Rates By Exchange Rate attribution 
   const source = await readFile(pricingUiPath, 'utf8');
   assert.doesNotMatch(source, /匯率來源：Rates By Exchange Rate API/);
 });
+
+
+test('price comparison does not hijack homepage location chip clicks and only mirrors shared home selection state', async () => {
+  const source = await readFile(pricingUiPath, 'utf8');
+  assert.doesNotMatch(source, /normalizingBaseFilter/);
+  assert.doesNotMatch(source, /allButton\.click\(\)/);
+  assert.match(source, /shoppingListHomeFilterSelections/);
+  assert.match(source, /shopping-list:home-filter-changed/);
+});
