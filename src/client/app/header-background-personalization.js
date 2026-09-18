@@ -9,7 +9,7 @@ import {
   runBackgroundPlaylistDownload,
   runBackgroundPlaylistSaveTransaction
 } from './background-playlist.js';
-import { normalizePersonalization, positionPreset, buildPanStyle } from './personalization-preferences.js';
+import { normalizePersonalization, positionPreset } from './personalization-preferences.js';
 import { createSessionOperationTracker } from './session-operation.js';
 
 const APP_ID = 'japan-shopping-app';
@@ -55,10 +55,6 @@ function installStyles() {
       position: absolute;
       inset: 0;
       overflow: hidden;
-      animation-duration: 14s;
-      animation-timing-function: ease-in-out;
-      animation-fill-mode: both;
-      animation-direction: alternate;
     }
     #header-background-layer .header-background-media {
       width: 100%;
@@ -80,14 +76,6 @@ function installStyles() {
       display: block;
       pointer-events: none;
       will-change: transform;
-    }
-    @keyframes shopping-bg-pan-left {
-      from { transform: translateX(3%); }
-      to { transform: translateX(-3%); }
-    }
-    @keyframes shopping-bg-pan-right {
-      from { transform: translateX(-3%); }
-      to { transform: translateX(3%); }
     }
   `;
   document.head.appendChild(style);
@@ -141,6 +129,8 @@ function ensureEditor() {
           <button id="header-background-remove" type="button" class="px-3 py-2.5 rounded-xl bg-pastelPink border-2 border-warmBrown text-warmBrown font-bold">移除</button>
         </div>
         <p id="header-background-file-name" class="text-[11px] text-gray-400 font-bold truncate"></p>
+        <div id="header-background-thumbnails" class="flex gap-2 overflow-x-auto pb-1"></div>
+        <button id="header-background-delete-current" type="button" class="w-full py-2 rounded-xl bg-white border-2 border-warmBrown text-warmBrown text-sm font-bold">刪除目前這張</button>
 
         <div>
           <div class="flex justify-between items-center mb-2">
@@ -172,26 +162,6 @@ function ensureEditor() {
           </div>
         </div>
 
-        <div class="rounded-2xl bg-shinBg border-2 border-warmBrown p-3 space-y-3">
-          <label class="flex items-center justify-between gap-3 text-sm font-bold text-warmBrown">
-            <span>畫面平移</span>
-            <input id="header-background-pan-enabled" type="checkbox" class="w-5 h-5 accent-[#5C4033]">
-          </label>
-          <div class="grid grid-cols-2 gap-2">
-            <label class="text-xs font-bold text-warmBrown">方向
-              <select id="header-background-pan-direction" class="mt-1 w-full px-3 py-2 rounded-xl bg-white border-2 border-warmBrown">
-                <option value="left">往左</option>
-                <option value="right">往右</option>
-              </select>
-            </label>
-            <label class="text-xs font-bold text-warmBrown">次數
-              <select id="header-background-pan-iteration" class="mt-1 w-full px-3 py-2 rounded-xl bg-white border-2 border-warmBrown">
-                <option value="once">1 次</option>
-                <option value="infinite">無限</option>
-              </select>
-            </label>
-          </div>
-        </div>
       </div>
       <div class="p-4 border-t-2 border-warmBrown/20 bg-shinBg flex gap-3 shrink-0">
         <button id="cancel-header-background-personalization" type="button" class="flex-1 py-2.5 rounded-xl bg-white border-2 border-warmBrown text-warmBrown font-bold">取消</button>
@@ -213,7 +183,7 @@ function createHeaderMediaElement(kind, url, preferences, id = '') {
     media.muted = true;
     media.playsInline = true;
     media.autoplay = true;
-    media.loop = preferences.panIteration === 'infinite';
+    media.loop = true;
   }
   return media;
 }
@@ -244,9 +214,6 @@ export async function initHeaderBackgroundPersonalization() {
   const input = document.getElementById('header-background-file-input');
   const scaleInput = document.getElementById('header-background-scale');
   const rotationInput = document.getElementById('header-background-rotation-interval');
-  const panEnabledInput = document.getElementById('header-background-pan-enabled');
-  const panDirectionInput = document.getElementById('header-background-pan-direction');
-  const panIterationInput = document.getElementById('header-background-pan-iteration');
   const driveNote = document.getElementById('header-background-drive-note');
   const saveButton = document.getElementById('save-header-background-personalization');
 
@@ -261,6 +228,7 @@ export async function initHeaderBackgroundPersonalization() {
     loadedBackgroundKey: '',
     loadingBackgroundKeys: new Set(),
     settingsUnsub: null,
+    activeEditorIndex: 0,
     drag: null
   };
 
@@ -283,7 +251,7 @@ export async function initHeaderBackgroundPersonalization() {
     render: (item) => {
       wrap.replaceChildren();
       const kind = backgroundKindForMime(item.mimeType);
-      const media = createHeaderMediaElement(kind, item.objectUrl, slideshowPreferences);
+      const media = createHeaderMediaElement(kind, item.objectUrl, { ...slideshowPreferences, ...item });
       wrap.appendChild(media);
       if (kind === 'video') media.play().catch(() => {});
     },
@@ -316,10 +284,6 @@ export async function initHeaderBackgroundPersonalization() {
       return;
     }
     slideshowPreferences = normalized;
-    const pan = buildPanStyle(normalized);
-    wrap.style.animationName = pan.animationName;
-    wrap.style.animationIterationCount = pan.animationIterationCount;
-    wrap.style.animationPlayState = normalized.panEnabled ? 'running' : 'paused';
     layer.classList.remove('hidden');
     slideshow.start(items, normalized);
   }
