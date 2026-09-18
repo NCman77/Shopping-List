@@ -105,8 +105,8 @@ function ensureHomepageSelector(statusFilters) {
   shell = document.createElement('div');
   shell.id = 'active-trip-shell';
   shell.innerHTML = `
-    <button id="active-trip-selector" type="button" class="flex items-center text-left bg-white border-2 border-warmBrown text-warmBrown shadow-[2px_2px_0_rgba(92,64,51,.16)]">
-      <span class="shrink-0 rounded-full bg-pastelBlue border-2 border-warmBrown flex items-center justify-center"><i class="fas fa-suitcase-rolling text-xs"></i></span>
+    <button id="active-trip-selector" type="button" class="flex items-center text-left bg-[#F5E6D3] border-2 border-warmBrown text-warmBrown shadow-[2px_2px_0_rgba(92,64,51,.16)]">
+      <span class="shrink-0 rounded-full bg-pastelBlue border-2 border-warmBrown flex items-center justify-center"><i class="fas fa-plane text-xs"></i></span>
       <span class="flex-1 min-w-0"><span id="active-trip-title" class="block font-bold truncate">新增第一趟旅程</span><span id="active-trip-dates" class="block text-xs opacity-60 mt-0.5">建立獨立購物清單</span></span>
       <i class="fas fa-chevron-down text-[10px] shrink-0"></i>
     </button>`;
