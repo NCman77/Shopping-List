@@ -69,7 +69,7 @@ test('top-left trip selector uses the same 2.5rem outer height as the account av
 
 test('top-left trip selector keeps the airplane icon inside the glass control', async () => {
   const source = await readFile(sourcePath, 'utf8');
-  assert.match(source, /createCountryFlagElement/);
+  assert.match(source, /fa-plane/);
   assert.doesNotMatch(source, /fa-suitcase-rolling/);
   assert.match(source, /bg-white\/25/);
 });
