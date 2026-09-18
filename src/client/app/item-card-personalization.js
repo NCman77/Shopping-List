@@ -710,6 +710,7 @@ export async function initItemCardPersonalization() {
     state.settingsUnsub = null;
     revokeUrl('objectUrl');
     state.userId = user?.uid || '';
+    state.savedColors = [];
     state.preferences = { ...DEFAULT_ITEM_CARD_PERSONALIZATION };
     applyCards();
     if (!user) return;
