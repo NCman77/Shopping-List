@@ -289,11 +289,22 @@ function ensureEditor() {
           <div class="flex gap-2">
             <label class="flex-1 text-center px-3 py-2.5 rounded-xl bg-pastelGreen border-2 border-warmBrown text-warmBrown font-bold cursor-pointer">
               <i class="fas fa-upload mr-1"></i>選擇背景
-              <input id="background-file-input" type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm" class="hidden">
+              <input id="background-file-input" type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm" class="hidden">
             </label>
             <button id="background-remove" type="button" class="px-3 py-2.5 rounded-xl bg-pastelPink border-2 border-warmBrown text-warmBrown font-bold">移除</button>
           </div>
           <p id="background-file-name" class="text-[11px] text-gray-400 font-bold truncate"></p>
+
+          <div>
+            <div class="flex justify-between items-center mb-2">
+              <label for="background-rotation-interval" class="text-sm font-bold text-warmBrown">照片輪播間隔</label>
+              <span class="text-[11px] text-gray-400 font-bold">2–60 秒</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <input id="background-rotation-interval" type="number" min="2" max="60" step="1" value="8" class="w-24 px-3 py-2 rounded-xl bg-white border-2 border-warmBrown text-warmBrown font-bold outline-none">
+              <span class="text-sm font-bold text-warmBrown">秒</span>
+            </div>
+          </div>
 
           <div>
             <div class="flex justify-between items-center mb-2"><label for="background-scale" class="text-sm font-bold text-warmBrown">縮放</label><span id="background-scale-value" class="text-xs font-bold text-gray-500">100%</span></div>
@@ -380,6 +391,7 @@ export async function initBackgroundPersonalization() {
   const preview = document.getElementById('background-preview-viewport');
   const input = document.getElementById('background-file-input');
   const scaleInput = document.getElementById('background-scale');
+  const rotationInput = document.getElementById('background-rotation-interval');
   const panEnabledInput = document.getElementById('background-pan-enabled');
   const panDirectionInput = document.getElementById('background-pan-direction');
   const panIterationInput = document.getElementById('background-pan-iteration');
