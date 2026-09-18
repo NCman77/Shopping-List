@@ -145,3 +145,83 @@ test('cleanup queue retries failed owner-scoped deletions and removes completed 
     personalizationMediaPath({ userId: 'alice', mediaId: 'firestore:photo-1' })
   ]);
 });
+
+
+function makeCacheStorage() {
+  const stores = new Map();
+  return {
+    async open(name) {
+      if (!stores.has(name)) stores.set(name, new Map());
+      const store = stores.get(name);
+      return {
+        async match(key) {
+          const response = store.get(String(key));
+          return response ? response.clone() : undefined;
+        },
+        async put(key, response) {
+          store.set(String(key), response.clone());
+        },
+        async delete(key) {
+          return store.delete(String(key));
+        }
+      };
+    }
+  };
+}
+
+test('Firestore personalization media uses a persistent owner-scoped cache before reading Firestore again', async () => {
+  const cacheStorageImpl = makeCacheStorage();
+  let aliceReads = 0;
+  let bobReads = 0;
+
+  const alice = createFirestorePersonalizationMediaService({
+    firestoreSdk: makeFirestoreSdk({
+      onGet: async () => {
+        aliceReads += 1;
+        return { exists: () => true, data: () => ({ bytes: new TextEncoder().encode('alice'), mimeType: 'image/webp' }) };
+      }
+    }),
+    db: { name: 'db' },
+    userId: 'alice',
+    cacheStorageImpl
+  });
+  const bob = createFirestorePersonalizationMediaService({
+    firestoreSdk: makeFirestoreSdk({
+      onGet: async () => {
+        bobReads += 1;
+        return { exists: () => true, data: () => ({ bytes: new TextEncoder().encode('bob'), mimeType: 'image/webp' }) };
+      }
+    }),
+    db: { name: 'db' },
+    userId: 'bob',
+    cacheStorageImpl
+  });
+
+  assert.equal(await (await alice.downloadPhoto('firestore:shared-id')).text(), 'alice');
+  assert.equal(await (await alice.downloadPhoto('firestore:shared-id')).text(), 'alice');
+  assert.equal(await (await bob.downloadPhoto('firestore:shared-id')).text(), 'bob');
+  assert.equal(aliceReads, 1);
+  assert.equal(bobReads, 1);
+});
+
+test('deleting Firestore personalization media evicts its persistent cached copy', async () => {
+  const cacheStorageImpl = makeCacheStorage();
+  let reads = 0;
+  const service = createFirestorePersonalizationMediaService({
+    firestoreSdk: makeFirestoreSdk({
+      onGet: async () => {
+        reads += 1;
+        return { exists: () => true, data: () => ({ bytes: new TextEncoder().encode(String(reads)), mimeType: 'image/webp' }) };
+      }
+    }),
+    db: { name: 'db' },
+    userId: 'alice',
+    cacheStorageImpl
+  });
+
+  assert.equal(await (await service.downloadPhoto('firestore:photo-1')).text(), '1');
+  assert.equal(await (await service.downloadPhoto('firestore:photo-1')).text(), '1');
+  await service.deletePhoto('firestore:photo-1');
+  assert.equal(await (await service.downloadPhoto('firestore:photo-1')).text(), '2');
+  assert.equal(reads, 2);
+});
