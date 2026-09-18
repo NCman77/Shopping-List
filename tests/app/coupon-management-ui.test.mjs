@@ -62,3 +62,12 @@ test('coupon manager uses back for settings return and close for exiting the set
   assert.match(text, /coupon-close[^\n]*closeManager\(\)/);
   assert.doesNotMatch(text, /coupon-close[^\n]*returnToSettings: state\.openedFromSettings/);
 });
+
+
+test('coupon management top-level header matches personalization styling and country rows show an earth icon', async () => {
+  const text = await source();
+  assert.match(text, /id="coupon-country-header"[^>]*bg-pastelBlue[^>]*border-b-4[^>]*px-5 py-4/);
+  assert.match(text, /<h3 class="text-xl font-bold text-warmBrown">優惠券管理<\/h3>/);
+  assert.match(text, /coupon-country-icon/);
+  assert.match(text, /fa-earth-asia/);
+});
