@@ -1,5 +1,5 @@
 import { createDrivePhotoService, DriveAuthorizationError } from '../photos/drive-photo-service.js';
-import { normalizePersonalization, positionPreset, buildPanStyle } from './personalization-preferences.js';
+import { normalizePersonalization, positionPreset } from './personalization-preferences.js';
 import { createSessionOperationTracker } from './session-operation.js';
 import {
   createBackgroundSlideshowController,
@@ -208,10 +208,6 @@ function installStyles() {
       position: absolute;
       inset: -6%;
       overflow: hidden;
-      animation-duration: 14s;
-      animation-timing-function: ease-in-out;
-      animation-fill-mode: both;
-      animation-direction: alternate;
     }
     #shopping-background-layer .shopping-background-media {
       width: 100%;
@@ -219,14 +215,6 @@ function installStyles() {
       object-fit: cover;
       display: block;
       will-change: transform;
-    }
-    @keyframes shopping-bg-pan-left {
-      from { transform: translateX(3%); }
-      to { transform: translateX(-3%); }
-    }
-    @keyframes shopping-bg-pan-right {
-      from { transform: translateX(-3%); }
-      to { transform: translateX(3%); }
     }
     #background-preview-viewport {
       touch-action: none;
@@ -294,6 +282,8 @@ function ensureEditor() {
             <button id="background-remove" type="button" class="px-3 py-2.5 rounded-xl bg-pastelPink border-2 border-warmBrown text-warmBrown font-bold">移除</button>
           </div>
           <p id="background-file-name" class="text-[11px] text-gray-400 font-bold truncate"></p>
+          <div id="background-thumbnails" class="flex gap-2 overflow-x-auto pb-1"></div>
+          <button id="background-delete-current" type="button" class="w-full py-2 rounded-xl bg-white border-2 border-warmBrown text-warmBrown text-sm font-bold">刪除目前這張</button>
 
           <div>
             <div class="flex justify-between items-center mb-2">
@@ -322,23 +312,6 @@ function ensureEditor() {
             </div>
           </div>
 
-          <div class="rounded-2xl bg-shinBg border-2 border-warmBrown p-3 space-y-3">
-            <label class="flex items-center justify-between gap-3 text-sm font-bold text-warmBrown">
-              <span>連播</span><input id="background-pan-enabled" type="checkbox" class="w-5 h-5 accent-[#5C4033]">
-            </label>
-            <div class="grid grid-cols-2 gap-2">
-              <label class="text-xs font-bold text-warmBrown">方向
-                <select id="background-pan-direction" class="mt-1 w-full px-3 py-2 rounded-xl bg-white border-2 border-warmBrown">
-                  <option value="left">往左連播</option><option value="right">往右連播</option>
-                </select>
-              </label>
-              <label class="text-xs font-bold text-warmBrown">次數
-                <select id="background-pan-iteration" class="mt-1 w-full px-3 py-2 rounded-xl bg-white border-2 border-warmBrown">
-                  <option value="once">1 次</option><option value="infinite">無限</option>
-                </select>
-              </label>
-            </div>
-          </div>
         </div>
         <div class="p-4 border-t-2 border-warmBrown/20 bg-shinBg flex gap-3 shrink-0">
           <button id="cancel-background-personalization" type="button" class="flex-1 py-2.5 rounded-xl bg-white border-2 border-warmBrown text-warmBrown font-bold">取消</button>
@@ -361,7 +334,7 @@ function createMediaElement(kind, url, preferences, id = '') {
     media.muted = true;
     media.playsInline = true;
     media.autoplay = true;
-    media.loop = preferences.panIteration === 'infinite';
+    media.loop = true;
   }
   return media;
 }
@@ -392,9 +365,6 @@ export async function initBackgroundPersonalization() {
   const input = document.getElementById('background-file-input');
   const scaleInput = document.getElementById('background-scale');
   const rotationInput = document.getElementById('background-rotation-interval');
-  const panEnabledInput = document.getElementById('background-pan-enabled');
-  const panDirectionInput = document.getElementById('background-pan-direction');
-  const panIterationInput = document.getElementById('background-pan-iteration');
   const driveNote = document.getElementById('background-drive-note');
   const saveButton = document.getElementById('save-background-personalization');
 
@@ -409,6 +379,7 @@ export async function initBackgroundPersonalization() {
     loadedBackgroundKey: '',
     loadingBackgroundKeys: new Set(),
     settingsUnsub: null,
+    activeEditorIndex: 0,
     drag: null
   };
 
@@ -431,7 +402,7 @@ export async function initBackgroundPersonalization() {
     render: (item) => {
       wrap.replaceChildren();
       const kind = backgroundKindForMime(item.mimeType);
-      const media = createMediaElement(kind, item.objectUrl, slideshowPreferences);
+      const media = createMediaElement(kind, item.objectUrl, { ...slideshowPreferences, ...item });
       wrap.appendChild(media);
       if (kind === 'video') media.play().catch(() => {});
     }
@@ -462,10 +433,6 @@ export async function initBackgroundPersonalization() {
       return;
     }
     slideshowPreferences = normalized;
-    const pan = buildPanStyle(normalized);
-    wrap.style.animationName = pan.animationName;
-    wrap.style.animationIterationCount = pan.animationIterationCount;
-    wrap.style.animationPlayState = normalized.panEnabled ? 'running' : 'paused';
     layer.classList.remove('hidden');
     slideshow.start(items, normalized);
   }
