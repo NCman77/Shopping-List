@@ -370,6 +370,10 @@ export async function initHeaderBackgroundPersonalization() {
           if (!(error instanceof DriveAuthorizationError)) console.error('Header background download failed:', error);
         }
       });
+      const needsAuthorization = result.status === 'authorization-required'
+        && state.preferences.backgroundFiles.length > 0;
+      authRequiredButton.classList.toggle('hidden', !needsAuthorization);
+      if (['applied', 'empty'].includes(result.status)) authRequiredButton.classList.add('hidden');
       if (['applied', 'empty', 'authorization-required'].includes(result.status)
         && backgroundLoadKey(state.userId, state.preferences) === loadKey) {
         state.loadedBackgroundKey = loadKey;
@@ -395,6 +399,7 @@ export async function initHeaderBackgroundPersonalization() {
     if (!token) throw new DriveAuthorizationError('未取得 Google Drive 授權。');
     capturedDrive.setAccessToken(token);
     driveNote.classList.add('hidden');
+    authRequiredButton.classList.add('hidden');
     try { await capturedDrive.retryQueuedCleanup(); } catch {}
     if (!tracker.isSessionCurrent(operation, state.userId)) throw new Error('登入狀態已變更，請重新操作。');
     await loadPersistedBackground({ force: true });
@@ -741,6 +746,17 @@ export async function initHeaderBackgroundPersonalization() {
   preview.addEventListener('pointerup', finishDrag);
   preview.addEventListener('pointercancel', finishDrag);
 
+  authRequiredButton.addEventListener('click', async () => {
+    const operation = tracker.capture(state.userId);
+    try {
+      await connectDrive(operation, driveServiceForUser(operation.userId));
+    } catch (error) {
+      if (!tracker.isSessionCurrent(operation, state.userId)) return;
+      console.error('Header background reconnect failed:', error);
+      window.showMsg?.('連結失敗', '需要重新授權 Google Drive 才能在這個瀏覽器顯示橫幅背景。', 'error');
+    }
+  });
+
   document.getElementById('header-background-drive-connect').addEventListener('click', async () => {
     const operation = tracker.capture(state.userId);
     try {
@@ -810,6 +826,7 @@ export async function initHeaderBackgroundPersonalization() {
     closeEditor();
     saveButton.disabled = false;
     hideLayer();
+    authRequiredButton.classList.add('hidden');
     state.settingsUnsub?.();
     state.settingsUnsub = null;
     revokeLoadedItems();
