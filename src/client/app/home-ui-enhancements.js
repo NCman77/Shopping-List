@@ -374,31 +374,11 @@ export async function initHomeUiEnhancements() {
     modal.classList.add('flex');
   }
 
-  function setupTrigger(containerId, kind) {
-    const filterContainer = document.getElementById(containerId);
-    const row = filterContainer?.parentElement;
-    const trigger = row?.firstElementChild;
-    if (!trigger || trigger.dataset.manageReady === '1') return;
-    trigger.dataset.manageReady = '1';
-    trigger.classList.add('filter-manage-trigger');
-    trigger.setAttribute('role', 'button');
-    trigger.setAttribute('tabindex', '0');
-    trigger.setAttribute('aria-label', `管理${LABEL_BY_KIND[kind]}`);
-    trigger.title = kind === 'location' ? '管理地點：排序' : `管理${LABEL_BY_KIND[kind]}：排序或刪除`;
-    const icon = document.createElement('i');
-    icon.className = 'fas fa-sliders-h ml-1 opacity-60 text-[10px]';
-    trigger.appendChild(icon);
-    trigger.addEventListener('click', () => openManageModal(kind));
-    trigger.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter' || event.key === ' ') {
-        event.preventDefault();
-        openManageModal(kind);
-      }
-    });
-  }
-
-  setupTrigger('category-filters', 'category');
-  setupTrigger('location-filters', 'location');
+  window.addEventListener('shopping-list:manage-filter', (event) => {
+    const kind = String(event.detail?.kind || '');
+    if (!['category', 'location'].includes(kind)) return;
+    openManageModal(kind);
+  });
 
   document.getElementById('close-manage-filter').addEventListener('click', closeManageModal);
   document.getElementById('done-manage-filter').addEventListener('click', closeManageModal);
