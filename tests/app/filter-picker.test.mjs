@@ -127,3 +127,9 @@ test('filter picker derives selected state from source chip aria-pressed for mul
   assert.match(source, /getAttribute\('aria-pressed'\) === 'true'/);
   assert.doesNotMatch(source, /selected:\s*\{\s*category:\s*'all',\s*location:\s*'all'\s*\}/);
 });
+
+
+test('clear chip stays hidden for zero or one selection and appears only for two or more', async () => {
+  const source = await readFile(sourcePath, 'utf8');
+  assert.match(source, /button\.classList\.toggle\('hidden',\s*count < 2\)/);
+});
