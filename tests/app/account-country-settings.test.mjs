@@ -116,3 +116,17 @@ test('opening account country/maps views or starting country edit does not autof
   assert.doesNotMatch(mapsView, /\.focus\(/);
   assert.doesNotMatch(editView, /\.focus\(|\.select\(/);
 });
+
+
+test('travel country subpage hides the account header and restores it when returning to account settings', async () => {
+  const source = await readFile(new URL('../../src/client/app/account-settings.js', import.meta.url), 'utf8');
+  assert.match(source, /id="account-settings-header"/);
+
+  const rootBody = source.match(/function showRootView\(\) \{([\s\S]*?)\n  \}/)?.[1] || '';
+  const countryBody = source.match(/function showCountryView\(\) \{([\s\S]*?)\n  \}/)?.[1] || '';
+
+  assert.match(rootBody, /accountHeader\.classList\.remove\('hidden'\)/);
+  assert.match(countryBody, /accountHeader\.classList\.add\('hidden'\)/);
+  assert.match(source, /<h3 class="font-bold text-warmBrown">旅遊國家<\/h3>/);
+  assert.match(source, /國家管理 · 新旅程建立時可從這裡的清單選擇/);
+});
