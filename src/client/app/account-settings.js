@@ -1,4 +1,4 @@
-import { DEFAULT_COUNTRY, normalizeCountries } from './travel-country.js';
+import { normalizeCountries } from './travel-country.js';
 import { normalizeMapsApiKeys } from '../location/places-usage-policy.js';
 
 const APP_ID = 'japan-shopping-app';
@@ -179,8 +179,8 @@ export async function initAccountSettings() {
   const mapsBackupInput = document.getElementById('account-maps-backup-key');
   const state = {
     userId: '',
-    countries: [DEFAULT_COUNTRY],
-    activeCountry: DEFAULT_COUNTRY,
+    countries: [],
+    activeCountry: '',
     mapsApiKeys: { primary: '', backup: '' },
     mapsKeyGeneration: 0,
     editingCountry: '',
@@ -258,7 +258,6 @@ export async function initAccountSettings() {
   function closeModal() { modal.classList.add('hidden'); modal.classList.remove('flex'); }
 
   function countryLockedReason(country) {
-    if (country === DEFAULT_COUNTRY) return '系統預設國家會保留，避免舊資料失去預設國家。';
     if (country === state.activeCountry) return '目前旅程正在使用這個國家，請先切換到其他旅程。';
     return '';
   }
@@ -306,8 +305,8 @@ export async function initAccountSettings() {
   }
 
   function renderCountries() {
-    state.activeCountry = String(window.shoppingListActiveTrip?.country || window.shoppingListActiveCountry || state.activeCountry || DEFAULT_COUNTRY).trim() || DEFAULT_COUNTRY;
-    document.getElementById('account-active-country').textContent = `國家管理 · 目前 ${state.activeCountry}`;
+    state.activeCountry = String(window.shoppingListActiveTrip?.country || window.shoppingListActiveCountry || state.activeCountry || '').trim();
+    document.getElementById('account-active-country').textContent = state.activeCountry ? `國家管理 · 目前 ${state.activeCountry}` : '國家管理';
     countryList.innerHTML = '';
     for (const country of state.countries) {
       const row = document.createElement('div');
@@ -317,7 +316,7 @@ export async function initAccountSettings() {
       label.textContent = country;
       const note = document.createElement('span');
       note.className = 'text-[10px] opacity-50 shrink-0';
-      note.textContent = country === state.activeCountry ? '目前旅程' : country === DEFAULT_COUNTRY ? '預設' : '可選';
+      note.textContent = country === state.activeCountry ? '目前旅程' : '可選';
 
       const edit = document.createElement('button');
       edit.type = 'button';
@@ -406,9 +405,9 @@ export async function initAccountSettings() {
     state.settingsUnsub?.();
     state.settingsUnsub = null;
     state.userId = user?.uid || '';
-    state.countries = [DEFAULT_COUNTRY];
+    state.countries = [];
     clearMapsRuntime();
-    state.activeCountry = String(window.shoppingListActiveTrip?.country || window.shoppingListActiveCountry || DEFAULT_COUNTRY).trim() || DEFAULT_COUNTRY;
+    state.activeCountry = String(window.shoppingListActiveTrip?.country || window.shoppingListActiveCountry || '').trim();
     document.getElementById('account-settings-email').textContent = user?.email || user?.displayName || '';
     renderCountries();
     if (!user) { closeModal(); return; }
@@ -456,7 +455,7 @@ export async function initAccountSettings() {
   mapsPrimaryInput.addEventListener('keydown', (event) => { if (event.key === 'Enter') { event.preventDefault(); saveMapsKeys(); } });
   mapsBackupInput.addEventListener('keydown', (event) => { if (event.key === 'Enter') { event.preventDefault(); saveMapsKeys(); } });
   window.addEventListener('shopping-list:active-trip-changed', (event) => {
-    state.activeCountry = String(event?.detail?.trip?.country || DEFAULT_COUNTRY).trim() || DEFAULT_COUNTRY;
+    state.activeCountry = String(event?.detail?.trip?.country || '').trim();
     renderCountries();
   });
   document.getElementById('account-open-personalization').addEventListener('click', () => {
