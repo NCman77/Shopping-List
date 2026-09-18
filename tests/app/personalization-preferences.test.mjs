@@ -3,8 +3,7 @@ import assert from 'node:assert/strict';
 import {
   DEFAULT_PERSONALIZATION,
   normalizePersonalization,
-  positionPreset,
-  buildPanStyle
+  positionPreset
 } from '../../src/client/app/personalization-preferences.js';
 
 test('normalizes background positioning, scale, pan direction and iteration', () => {
@@ -44,19 +43,6 @@ test('position presets cover center, edges and vertical alignment', () => {
   assert.deepEqual(positionPreset('bottom'), { positionX: 50, positionY: 100 });
 });
 
-test('pan style encodes direction and one-time/infinite playback', () => {
-  assert.deepEqual(buildPanStyle({ panEnabled: false }), { animationName: 'none', animationIterationCount: '1' });
-  assert.deepEqual(buildPanStyle({ panEnabled: true, panDirection: 'left', panIteration: 'once' }), {
-    animationName: 'shopping-bg-pan-left',
-    animationIterationCount: '1'
-  });
-  assert.deepEqual(buildPanStyle({ panEnabled: true, panDirection: 'right', panIteration: 'infinite' }), {
-    animationName: 'shopping-bg-pan-right',
-    animationIterationCount: 'infinite'
-  });
-});
-
-
 test('normalizes multiple background files and slideshow interval while keeping legacy single-file data', () => {
   const multi = normalizePersonalization({
     backgroundFiles: [
@@ -81,4 +67,35 @@ test('normalizes multiple background files and slideshow interval while keeping 
     { fileId: 'legacy-id', fileName: 'legacy.jpg', mimeType: 'image/jpeg' }
   ]);
   assert.equal(legacy.rotationIntervalSeconds, 8);
+});
+
+
+test('each background file keeps its own frame while legacy global frame becomes the first file frame', () => {
+  const value = normalizePersonalization({
+    backgroundFiles: [
+      { fileId: 'a', fileName: 'one.jpg', mimeType: 'image/jpeg', positionX: 10, positionY: 20, scale: 1.4 },
+      { fileId: 'b', fileName: 'two.jpg', mimeType: 'image/jpeg', positionX: 80, positionY: 70, scale: 2 }
+    ]
+  });
+  assert.deepEqual(value.backgroundFiles, [
+    { fileId: 'a', fileName: 'one.jpg', mimeType: 'image/jpeg', positionX: 10, positionY: 20, scale: 1.4 },
+    { fileId: 'b', fileName: 'two.jpg', mimeType: 'image/jpeg', positionX: 80, positionY: 70, scale: 2 }
+  ]);
+
+  const legacy = normalizePersonalization({
+    backgroundFileId: 'legacy',
+    backgroundFileName: 'old.jpg',
+    backgroundMimeType: 'image/jpeg',
+    positionX: 25,
+    positionY: 75,
+    scale: 1.6
+  });
+  assert.deepEqual(legacy.backgroundFiles[0], {
+    fileId: 'legacy',
+    fileName: 'old.jpg',
+    mimeType: 'image/jpeg',
+    positionX: 25,
+    positionY: 75,
+    scale: 1.6
+  });
 });
