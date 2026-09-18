@@ -17,3 +17,12 @@ test('account avatar is laid out by the toolbar rather than absolutely positione
   assert.doesNotMatch(source, /#user-panel\s*\{[^}]*position:\s*absolute\s*!important/s);
   assert.match(source, /#user-panel\s*\{[^}]*backdrop-filter:\s*blur\(/s);
 });
+
+
+test('trip selector and avatar share the same vertical center and symmetric toolbar edge spacing', async () => {
+  const html = await readFile(new URL('../../index.html', import.meta.url), 'utf8');
+  const source = await readFile(new URL('../../src/client/app/home-ui-enhancements.js', import.meta.url), 'utf8');
+  assert.match(html, /id="header-toolbar"[^>]*items-center[^>]*px-3/);
+  assert.match(source, /#user-panel\s*\{[^}]*width:\s*2\.5rem\s*!important[^}]*height:\s*2\.5rem\s*!important[^}]*align-self:\s*center/s);
+  assert.match(source, /#user-panel\s*\{[^}]*margin-left:\s*auto/s);
+});
