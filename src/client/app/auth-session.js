@@ -42,8 +42,8 @@ export function applyCoreHomeShell(documentRef) {
     addButton?.classList?.remove('absolute');
 
     const userPanel = documentRef.getElementById?.('user-panel');
-    userPanel?.classList?.add('absolute', 'top-4', 'right-4');
-    userPanel?.classList?.remove('relative', 'mt-4');
+    userPanel?.classList?.remove('absolute', 'top-4', 'right-4', 'mt-4');
+    userPanel?.classList?.add('relative');
 
     documentRef.getElementById?.('user-name')?.classList?.add('hidden');
     documentRef.getElementById?.('sign-out-btn')?.classList?.add('hidden');

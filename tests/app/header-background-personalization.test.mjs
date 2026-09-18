@@ -110,3 +110,28 @@ test('pinch scale follows finger distance and clamps to the supported 1x-3x rang
   assert.equal(mod.scaleForPinch({ startScale: 2.5, startDistance: 100, currentDistance: 200 }), 3);
   assert.equal(mod.scaleForPinch({ startScale: 1.2, startDistance: 100, currentDistance: 10 }), 1);
 });
+
+
+test('header thumbnail long-press disables browser image callouts and captures the dragged thumbnail', async () => {
+  const source = await sourceOrFail('../../src/client/app/header-background-personalization.js', 'header background module is missing');
+  assert.match(source, /-webkit-touch-callout:\s*none/);
+  assert.match(source, /user-select:\s*none/);
+  assert.match(source, /image\.draggable\s*=\s*false/);
+  assert.match(source, /contextmenu/);
+  assert.match(source, /preventDefault\(\)/);
+  assert.match(source, /button\.setPointerCapture\?\.\(event\.pointerId\)/);
+});
+
+
+test('header thumbnail reorder keeps the captured DOM node alive until pointer release', async () => {
+  const source = await sourceOrFail('../../src/client/app/header-background-personalization.js', 'header background module is missing');
+  assert.match(source, /moveThumbnailDom/);
+  const moveStart = source.indexOf("thumbnailsRoot.addEventListener('pointermove'");
+  const moveEnd = source.indexOf("thumbnailsRoot.addEventListener('pointerup'", moveStart);
+  const moveHandler = source.slice(moveStart, moveEnd > moveStart ? moveEnd : source.length);
+  assert.doesNotMatch(moveHandler, /renderEditorPreview\(\)/);
+  const finishStart = source.indexOf('function finishThumbnailReorder');
+  const finishEnd = source.indexOf("thumbnailsRoot.addEventListener('pointerdown'", finishStart);
+  const finishHandler = source.slice(finishStart, finishEnd > finishStart ? finishEnd : source.length);
+  assert.match(finishHandler, /renderEditorPreview\(\)/);
+});

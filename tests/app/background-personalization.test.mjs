@@ -349,3 +349,67 @@ test('page slideshow interval can be cleared temporarily without immediately res
   assert.match(source, /background-rotation-interval/);
   assert.match(source, /if \(nextInterval === null\) return/);
 });
+
+
+test('removing a persisted page background deletes its Google Drive file after preferences persist', async () => {
+  const tracker = createSessionOperationTracker();
+  tracker.advance('user-page');
+  const operation = tracker.capture('user-page');
+  const events = [];
+
+  const result = await runBackgroundPlaylistSaveTransaction({
+    tracker,
+    operation,
+    getCurrentUserId: () => 'user-page',
+    capturedSettingsRef: { owner: 'user-page' },
+    editorPreferences: { backgroundFiles: [] },
+    pendingFiles: [],
+    pendingEntries: [],
+    removeRequested: true,
+    oldFiles: [{ fileId: 'page-bg-1' }],
+    uploadKind: 'background',
+    driveService: {
+      hasAccessToken: () => true,
+      deletePhoto: async (id) => events.push('delete:' + id),
+      queueCleanup: () => {}
+    },
+    connectDrive: async () => {},
+    persistSettings: async () => events.push('persist'),
+    afterCommit: async () => events.push('after'),
+    onError: () => {}
+  });
+
+  assert.equal(result.status, 'saved');
+  assert.deepEqual(events, ['persist', 'delete:page-bg-1', 'after']);
+});
+
+test('removing a persisted item-card media background deletes its Google Drive file after preferences persist', async () => {
+  const tracker = createSessionOperationTracker();
+  tracker.advance('user-card');
+  const operation = tracker.capture('user-card');
+  const events = [];
+
+  const result = await runBackgroundSaveTransaction({
+    tracker,
+    operation,
+    getCurrentUserId: () => 'user-card',
+    capturedSettingsRef: { owner: 'user-card' },
+    editorPreferences: { backgroundFileId: 'card-bg-1', backgroundFileName: 'card.jpg', backgroundMimeType: 'image/jpeg' },
+    pendingFile: null,
+    removeRequested: true,
+    oldFileId: 'card-bg-1',
+    uploadKind: 'item-card-background',
+    driveService: {
+      hasAccessToken: () => true,
+      deletePhoto: async (id) => events.push('delete:' + id),
+      queueCleanup: () => {}
+    },
+    connectDrive: async () => {},
+    persistSettings: async () => events.push('persist'),
+    afterCommit: async () => events.push('after'),
+    onError: () => {}
+  });
+
+  assert.equal(result.status, 'saved');
+  assert.deepEqual(events, ['persist', 'delete:card-bg-1', 'after']);
+});
