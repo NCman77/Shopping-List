@@ -16,6 +16,9 @@ test('playlist applies the first visible background before the remaining images 
   const second = deferred();
   const downloads = [];
   const applied = [];
+  const appliedUrls = [];
+  const revoked = [];
+  let urlSequence = 0;
 
   const run = runBackgroundPlaylistDownload({
     tracker,
@@ -34,11 +37,14 @@ test('playlist applies the first visible background before the remaining images 
         return { name: fileId };
       }
     },
-    createObjectUrl: (blob) => 'blob:' + blob.name,
-    revokeObjectUrl: () => {},
+    createObjectUrl: (blob) => `blob:${blob.name}:${++urlSequence}`,
+    revokeObjectUrl: (url) => revoked.push(url),
     clearBackground: () => {},
     hideBackground: () => {},
-    applyBackgrounds: (items) => applied.push(items.map((item) => item.fileId)),
+    applyBackgrounds: (items) => {
+      applied.push(items.map((item) => item.fileId));
+      appliedUrls.push(items.map((item) => item.objectUrl));
+    },
     yieldToBrowser: async () => {}
   });
 
@@ -50,4 +56,6 @@ test('playlist applies the first visible background before the remaining images 
   const result = await run;
   assert.equal(result.status, 'applied');
   assert.deepEqual(applied, [['first'], ['first', 'second']]);
+  assert.notEqual(appliedUrls[0][0], appliedUrls[1][0]);
+  assert.deepEqual(revoked, [appliedUrls[0][0]]);
 });
