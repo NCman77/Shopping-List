@@ -71,3 +71,12 @@ test('brand list exposes a visible delete-brand action without adding any countr
   assert.match(source, /removeBrand\(brand\)/);
   assert.doesNotMatch(source, /deleteCountry|removeCountry|刪除國家/);
 });
+
+
+test('brand dictionary country rows use the shared PNG country flag renderer', async () => {
+  const source = await readFile(new URL('../../src/client/app/brand-dictionary-ui.js', import.meta.url), 'utf8');
+  const render = source.match(/function renderCountries\(\) \{([\s\S]*?)\n  \}\n\n  function renderBrandList/)?.[1] || '';
+  assert.match(source, /createCountryFlagElement/);
+  assert.match(render, /createCountryFlagElement\(documentRef,\s*country/);
+  assert.doesNotMatch(render, /fa-store/);
+});
