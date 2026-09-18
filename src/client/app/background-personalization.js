@@ -501,43 +501,115 @@ export async function initBackgroundPersonalization() {
     return token;
   }
 
+  function editorFiles() {
+    return state.editorPreferences.backgroundFiles;
+  }
+
+  function activeEditorFile() {
+    const files = editorFiles();
+    if (!files.length) return null;
+    state.activeEditorIndex = clamp(state.activeEditorIndex, 0, files.length - 1);
+    return files[state.activeEditorIndex];
+  }
+
+  function previewUrlAt(index) {
+    if (state.pendingFiles.length) return state.previewObjectUrls[index] || '';
+    const file = editorFiles()[index];
+    if (!file) return '';
+    return state.loadedItems.find((item) => item.fileId === file.fileId)?.objectUrl || '';
+  }
+
   function currentPreviewUrl() {
-    if (state.previewObjectUrls[0]) return state.previewObjectUrls[0];
-    return state.loadedItems[0]?.objectUrl || '';
+    return previewUrlAt(state.activeEditorIndex);
   }
 
   function currentPreviewMime() {
-    return state.pendingFiles[0]?.type || state.editorPreferences.backgroundFiles[0]?.mimeType || '';
+    if (state.pendingFiles.length) return state.pendingFiles[state.activeEditorIndex]?.type || '';
+    return activeEditorFile()?.mimeType || '';
+  }
+
+  function setEditorFiles(files) {
+    const cleanFiles = Array.isArray(files) ? files : [];
+    state.editorPreferences = normalizePersonalization({
+      ...state.editorPreferences,
+      backgroundFiles: cleanFiles,
+      backgroundFileId: cleanFiles[0]?.fileId || '',
+      backgroundFileName: cleanFiles[0]?.fileName || '',
+      backgroundMimeType: cleanFiles[0]?.mimeType || ''
+    });
+    state.activeEditorIndex = cleanFiles.length ? clamp(state.activeEditorIndex, 0, cleanFiles.length - 1) : 0;
+    state.removeRequested = cleanFiles.length === 0;
+  }
+
+  function updateActiveFrame(patch) {
+    const files = editorFiles();
+    if (!files.length) return;
+    const index = state.activeEditorIndex;
+    const nextFiles = files.map((file, fileIndex) => fileIndex === index ? { ...file, ...patch } : file);
+    setEditorFiles(nextFiles);
+  }
+
+  function renderThumbnails() {
+    const root = document.getElementById('background-thumbnails');
+    root.replaceChildren();
+    editorFiles().forEach((file, index) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.setAttribute('data-background-index', String(index));
+      button.className = `relative w-16 h-16 shrink-0 overflow-hidden rounded-xl border-2 ${index === state.activeEditorIndex ? 'border-warmBrown ring-2 ring-pastelYellow' : 'border-warmBrown/30'} bg-shinBg`;
+      const url = previewUrlAt(index);
+      if (url && backgroundKindForMime(file.mimeType) === 'image') {
+        const image = document.createElement('img');
+        image.src = url;
+        image.alt = file.fileName || `背景 ${index + 1}`;
+        image.className = 'w-full h-full object-cover';
+        button.appendChild(image);
+      } else {
+        const label = document.createElement('span');
+        label.className = 'absolute inset-0 flex items-center justify-center text-xs font-bold text-warmBrown';
+        label.innerHTML = backgroundKindForMime(file.mimeType) === 'video'
+          ? '<i class="fas fa-video"></i>'
+          : String(index + 1);
+        button.appendChild(label);
+      }
+      button.addEventListener('click', () => {
+        state.activeEditorIndex = index;
+        renderEditorPreview();
+      });
+      root.appendChild(button);
+    });
   }
 
   function renderEditorPreview() {
     preview.querySelector('#background-preview-media')?.remove();
     const empty = document.getElementById('background-preview-empty');
+    const file = activeEditorFile();
     const url = state.removeRequested ? '' : currentPreviewUrl();
-    if (!url) {
+    if (!url || !file) {
       empty.classList.remove('hidden');
     } else {
       empty.classList.add('hidden');
       const kind = backgroundKindForMime(currentPreviewMime());
-      const media = createMediaElement(kind, url, state.editorPreferences, 'background-preview-media');
+      const media = createMediaElement(kind, url, file, 'background-preview-media');
       preview.appendChild(media);
       if (kind === 'video') media.play().catch(() => {});
     }
-    const selectedCount = state.pendingFiles.length || state.editorPreferences.backgroundFiles.length;
+
+    const selectedCount = editorFiles().length;
     document.getElementById('background-file-name').textContent = state.removeRequested
       ? '將移除目前背景'
-      : (selectedCount ? `已設定 ${selectedCount} 個背景檔案` : '');
-    scaleInput.value = String(state.editorPreferences.scale);
+      : (selectedCount ? `已設定 ${selectedCount} 個背景檔案，目前第 ${state.activeEditorIndex + 1} 張` : '');
+    scaleInput.value = String(file?.scale ?? 1);
     rotationInput.value = String(state.editorPreferences.rotationIntervalSeconds);
-    document.getElementById('background-scale-value').textContent = `${Math.round(state.editorPreferences.scale * 100)}%`;
-    panEnabledInput.checked = state.editorPreferences.panEnabled;
-    panDirectionInput.value = state.editorPreferences.panDirection;
-    panIterationInput.value = state.editorPreferences.panIteration;
+    document.getElementById('background-scale-value').textContent = `${Math.round((file?.scale ?? 1) * 100)}%`;
+    document.getElementById('background-delete-current').disabled = !selectedCount;
+    renderThumbnails();
   }
 
   function openEditor() {
     state.editorPreferences = normalizePersonalization(state.preferences);
     state.pendingFiles = [];
+    state.activeEditorIndex = 0;
     state.removeRequested = false;
     revokePreviewObjectUrls();
     const activeDrive = driveServiceForUser(state.userId);
@@ -550,6 +622,7 @@ export async function initBackgroundPersonalization() {
   function closeEditor() {
     revokePreviewObjectUrls();
     state.pendingFiles = [];
+    state.activeEditorIndex = 0;
     state.removeRequested = false;
     modal.classList.add('hidden');
     modal.classList.remove('flex');
@@ -569,29 +642,48 @@ export async function initBackgroundPersonalization() {
     }
     revokePreviewObjectUrls();
     state.pendingFiles = files;
-    state.removeRequested = false;
     state.previewObjectUrls = files.map((file) => URL.createObjectURL(file));
+    state.activeEditorIndex = 0;
+    setEditorFiles(files.map((file, index) => ({
+      fileId: `pending:${index}`,
+      fileName: file.name || `背景 ${index + 1}`,
+      mimeType: file.type || '',
+      positionX: 50,
+      positionY: 50,
+      scale: 1
+    })));
+    state.removeRequested = false;
     renderEditorPreview();
   });
 
   document.getElementById('background-remove').addEventListener('click', () => {
     revokePreviewObjectUrls();
     state.pendingFiles = [];
-    state.removeRequested = true;
-    state.editorPreferences = normalizePersonalization({
-      ...state.editorPreferences,
-      backgroundFiles: [],
-      backgroundFileId: '',
-      backgroundFileName: '',
-      backgroundMimeType: ''
-    });
+    state.activeEditorIndex = 0;
+    setEditorFiles([]);
+    renderEditorPreview();
+  });
+
+  document.getElementById('background-delete-current').addEventListener('click', () => {
+    const files = editorFiles();
+    if (!files.length) return;
+    const index = state.activeEditorIndex;
+    if (state.pendingFiles.length) {
+      const removedUrl = state.previewObjectUrls[index];
+      if (removedUrl) URL.revokeObjectURL(removedUrl);
+      state.pendingFiles.splice(index, 1);
+      state.previewObjectUrls.splice(index, 1);
+    }
+    const nextFiles = files.filter((_, fileIndex) => fileIndex !== index);
+    setEditorFiles(nextFiles);
     renderEditorPreview();
   });
 
   scaleInput.addEventListener('input', () => {
-    state.editorPreferences = normalizePersonalization({ ...state.editorPreferences, scale: scaleInput.value });
+    updateActiveFrame({ scale: scaleInput.value });
     renderEditorPreview();
   });
+
   rotationInput.addEventListener('input', () => {
     state.editorPreferences = normalizePersonalization({
       ...state.editorPreferences,
@@ -602,50 +694,39 @@ export async function initBackgroundPersonalization() {
 
   for (const button of document.querySelectorAll('[data-position-preset]')) {
     button.addEventListener('click', () => {
-      state.editorPreferences = normalizePersonalization({
-        ...state.editorPreferences,
-        ...positionPreset(button.dataset.positionPreset)
-      });
+      updateActiveFrame(positionPreset(button.dataset.positionPreset));
       renderEditorPreview();
     });
   }
 
-  panEnabledInput.addEventListener('change', () => {
-    state.editorPreferences = normalizePersonalization({ ...state.editorPreferences, panEnabled: panEnabledInput.checked });
-  });
-  panDirectionInput.addEventListener('change', () => {
-    state.editorPreferences = normalizePersonalization({ ...state.editorPreferences, panDirection: panDirectionInput.value });
-  });
-  panIterationInput.addEventListener('change', () => {
-    state.editorPreferences = normalizePersonalization({ ...state.editorPreferences, panIteration: panIterationInput.value });
-  });
-
   preview.addEventListener('pointerdown', (event) => {
-    if (!currentPreviewUrl() || state.removeRequested) return;
+    const file = activeEditorFile();
+    if (!currentPreviewUrl() || !file || state.removeRequested) return;
     preview.setPointerCapture?.(event.pointerId);
     preview.classList.add('dragging');
     state.drag = {
       pointerId: event.pointerId,
       x: event.clientX,
       y: event.clientY,
-      positionX: state.editorPreferences.positionX,
-      positionY: state.editorPreferences.positionY
+      positionX: file.positionX,
+      positionY: file.positionY
     };
     event.preventDefault();
   });
+
   preview.addEventListener('pointermove', (event) => {
     if (!state.drag || state.drag.pointerId !== event.pointerId) return;
     const rect = preview.getBoundingClientRect();
     const dx = ((event.clientX - state.drag.x) / Math.max(rect.width, 1)) * 100;
     const dy = ((event.clientY - state.drag.y) / Math.max(rect.height, 1)) * 100;
-    state.editorPreferences = normalizePersonalization({
-      ...state.editorPreferences,
+    updateActiveFrame({
       positionX: clamp(state.drag.positionX + dx, 0, 100),
       positionY: clamp(state.drag.positionY + dy, 0, 100)
     });
     renderEditorPreview();
     event.preventDefault();
   });
+
   const finishDrag = (event) => {
     if (!state.drag || state.drag.pointerId !== event.pointerId) return;
     preview.releasePointerCapture?.(event.pointerId);
