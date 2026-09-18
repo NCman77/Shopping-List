@@ -150,7 +150,7 @@ test('account travel records opens the trip picker before management', async () 
   const closeIndex = source.indexOf("document.getElementById('trip-modal-close')", entryIndex);
   assert.ok(entryIndex >= 0 && closeIndex > entryIndex);
   const slice = source.slice(entryIndex, closeIndex);
-  assert.match(slice, /openModal\('picker'\)/);
+  assert.match(slice, /openModal\('picker', \{ fromSettings: true \}\)/);
   assert.doesNotMatch(slice, /openModal\('manage'\)/);
   assert.match(source, /manage\.addEventListener\('click', \(\) => \{ setView\('manage'\); renderManage\(\); \}\)/);
 });
