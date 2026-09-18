@@ -266,7 +266,7 @@ function ensureLayer(shell) {
 function ensureEditor() {
   if (document.getElementById('background-personalization-modal')) return;
   const wrapper = document.createElement('div');
-  wrapper.innerHTML = \`
+  wrapper.innerHTML = `
     <div id="background-personalization-modal" class="fixed inset-0 z-[100] hidden bg-warmBrown/50 backdrop-blur-sm px-3 items-center justify-center">
       <div class="w-full max-w-md max-h-[92vh] overflow-hidden bg-shinBg border-4 border-warmBrown rounded-[2rem] shadow-[8px_8px_0_rgba(92,64,51,0.28)] flex flex-col">
         <div class="bg-pastelBlue border-b-4 border-warmBrown px-5 py-4 flex items-center gap-3 shrink-0">
@@ -355,7 +355,7 @@ function ensureEditor() {
           <button id="save-background-personalization" type="button" class="flex-1 py-2.5 rounded-xl bg-pastelYellow border-2 border-warmBrown text-warmBrown font-bold shadow-[2px_2px_0_rgba(92,64,51,0.18)]">儲存</button>
         </div>
       </div>
-    </div>\`;
+    </div>`;
   document.body.appendChild(wrapper.firstElementChild);
 }
 
