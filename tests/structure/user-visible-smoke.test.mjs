@@ -23,11 +23,7 @@ test('core shopping-list DOM anchors still exist after the refactor', () => {
 
 test('existing enhanced item features remain wired', () => {
   for (const marker of ['item-website', 'item-address', '觀看介紹', 'itemPhotos', 'connectGoogleDrive', 'configureGoogleProviderForDrive']) {
-    assert.match(app, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, '\\test('existing enhanced item features remain wired', () => {
-  for (const marker of ['item-website', 'item-address', '觀看介紹', 'drive.appdata', 'itemPhotos', 'connectGoogleDrive']) {
-    assert.match(app, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), `missing app marker ${marker}`);
-  }
-});')), `missing app marker ${marker}`);
+    assert.ok(app.includes(marker), `missing app marker ${marker}`);
   }
   assert.match(driveSignin, /drive\.appdata/);
 });
