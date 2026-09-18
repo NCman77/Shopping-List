@@ -13,6 +13,11 @@ import {
 } from './background-playlist.js';
 import { normalizePersonalization, positionPreset, normalizeRotationIntervalDraft } from './personalization-preferences.js';
 import { createSessionOperationTracker } from './session-operation.js';
+import {
+  createBackgroundMediaService,
+  createFirebaseBackgroundStorageService,
+  migrateLegacyPlaylistToFirebase
+} from './firebase-background-storage.js';
 
 const APP_ID = 'japan-shopping-app';
 const MAX_BACKGROUND_BYTES = 100 * 1024 * 1024;
@@ -134,7 +139,7 @@ function ensureHeaderLayer(header) {
     reconnect.id = 'header-background-auth-required';
     reconnect.type = 'button';
     reconnect.className = 'hidden px-3 py-1.5 rounded-full bg-white/55 backdrop-blur-md border border-white/75 text-warmBrown text-xs font-bold shadow-[0_2px_10px_rgba(0,0,0,.12)]';
-    reconnect.innerHTML = '<i class="fab fa-google-drive mr-1"></i>顯示橫幅背景';
+    reconnect.innerHTML = '<i class="fas fa-cloud-arrow-up mr-1"></i>移轉舊橫幅';
     header.appendChild(reconnect);
   }
   header.style.overflow = 'hidden';
@@ -164,8 +169,8 @@ function ensureEditor() {
         </div>
 
         <div id="header-background-drive-note" class="hidden rounded-xl bg-pastelYellow/60 border-2 border-warmBrown px-3 py-2 text-xs font-bold text-warmBrown">
-          橫幅背景仍儲存在 Google Drive，需要重新連結才能預覽。
-          <button id="header-background-drive-connect" type="button" class="ml-1 underline">重新連結</button>
+          偵測到舊版 Google Drive 橫幅。完成一次移轉後，橫幅將改由 Firebase Storage 直接載入。
+          <button id="header-background-drive-connect" type="button" class="ml-1 underline">移轉舊橫幅</button>
         </div>
 
         <div class="grid grid-cols-2 gap-2">
@@ -257,11 +262,12 @@ export async function initHeaderBackgroundPersonalization() {
   if (window.__shoppingListHeaderBackgroundPersonalizationInitialized) return;
   window.__shoppingListHeaderBackgroundPersonalizationInitialized = true;
 
-  const [header, appSdk, authSdk, firestoreSdk] = await Promise.all([
+  const [header, appSdk, authSdk, firestoreSdk, storageSdk] = await Promise.all([
     waitFor(() => document.querySelector('header')),
     import('https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js'),
     import('https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js'),
-    import('https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js')
+    import('https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js'),
+    import('https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js')
   ]);
 
   installStyles();
@@ -271,6 +277,7 @@ export async function initHeaderBackgroundPersonalization() {
   const app = appSdk.getApps()[0] || appSdk.getApp();
   const auth = authSdk.getAuth(app);
   const db = firestoreSdk.getFirestore(app);
+  const storage = storageSdk.getStorage(app);
   const { doc, onSnapshot, setDoc } = firestoreSdk;
 
   const modal = document.getElementById('header-background-personalization-modal');
@@ -310,6 +317,16 @@ export async function initHeaderBackgroundPersonalization() {
     fetchImpl: window.fetch.bind(window),
     sessionStorageImpl: window.sessionStorage,
     getUserId: () => userId
+  });
+  const firebaseStorageServiceForUser = (userId) => createFirebaseBackgroundStorageService({
+    storageSdk,
+    storage,
+    userId,
+    localStorageImpl: window.localStorage
+  });
+  const mediaServiceForUser = (userId) => createBackgroundMediaService({
+    firebaseService: firebaseStorageServiceForUser(userId),
+    driveService: driveServiceForUser(userId)
   });
 
   function settingsRef(userId = state.userId) {
@@ -381,7 +398,7 @@ export async function initHeaderBackgroundPersonalization() {
         tracker,
         userId: capturedUserId,
         preferences: state.preferences,
-        driveService: driveServiceForUser(capturedUserId),
+        driveService: mediaServiceForUser(capturedUserId),
         createObjectUrl: (blob) => URL.createObjectURL(blob),
         revokeObjectUrl: (url) => URL.revokeObjectURL(url),
         clearBackground: () => {
@@ -398,11 +415,11 @@ export async function initHeaderBackgroundPersonalization() {
           if (!(error instanceof DriveAuthorizationError)) console.error('Header background download failed:', error);
         }
       });
-      const needsAuthorization = result.status === 'authorization-required'
-        && state.preferences.backgroundFiles.length > 0;
+      const legacy = state.preferences.backgroundFiles.some((file) => !String(file.fileId || '').startsWith('storage:'));
+      const needsAuthorization = legacy && !driveServiceForUser(capturedUserId).hasAccessToken();
       authRequiredButton.classList.toggle('hidden', !needsAuthorization);
-      if (['applied', 'empty'].includes(result.status)) authRequiredButton.classList.add('hidden');
-      if (['applied', 'empty', 'authorization-required'].includes(result.status)
+      if (['applied', 'empty'].includes(result.status) && !legacy) authRequiredButton.classList.add('hidden');
+      if (['applied', 'empty', 'authorization-required', 'error'].includes(result.status)
         && backgroundLoadKey(state.userId, state.preferences) === loadKey) {
         state.loadedBackgroundKey = loadKey;
       }
@@ -424,10 +441,18 @@ export async function initHeaderBackgroundPersonalization() {
     const token = credential?.accessToken || '';
     if (!token) throw new DriveAuthorizationError('未取得 Google Drive 授權。');
     capturedDrive.setAccessToken(token);
-    driveNote.classList.add('hidden');
-    authRequiredButton.classList.add('hidden');
     try { await capturedDrive.retryQueuedCleanup(); } catch {}
     if (!tracker.isSessionCurrent(operation, state.userId)) throw new Error('登入狀態已變更，請重新操作。');
+    const migration = await migrateLegacyPlaylistToFirebase({
+      preferences: state.preferences,
+      driveService: capturedDrive,
+      mediaService: mediaServiceForUser(operation.userId),
+      uploadKind: HEADER_BACKGROUND_UPLOAD.kind,
+      persistPreferences: (next) => setDoc(settingsRef(operation.userId), { headerPersonalization: next }, { merge: true })
+    });
+    if (migration.status === 'migrated') state.preferences = migration.nextPreferences;
+    driveNote.classList.add('hidden');
+    authRequiredButton.classList.add('hidden');
     await loadPersistedBackground({ force: true });
     return token;
   }
@@ -852,7 +877,7 @@ export async function initHeaderBackgroundPersonalization() {
     } catch (error) {
       if (!tracker.isSessionCurrent(operation, state.userId)) return;
       console.error('Header background reconnect failed:', error);
-      window.showMsg?.('連結失敗', '需要重新授權 Google Drive 才能在這個瀏覽器顯示橫幅背景。', 'error');
+      window.showMsg?.('移轉失敗', '需要最後一次讀取舊 Google Drive 橫幅才能完成 Firebase Storage 移轉。', 'error');
     }
   });
 
@@ -864,7 +889,7 @@ export async function initHeaderBackgroundPersonalization() {
     } catch (error) {
       if (!tracker.isSessionCurrent(operation, state.userId)) return;
       console.error('Header Drive reconnect failed:', error);
-      window.showMsg?.('連結失敗', '無法重新連結 Google Drive。', 'error');
+      window.showMsg?.('移轉失敗', '無法讀取舊 Google Drive 橫幅。', 'error');
     }
   });
 
@@ -877,7 +902,7 @@ export async function initHeaderBackgroundPersonalization() {
     const capturedPendingEntries = state.pendingEntries.map((entry) => ({ ...entry }));
     const capturedRemoveRequested = state.removeRequested;
     const oldFiles = state.preferences.backgroundFiles.slice();
-    const capturedDrive = driveServiceForUser(operation.userId);
+    const capturedMedia = mediaServiceForUser(operation.userId);
     saveButton.disabled = true;
 
     try {
@@ -892,7 +917,7 @@ export async function initHeaderBackgroundPersonalization() {
         removeRequested: capturedRemoveRequested,
         oldFiles,
         uploadKind: HEADER_BACKGROUND_UPLOAD.kind,
-        driveService: capturedDrive,
+        driveService: capturedMedia,
         connectDrive,
         persistSettings: (ref, next) => setDoc(ref, { headerPersonalization: next }, { merge: true }),
         afterCommit: async (next) => {
@@ -904,7 +929,7 @@ export async function initHeaderBackgroundPersonalization() {
           console.error('Header background save failed:', error);
           window.showMsg?.(
             '儲存失敗',
-            error instanceof DriveAuthorizationError ? '請重新連結 Google Drive 後再試。' : (error.message || '無法儲存首頁橫幅背景。'),
+            error.message || '無法儲存首頁橫幅背景。',
             'error'
           );
         }
@@ -942,6 +967,19 @@ export async function initHeaderBackgroundPersonalization() {
       if (!tracker.isSessionCurrent(operation, state.userId)) return;
       const data = snapshot.exists() ? snapshot.data() : {};
       state.preferences = normalizePersonalization(data.headerPersonalization);
+      const legacy = state.preferences.backgroundFiles.some((file) => !String(file.fileId || '').startsWith('storage:'));
+      driveNote.classList.toggle('hidden', !legacy);
+      authRequiredButton.classList.toggle('hidden', !(legacy && !driveServiceForUser(state.userId).hasAccessToken()));
+      if (legacy && driveServiceForUser(state.userId).hasAccessToken()) {
+        void migrateLegacyPlaylistToFirebase({
+          preferences: state.preferences,
+          driveService: driveServiceForUser(state.userId),
+          mediaService: mediaServiceForUser(state.userId),
+          uploadKind: HEADER_BACKGROUND_UPLOAD.kind,
+          persistPreferences: (next) => setDoc(settingsRef(state.userId), { headerPersonalization: next }, { merge: true })
+        }).catch((error) => console.error('Legacy header background migration failed:', error));
+        return;
+      }
       loadPersistedBackground();
     }, (error) => {
       if (tracker.isSessionCurrent(operation, state.userId)) console.error('Header background settings listener failed:', error);
