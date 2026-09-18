@@ -53,18 +53,11 @@ test('live calculator is wired to pure calculator country rules and active trip 
   assert.match(text, /shoppingListActiveTrip\?\.startDate/);
 });
 
-test('FX conversion stays on demand while attribution is outside the comparison modal and retained in account settings', async () => {
-  const text = await source();
-  const modalSource = text.match(/function ensureComparisonModal\(\)[\s\S]*?return modal;\n}/)?.[0] || '';
-  assert.match(text, /fetchRateToTwd/);
-  assert.match(text, /convertToTwd/);
-  assert.match(text, /stale-cache/);
-  assert.match(text, /匯率暫時無法取得/);
-  assert.doesNotMatch(modalSource, /Rates By Exchange Rate API/);
-  assert.match(text, /account-settings-root[\s\S]*Rates By Exchange Rate API/);
-  assert.match(text, /function ensureRateAttribution\(\)[\s\S]*const attribution = document\.createElement\('p'\)/);
-  assert.match(text, /attribution\.id = ['"]exchange-rate-attribution['"]/);
-  assert.match(text, /attribution\.textContent = ['"]匯率來源：Rates By Exchange Rate API['"]/);
+test('FX conversion stays on demand without rendering the provider attribution label', async () => {
+  const text = await readFile(source, 'utf8');
+  assert.match(text, /fetchExchangeRate/);
+  assert.doesNotMatch(text, /匯率來源：Rates By Exchange Rate API/);
+  assert.doesNotMatch(text, /exchange-rate-attribution/);
 });
 
 test('stale FX responses are rejected before mutating comparison state', async () => {
