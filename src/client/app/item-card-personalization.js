@@ -568,9 +568,18 @@ export async function initItemCardPersonalization() {
     renderPreview();
   });
 
+  function syncPositionPresetButtons(selectedButton) {
+    for (const candidate of document.querySelectorAll('[data-item-card-position-preset]')) {
+      const active = candidate === selectedButton;
+      candidate.classList.toggle('bg-pastelYellow', active);
+      candidate.classList.toggle('bg-shinBg', !active);
+    }
+  }
+
   for (const button of document.querySelectorAll('[data-item-card-position-preset]')) {
     button.addEventListener('click', () => {
       state.editor = { ...state.editor, ...positionPreset(button.dataset.itemCardPositionPreset) };
+      syncPositionPresetButtons(button);
       renderPreview();
     });
   }
