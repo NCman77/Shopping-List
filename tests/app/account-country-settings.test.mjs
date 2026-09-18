@@ -160,3 +160,12 @@ test('travel country management owns edit and delete controls while the picker d
   assert.match(render, /beginCountryEdit/);
   assert.match(render, /deleteCountry/);
 });
+
+
+test('travel country rows use the shared PNG country flag renderer', async () => {
+  const source = await readFile(new URL('../../src/client/app/account-settings.js', import.meta.url), 'utf8');
+  assert.match(source, /createCountryFlagElement/);
+  assert.match(source, /createCountryFlagElement\(document,\s*country/);
+  const render = source.match(/function renderCountries\(\) \{([\s\S]*?)\n  \}\n\n  async function addCountry/)?.[1] || '';
+  assert.doesNotMatch(render, /fa-earth-asia/);
+});
