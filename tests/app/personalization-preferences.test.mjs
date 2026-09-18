@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import {
   DEFAULT_PERSONALIZATION,
   normalizePersonalization,
-  positionPreset
+  positionPreset,
+  normalizeRotationIntervalDraft
 } from '../../src/client/app/personalization-preferences.js';
 
 test('normalizes legacy background positioning and scale', () => {
@@ -96,4 +97,13 @@ test('each background file keeps its own frame while legacy global frame becomes
     positionY: 75,
     scale: 1.6
   });
+});
+
+
+test('rotation interval draft allows a temporarily empty field while typing', () => {
+  assert.equal(normalizeRotationIntervalDraft(''), null);
+  assert.equal(normalizeRotationIntervalDraft('   '), null);
+  assert.equal(normalizeRotationIntervalDraft('5'), 5);
+  assert.equal(normalizeRotationIntervalDraft('1'), 2);
+  assert.equal(normalizeRotationIntervalDraft('99'), 60);
 });

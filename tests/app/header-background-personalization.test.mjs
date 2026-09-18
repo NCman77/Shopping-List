@@ -46,3 +46,11 @@ test('header editor has per-photo thumbnails and no pan controls', async () => {
   assert.doesNotMatch(source, /header-background-pan-iteration/);
   assert.doesNotMatch(source, /buildPanStyle/);
 });
+
+
+test('header slideshow interval can be cleared temporarily without immediately restoring a number', async () => {
+  const source = await readFile(new URL('../../src/client/app/header-background-personalization.js', import.meta.url), 'utf8');
+  assert.match(source, /normalizeRotationIntervalDraft/);
+  assert.match(source, /header-background-rotation-interval/);
+  assert.match(source, /if \(nextInterval === null\) return/);
+});

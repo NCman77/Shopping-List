@@ -341,3 +341,11 @@ test('playlist save uploads multiple files and persists a backward-compatible fi
   assert.equal(persisted[0].backgroundFileId, 'file-1');
   assert.equal(persisted[0].rotationIntervalSeconds, 6);
 });
+
+
+test('page slideshow interval can be cleared temporarily without immediately restoring a number', async () => {
+  const source = await readFile(new URL('../../src/client/app/background-personalization.js', import.meta.url), 'utf8');
+  assert.match(source, /normalizeRotationIntervalDraft/);
+  assert.match(source, /background-rotation-interval/);
+  assert.match(source, /if \(nextInterval === null\) return/);
+});
