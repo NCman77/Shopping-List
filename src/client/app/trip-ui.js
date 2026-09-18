@@ -66,8 +66,31 @@ function installStyles() {
   const style = document.createElement('style');
   style.id = 'trip-ui-styles';
   style.textContent = `
-    #active-trip-shell { margin: 0 1rem .65rem; }
-    #active-trip-selector { width: 100%; }
+    #active-trip-shell {
+      position: absolute;
+      top: 1rem;
+      left: 1rem;
+      margin: 0;
+      z-index: 30;
+      max-width: 10.75rem;
+    }
+    #active-trip-selector {
+      width: auto;
+      max-width: 10.75rem;
+      min-height: 2.5rem;
+      padding: .35rem .6rem;
+      gap: .45rem;
+      border-radius: 9999px;
+    }
+    #active-trip-selector > span:first-child {
+      width: 2rem;
+      height: 2rem;
+    }
+    #active-trip-title {
+      font-size: .75rem;
+      line-height: 1rem;
+    }
+    #active-trip-dates { display: none; }
     .trip-section-title { font-size: .7rem; font-weight: 800; color: rgba(92,64,51,.58); margin: .85rem .2rem .35rem; }
     .trip-picker-row:active { transform: translateY(1px); }
   `;
@@ -77,15 +100,17 @@ function installStyles() {
 function ensureHomepageSelector(statusFilters) {
   let shell = document.getElementById('active-trip-shell');
   if (shell) return shell;
+  const header = document.querySelector('header');
+  if (!header) return null;
   shell = document.createElement('div');
   shell.id = 'active-trip-shell';
   shell.innerHTML = `
-    <button id="active-trip-selector" type="button" class="flex items-center gap-3 text-left px-4 py-3 rounded-2xl bg-white border-2 border-warmBrown text-warmBrown shadow-[2px_2px_0_rgba(92,64,51,.16)]">
-      <span class="w-10 h-10 shrink-0 rounded-full bg-pastelBlue border-2 border-warmBrown flex items-center justify-center"><i class="fas fa-suitcase-rolling"></i></span>
+    <button id="active-trip-selector" type="button" class="flex items-center text-left bg-white border-2 border-warmBrown text-warmBrown shadow-[2px_2px_0_rgba(92,64,51,.16)]">
+      <span class="shrink-0 rounded-full bg-pastelBlue border-2 border-warmBrown flex items-center justify-center"><i class="fas fa-suitcase-rolling text-xs"></i></span>
       <span class="flex-1 min-w-0"><span id="active-trip-title" class="block font-bold truncate">新增第一趟旅程</span><span id="active-trip-dates" class="block text-xs opacity-60 mt-0.5">建立獨立購物清單</span></span>
-      <i class="fas fa-chevron-down text-xs"></i>
+      <i class="fas fa-chevron-down text-[10px] shrink-0"></i>
     </button>`;
-  statusFilters.parentElement?.insertBefore(shell, statusFilters);
+  header.appendChild(shell);
   return shell;
 }
 
