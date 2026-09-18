@@ -43,7 +43,7 @@ test('homepage exposes an always-visible active trip selector and empty onboardi
   assert.match(source, /管理旅遊紀錄/);
   assert.match(source, /旅行中/);
   assert.match(source, /即將出發/);
-  assert.match(source, /過去旅程/);
+  assert.match(source, /已結束旅程/);
   assert.match(source, /既有清單/);
 });
 
@@ -54,8 +54,8 @@ test('homepage trip selector lives in the 52px header toolbar and uses a glass p
   assert.match(source, /getElementById\(['"]header-toolbar['"]\)/);
   assert.match(source, /toolbar\.prepend\(shell\)/);
   assert.doesNotMatch(source, /#active-trip-shell\s*\{[^}]*position:\s*absolute/s);
-  assert.match(source, /backdrop-blur-md/);
-  assert.match(source, /bg-white\/60/);
+  assert.match(source, /backdrop-blur-sm/);
+  assert.match(source, /bg-white\/25/);
   assert.doesNotMatch(source, /bg-\[#F5E6D3\]/);
 });
 
@@ -71,7 +71,7 @@ test('top-left trip selector keeps the airplane icon inside the glass control', 
   const source = await readFile(sourcePath, 'utf8');
   assert.match(source, /fa-plane/);
   assert.doesNotMatch(source, /fa-suitcase-rolling/);
-  assert.match(source, /bg-white\/60/);
+  assert.match(source, /bg-white\/25/);
 });
 
 test('first-trip onboarding makes the trip form modal visible', async () => {
