@@ -23,6 +23,14 @@ function ensureHub() {
           </span>
           <i class="fas fa-chevron-right text-xs"></i>
         </button>
+        <button id="personalization-open-item-card-background" type="button" class="w-full flex items-center gap-3 text-left p-4 rounded-2xl bg-pastelGreen/60 border-2 border-warmBrown text-warmBrown">
+          <span class="w-11 h-11 shrink-0 rounded-full bg-white border-2 border-warmBrown flex items-center justify-center"><i class="fas fa-clone"></i></span>
+          <span class="flex-1 min-w-0">
+            <span class="block font-bold">商品小卡背景</span>
+            <span class="block text-xs opacity-60 mt-0.5">設定主頁商品小卡的單色、圖片、GIF 或影片背景</span>
+          </span>
+          <i class="fas fa-chevron-right text-xs"></i>
+        </button>
         <button id="personalization-open-page-background" type="button" class="w-full flex items-center gap-3 text-left p-4 rounded-2xl bg-pastelBlue/60 border-2 border-warmBrown text-warmBrown">
           <span class="w-11 h-11 shrink-0 rounded-full bg-white border-2 border-warmBrown flex items-center justify-center"><i class="fas fa-image"></i></span>
           <span class="flex-1 min-w-0">
@@ -62,6 +70,10 @@ export function initPersonalizationHub() {
   document.getElementById('personalization-open-header-background').addEventListener('click', () => {
     close();
     dispatch('shopping-list:open-header-background');
+  });
+  document.getElementById('personalization-open-item-card-background').addEventListener('click', () => {
+    close();
+    dispatch('shopping-list:open-item-card-background');
   });
   document.getElementById('personalization-open-page-background').addEventListener('click', () => {
     close();
