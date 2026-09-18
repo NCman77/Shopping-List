@@ -113,6 +113,7 @@ function installStyles() {
     #active-trip-selector.is-expanded #active-trip-expanded { max-width: 8.5rem; opacity: 1; margin-left: 0; }
     #active-trip-dates { display: none; }
     .trip-section-title { font-size: .7rem; font-weight: 800; color: rgba(92,64,51,.58); margin: .85rem .2rem .35rem; }
+    #trip-picker-view .trip-picker-row { margin-bottom: .55rem; }
     .trip-picker-row:active { transform: translateY(1px); }
   `;
   document.head.appendChild(style);
@@ -209,6 +210,7 @@ export async function initTripUi() {
     countries: [DEFAULT_COUNTRY],
     itemCounts: new Map(),
     editingTripId: '',
+    formReturnView: 'picker',
     settingsUnsub: null,
     itemsUnsub: null,
     view: 'picker'
@@ -394,7 +396,9 @@ export async function initTripUi() {
   }
 
   function openForm(trip) {
+    const returnView = state.view === 'manage' ? 'manage' : 'picker';
     const normalized = trip ? normalizeTrip(trip) : null;
+    state.formReturnView = returnView;
     state.editingTripId = normalized?.id || '';
     document.getElementById('trip-form-id').value = state.editingTripId;
     document.getElementById('trip-form-title').value = normalized?.title || '';
@@ -444,8 +448,9 @@ export async function initTripUi() {
           activeCountry: draft.country
         }, { merge: true });
       }
-      setView('manage');
-      renderManage();
+      setView(state.formReturnView);
+      if (state.formReturnView === 'manage') renderManage();
+      else renderPicker();
     } catch (error) {
       console.error('Save trip failed:', error);
       notify('儲存失敗', '無法儲存旅程，請稍後再試。');
@@ -529,13 +534,19 @@ export async function initTripUi() {
     event.preventDefault();
     event.stopPropagation();
     document.getElementById('account-settings-modal')?.classList.add('hidden');
-    openModal('manage');
+    openModal('picker');
   });
   document.getElementById('trip-modal-close').addEventListener('click', closeModal);
   modal.addEventListener('click', (event) => { if (event.target === modal) closeModal(); });
   backButton.addEventListener('click', () => {
-    if (state.view === 'form') { setView('manage'); renderManage(); }
-    else { setView('picker'); renderPicker(); }
+    if (state.view === 'form') {
+      setView(state.formReturnView);
+      if (state.formReturnView === 'manage') renderManage();
+      else renderPicker();
+      return;
+    }
+    setView('picker');
+    renderPicker();
   });
   document.getElementById('trip-form-save').addEventListener('click', () => void saveTrip());
 

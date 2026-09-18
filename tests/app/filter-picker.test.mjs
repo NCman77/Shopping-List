@@ -23,6 +23,9 @@ test('picker keeps horizontal filters and moves complete-option entry into the n
   assert.match(source, /location-filters/);
   assert.match(source, /filter-picker-modal/);
   assert.match(source, /filter-picker-search/);
+  assert.match(source, /iconClass:\s*'fas fa-tag'/);
+  assert.match(source, /iconClass:\s*'fas fa-map-marker-alt'/);
+  assert.match(source, /config\.iconClass/);
   assert.match(source, /全部\s*<i class="fas fa-chevron-down/);
   assert.doesNotMatch(source, /filter-picker-open/);
   assert.doesNotMatch(source, /全部選項/);
@@ -66,12 +69,15 @@ test('filter picker is bootstrapped independently and does not persist a competi
 });
 
 
-test('homepage filter rows use icon-only kind markers instead of clickable 分類/地點 labels', async () => {
+test('homepage filter kind icons move into each all chip and the old standalone markers are hidden', async () => {
   const html = await readFile(new URL('../../index.html', import.meta.url), 'utf8');
+  const source = await readFile(sourcePath, 'utf8');
   assert.match(html, /data-filter-kind-icon="category"/);
   assert.match(html, /data-filter-kind-icon="location"/);
-  assert.doesNotMatch(html, />\s*分類\s*<\/div>/);
-  assert.doesNotMatch(html, />\s*地點\s*<\/div>/);
+  assert.match(source, /querySelectorAll\('\[data-filter-kind-icon="category"\], \[data-filter-kind-icon="location"\]'\)/);
+  assert.match(source, /icon\.classList\.add\('hidden'\)/);
+  assert.match(source, /iconClass:\s*'fas fa-tag'/);
+  assert.match(source, /iconClass:\s*'fas fa-map-marker-alt'/);
 });
 
 test('all picker includes a manage action that delegates to existing filter management', async () => {
@@ -87,4 +93,10 @@ test('home management listens to picker manage requests instead of enhancing the
   assert.match(source, /shopping-list:manage-filter/);
   assert.doesNotMatch(source, /setupTrigger\('category-filters'/);
   assert.doesNotMatch(source, /setupTrigger\('location-filters'/);
+});
+
+
+test('opening the all picker does not autofocus search on mobile', async () => {
+  const source = await readFile(sourcePath, 'utf8');
+  assert.doesNotMatch(source, /filter-picker-search[^\n]*focus|search\?\.focus\(\)/s);
 });
