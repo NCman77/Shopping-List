@@ -222,8 +222,8 @@ export async function initFilterPicker() {
       allButton.insertAdjacentElement('afterend', button);
     }
     const count = selectedValues(type).length;
-    button.classList.toggle('hidden', count === 0);
-    button.setAttribute('aria-label', count ? `清除 ${count} 個已選項目` : '沒有已選項目');
+    button.classList.toggle('hidden', count < 2);
+    button.setAttribute('aria-label', count >= 2 ? `清除 ${count} 個已選項目` : '選取兩個以上才顯示清除');
   }
 
   function selectAllWithoutPicker(type) {
