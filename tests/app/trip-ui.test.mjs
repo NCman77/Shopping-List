@@ -203,3 +203,12 @@ test('trip picker routes creation through management instead of showing a duplic
   assert.match(picker, /管理旅遊紀錄/);
   assert.match(manage, /＋ 新增旅程/);
 });
+
+
+test('travel record rows use each trip country PNG flag instead of the plane icon', async () => {
+  const source = await readFile(sourcePath, 'utf8');
+  const row = source.match(/function makeTripRow\(trip,[\s\S]*?\n  \}\n\n  function appendSection/)?.[0] || '';
+  assert.match(source, /createCountryFlagElement/);
+  assert.match(row, /createCountryFlagElement\(document,\s*trip\.country/);
+  assert.doesNotMatch(row, /fa-plane/);
+});
