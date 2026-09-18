@@ -41,9 +41,10 @@ jobs:
           grep -q "drive.appdata" "$DRIVE_AUTH_FILE"
           grep -q "itemPhotos" "$APP_FILE"
           grep -q "appDataFolder" "$DRIVE_FILE"
-      - name: Firestore schema guard
+      - name: Firebase schema guard
         run: |
           grep -q 'match /artifacts/{appId}/users/{userId}' firebase/firestore.rules
+          grep -q 'match /personalization/{userId}/{kind}/{fileName}' firebase/storage.rules
           grep -q 'japan-shopping-app' src/client/app/app-enhancements.js
           grep -q 'japan-shopping-app' src/client/photos/photo-visibility-enhancements.js
           ! grep -q 'match /users/{userId}/' firebase/firestore.rules
@@ -55,5 +56,5 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-      - name: Firestore rules integration test
+      - name: Firebase rules integration test
         run: npm run test:rules
