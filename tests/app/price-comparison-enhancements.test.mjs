@@ -84,3 +84,9 @@ test('copied items preserve all candidate locations and price research', () => {
     updatedAt: 123
   });
 });
+
+
+test('price comparison no longer renders the Rates By Exchange Rate attribution label', async () => {
+  const source = await readFile(pricingUiPath, 'utf8');
+  assert.doesNotMatch(source, /匯率來源：Rates By Exchange Rate API/);
+});

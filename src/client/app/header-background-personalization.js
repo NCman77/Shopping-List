@@ -6,6 +6,7 @@ import {
 } from './background-personalization.js';
 import {
   createBackgroundSlideshowController,
+  reorderBackgroundFiles,
   runBackgroundPlaylistDownload,
   runBackgroundPlaylistSaveTransaction
 } from './background-playlist.js';
@@ -16,6 +17,8 @@ const APP_ID = 'japan-shopping-app';
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
 const MAX_BACKGROUND_BYTES = 100 * 1024 * 1024;
 const HEADER_BACKGROUND_UPLOAD = Object.freeze({ kind: 'header-background' });
+const HEADER_OVERSCAN_PERCENT = 12;
+const LONG_PRESS_MS = 450;
 
 function waitFor(predicate, timeout = 10000) {
   return new Promise((resolve, reject) => {
@@ -57,8 +60,11 @@ function installStyles() {
       overflow: hidden;
     }
     #header-background-layer .header-background-media {
-      width: 100%;
-      height: 100%;
+      position: absolute;
+      width: calc(100% + ${HEADER_OVERSCAN_PERCENT}%);
+      height: calc(100% + ${HEADER_OVERSCAN_PERCENT}%);
+      left: calc(${HEADER_OVERSCAN_PERCENT}% / -2);
+      top: calc(${HEADER_OVERSCAN_PERCENT}% / -2);
       object-fit: cover;
       display: block;
       will-change: transform;
@@ -70,12 +76,27 @@ function installStyles() {
     }
     #header-background-preview-viewport.dragging { cursor: grabbing; }
     #header-background-preview-media {
-      width: 100%;
-      height: 100%;
+      position: absolute;
+      width: calc(100% + ${HEADER_OVERSCAN_PERCENT}%);
+      height: calc(100% + ${HEADER_OVERSCAN_PERCENT}%);
+      left: calc(${HEADER_OVERSCAN_PERCENT}% / -2);
+      top: calc(${HEADER_OVERSCAN_PERCENT}% / -2);
       object-fit: cover;
       display: block;
       pointer-events: none;
       will-change: transform;
+    }
+    #header-background-auth-required {
+      position: absolute;
+      left: 50%;
+      bottom: 1rem;
+      transform: translateX(-50%);
+      z-index: 25;
+      pointer-events: auto;
+    }
+    #header-background-thumbnails.reordering [data-header-background-index] {
+      touch-action: none;
+      cursor: grabbing;
     }
   `;
   document.head.appendChild(style);
@@ -89,6 +110,14 @@ function ensureHeaderLayer(header) {
     layer.className = 'hidden';
     layer.innerHTML = '<div class="header-background-pan-wrap"></div>';
     header.prepend(layer);
+  }
+  if (!document.getElementById('header-background-auth-required')) {
+    const reconnect = document.createElement('button');
+    reconnect.id = 'header-background-auth-required';
+    reconnect.type = 'button';
+    reconnect.className = 'hidden px-3 py-1.5 rounded-full bg-white/55 backdrop-blur-md border border-white/75 text-warmBrown text-xs font-bold shadow-[0_2px_10px_rgba(0,0,0,.12)]';
+    reconnect.innerHTML = '<i class="fab fa-google-drive mr-1"></i>顯示橫幅背景';
+    header.appendChild(reconnect);
   }
   header.style.overflow = 'hidden';
   return layer;
@@ -121,13 +150,12 @@ function ensureEditor() {
           <button id="header-background-drive-connect" type="button" class="ml-1 underline">重新連結</button>
         </div>
 
-        <div class="flex gap-2">
-          <label class="flex-1 text-center px-3 py-2.5 rounded-xl bg-pastelGreen border-2 border-warmBrown text-warmBrown font-bold cursor-pointer">
-            <i class="fas fa-upload mr-1"></i>選擇橫幅背景
-            <input id="header-background-file-input" type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm" class="hidden">
-          </label>
-          <button id="header-background-remove" type="button" class="px-3 py-2.5 rounded-xl bg-pastelPink border-2 border-warmBrown text-warmBrown font-bold">移除</button>
+        <div class="grid grid-cols-2 gap-2">
+          <button id="header-background-replace" type="button" class="text-center px-3 py-2.5 rounded-xl bg-pastelYellow border-2 border-warmBrown text-warmBrown font-bold"><i class="fas fa-rotate mr-1"></i>重新上傳</button>
+          <button id="header-background-append" type="button" class="text-center px-3 py-2.5 rounded-xl bg-pastelGreen border-2 border-warmBrown text-warmBrown font-bold"><i class="fas fa-plus mr-1"></i>繼續上傳</button>
+          <input id="header-background-file-input" type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm" class="hidden">
         </div>
+        <button id="header-background-remove" type="button" class="w-full px-3 py-2 rounded-xl bg-pastelPink border-2 border-warmBrown text-warmBrown text-sm font-bold">移除全部橫幅</button>
         <p id="header-background-file-name" class="text-[11px] text-gray-400 font-bold truncate"></p>
         <div id="header-background-thumbnails" class="flex gap-2 overflow-x-auto pb-1"></div>
         <button id="header-background-delete-current" type="button" class="w-full py-2 rounded-xl bg-white border-2 border-warmBrown text-warmBrown text-sm font-bold">刪除目前這張</button>
@@ -171,14 +199,24 @@ function ensureEditor() {
   document.body.appendChild(modal);
 }
 
+export function headerBackgroundTransform(preferences = {}) {
+  const positionX = clamp(Number(preferences.positionX) || 50, 0, 100);
+  const positionY = clamp(Number(preferences.positionY) || 50, 0, 100);
+  const scale = clamp(Number(preferences.scale) || 1, 1, 3);
+  const maxTranslatePercent = ((HEADER_OVERSCAN_PERCENT / 2) / (100 + HEADER_OVERSCAN_PERCENT)) * 100;
+  const translateX = ((positionX - 50) / 50) * maxTranslatePercent;
+  const translateY = ((positionY - 50) / 50) * maxTranslatePercent;
+  return `translate(${translateX}%, ${translateY}%) scale(${scale})`;
+}
+
 function createHeaderMediaElement(kind, url, preferences, id = '') {
   const media = document.createElement(kind === 'video' ? 'video' : 'img');
   if (id) media.id = id;
   media.src = url;
   media.className = id === 'header-background-preview-media' ? '' : 'header-background-media';
-  media.style.objectPosition = `${preferences.positionX}% ${preferences.positionY}%`;
-  media.style.transform = `scale(${preferences.scale})`;
-  media.style.transformOrigin = `${preferences.positionX}% ${preferences.positionY}%`;
+  media.style.objectPosition = '50% 50%';
+  media.style.transform = headerBackgroundTransform(preferences);
+  media.style.transformOrigin = '50% 50%';
   if (kind === 'video') {
     media.muted = true;
     media.playsInline = true;
@@ -215,6 +253,8 @@ export async function initHeaderBackgroundPersonalization() {
   const scaleInput = document.getElementById('header-background-scale');
   const rotationInput = document.getElementById('header-background-rotation-interval');
   const driveNote = document.getElementById('header-background-drive-note');
+  const authRequiredButton = document.getElementById('header-background-auth-required');
+  const thumbnailsRoot = document.getElementById('header-background-thumbnails');
   const saveButton = document.getElementById('save-header-background-personalization');
 
   const state = {
@@ -222,14 +262,19 @@ export async function initHeaderBackgroundPersonalization() {
     preferences: normalizePersonalization(),
     editorPreferences: normalizePersonalization(),
     pendingFiles: [],
+    pendingEntries: [],
+    uploadMode: 'replace',
     removeRequested: false,
     loadedItems: [],
-    previewObjectUrls: [],
+    previewObjectUrls: new Map(),
     loadedBackgroundKey: '',
     loadingBackgroundKeys: new Set(),
     settingsUnsub: null,
     activeEditorIndex: 0,
-    drag: null
+    drag: null,
+    thumbnailDrag: null,
+    thumbnailLongPressTimer: null,
+    suppressThumbnailClick: false
   };
 
   const tracker = createSessionOperationTracker();
@@ -267,8 +312,8 @@ export async function initHeaderBackgroundPersonalization() {
   }
 
   function revokePreviewObjectUrls() {
-    for (const url of state.previewObjectUrls) URL.revokeObjectURL(url);
-    state.previewObjectUrls = [];
+    for (const url of state.previewObjectUrls.values()) URL.revokeObjectURL(url);
+    state.previewObjectUrls.clear();
   }
 
   function hideLayer() {
@@ -325,6 +370,10 @@ export async function initHeaderBackgroundPersonalization() {
           if (!(error instanceof DriveAuthorizationError)) console.error('Header background download failed:', error);
         }
       });
+      const needsAuthorization = result.status === 'authorization-required'
+        && state.preferences.backgroundFiles.length > 0;
+      authRequiredButton.classList.toggle('hidden', !needsAuthorization);
+      if (['applied', 'empty'].includes(result.status)) authRequiredButton.classList.add('hidden');
       if (['applied', 'empty', 'authorization-required'].includes(result.status)
         && backgroundLoadKey(state.userId, state.preferences) === loadKey) {
         state.loadedBackgroundKey = loadKey;
@@ -350,6 +399,7 @@ export async function initHeaderBackgroundPersonalization() {
     if (!token) throw new DriveAuthorizationError('未取得 Google Drive 授權。');
     capturedDrive.setAccessToken(token);
     driveNote.classList.add('hidden');
+    authRequiredButton.classList.add('hidden');
     try { await capturedDrive.retryQueuedCleanup(); } catch {}
     if (!tracker.isSessionCurrent(operation, state.userId)) throw new Error('登入狀態已變更，請重新操作。');
     await loadPersistedBackground({ force: true });
@@ -368,9 +418,11 @@ export async function initHeaderBackgroundPersonalization() {
   }
 
   function previewUrlAt(index) {
-    if (state.pendingFiles.length) return state.previewObjectUrls[index] || '';
     const file = editorFiles()[index];
     if (!file) return '';
+    if (String(file.fileId || '').startsWith('pending:')) {
+      return state.previewObjectUrls.get(file.fileId) || '';
+    }
     return state.loadedItems.find((item) => item.fileId === file.fileId)?.objectUrl || '';
   }
 
@@ -379,7 +431,6 @@ export async function initHeaderBackgroundPersonalization() {
   }
 
   function currentPreviewMime() {
-    if (state.pendingFiles.length) return state.pendingFiles[state.activeEditorIndex]?.type || '';
     return activeEditorFile()?.mimeType || '';
   }
 
@@ -428,12 +479,68 @@ export async function initHeaderBackgroundPersonalization() {
         button.appendChild(label);
       }
       button.addEventListener('click', () => {
+        if (state.suppressThumbnailClick) return;
         state.activeEditorIndex = index;
         renderEditorPreview();
       });
       root.appendChild(button);
     });
   }
+
+  function cancelThumbnailLongPress() {
+    if (state.thumbnailLongPressTimer) clearTimeout(state.thumbnailLongPressTimer);
+    state.thumbnailLongPressTimer = null;
+  }
+
+  function finishThumbnailReorder() {
+    cancelThumbnailLongPress();
+    if (!state.thumbnailDrag) return;
+    thumbnailsRoot.classList.remove('reordering');
+    if (state.thumbnailDrag.active) {
+      state.suppressThumbnailClick = true;
+      setTimeout(() => { state.suppressThumbnailClick = false; }, 0);
+    }
+    state.thumbnailDrag = null;
+  }
+
+  thumbnailsRoot.addEventListener('pointerdown', (event) => {
+    const button = event.target.closest?.('[data-header-background-index]');
+    if (!button) return;
+    cancelThumbnailLongPress();
+    const index = Number(button.dataset.headerBackgroundIndex);
+    state.thumbnailDrag = {
+      pointerId: event.pointerId,
+      index,
+      active: false
+    };
+    state.thumbnailLongPressTimer = setTimeout(() => {
+      if (!state.thumbnailDrag || state.thumbnailDrag.pointerId !== event.pointerId) return;
+      state.thumbnailDrag.active = true;
+      state.activeEditorIndex = index;
+      thumbnailsRoot.classList.add('reordering');
+      thumbnailsRoot.setPointerCapture?.(event.pointerId);
+    }, LONG_PRESS_MS);
+  });
+
+  thumbnailsRoot.addEventListener('pointermove', (event) => {
+    const drag = state.thumbnailDrag;
+    if (!drag || drag.pointerId !== event.pointerId || !drag.active) return;
+    const target = document.elementFromPoint?.(event.clientX, event.clientY)?.closest?.('[data-header-background-index]');
+    const targetIndex = Number(target?.dataset?.headerBackgroundIndex);
+    if (!Number.isInteger(targetIndex) || targetIndex === drag.index) return;
+    const reordered = reorderBackgroundFiles(editorFiles(), drag.index, targetIndex);
+    drag.index = targetIndex;
+    state.activeEditorIndex = targetIndex;
+    setEditorFiles(reordered);
+    renderEditorPreview();
+    event.preventDefault();
+  });
+
+  thumbnailsRoot.addEventListener('pointerup', finishThumbnailReorder);
+  thumbnailsRoot.addEventListener('pointercancel', finishThumbnailReorder);
+  thumbnailsRoot.addEventListener('pointerleave', (event) => {
+    if (!state.thumbnailDrag?.active) cancelThumbnailLongPress();
+  });
 
   function renderEditorPreview() {
     preview.querySelector('#header-background-preview-media')?.remove();
@@ -465,6 +572,8 @@ export async function initHeaderBackgroundPersonalization() {
   function openEditor() {
     state.editorPreferences = normalizePersonalization(state.preferences);
     state.pendingFiles = [];
+    state.pendingEntries = [];
+    state.uploadMode = 'replace';
     state.activeEditorIndex = 0;
     state.removeRequested = false;
     revokePreviewObjectUrls();
@@ -478,11 +587,53 @@ export async function initHeaderBackgroundPersonalization() {
   function closeEditor() {
     revokePreviewObjectUrls();
     state.pendingFiles = [];
+    state.pendingEntries = [];
+    state.uploadMode = 'replace';
     state.activeEditorIndex = 0;
     state.removeRequested = false;
     modal.classList.add('hidden');
     modal.classList.remove('flex');
   }
+
+  function pendingKey() {
+    if (typeof crypto?.randomUUID === 'function') return `pending:${crypto.randomUUID()}`;
+    return `pending:${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  }
+
+  function appendPendingFiles(files, { replace = false } = {}) {
+    if (replace) {
+      revokePreviewObjectUrls();
+      state.pendingEntries = [];
+    }
+    const baseFiles = replace ? [] : editorFiles().slice();
+    const added = files.map((file, index) => {
+      const key = pendingKey();
+      state.pendingEntries.push({ key, file });
+      state.previewObjectUrls.set(key, URL.createObjectURL(file));
+      return {
+        fileId: key,
+        fileName: file.name || `橫幅 ${baseFiles.length + index + 1}`,
+        mimeType: file.type || '',
+        positionX: 50,
+        positionY: 50,
+        scale: 1
+      };
+    });
+    state.pendingFiles = state.pendingEntries.map((entry) => entry.file);
+    setEditorFiles([...baseFiles, ...added]);
+    state.activeEditorIndex = replace ? 0 : Math.max(0, baseFiles.length);
+    state.removeRequested = false;
+    renderEditorPreview();
+  }
+
+  document.getElementById('header-background-replace').addEventListener('click', () => {
+    state.uploadMode = 'replace';
+    input.click();
+  });
+  document.getElementById('header-background-append').addEventListener('click', () => {
+    state.uploadMode = 'append';
+    input.click();
+  });
 
   input.addEventListener('change', () => {
     const files = Array.from(input.files || []);
@@ -496,25 +647,13 @@ export async function initHeaderBackgroundPersonalization() {
       window.showMsg?.('檔案太大', '每個背景檔案請控制在 100MB 以內。', 'warning');
       return;
     }
-    revokePreviewObjectUrls();
-    state.pendingFiles = files;
-    state.previewObjectUrls = files.map((file) => URL.createObjectURL(file));
-    state.activeEditorIndex = 0;
-    setEditorFiles(files.map((file, index) => ({
-      fileId: `pending:${index}`,
-      fileName: file.name || `橫幅 ${index + 1}`,
-      mimeType: file.type || '',
-      positionX: 50,
-      positionY: 50,
-      scale: 1
-    })));
-    state.removeRequested = false;
-    renderEditorPreview();
+    appendPendingFiles(files, { replace: state.uploadMode === 'replace' });
   });
 
   document.getElementById('header-background-remove').addEventListener('click', () => {
     revokePreviewObjectUrls();
     state.pendingFiles = [];
+    state.pendingEntries = [];
     state.activeEditorIndex = 0;
     setEditorFiles([]);
     renderEditorPreview();
@@ -524,11 +663,13 @@ export async function initHeaderBackgroundPersonalization() {
     const files = editorFiles();
     if (!files.length) return;
     const index = state.activeEditorIndex;
-    if (state.pendingFiles.length) {
-      const removedUrl = state.previewObjectUrls[index];
+    const removed = files[index];
+    if (String(removed?.fileId || '').startsWith('pending:')) {
+      const removedUrl = state.previewObjectUrls.get(removed.fileId);
       if (removedUrl) URL.revokeObjectURL(removedUrl);
-      state.pendingFiles.splice(index, 1);
-      state.previewObjectUrls.splice(index, 1);
+      state.previewObjectUrls.delete(removed.fileId);
+      state.pendingEntries = state.pendingEntries.filter((entry) => entry.key !== removed.fileId);
+      state.pendingFiles = state.pendingEntries.map((entry) => entry.file);
     }
     const nextFiles = files.filter((_, fileIndex) => fileIndex !== index);
     setEditorFiles(nextFiles);
@@ -605,6 +746,17 @@ export async function initHeaderBackgroundPersonalization() {
   preview.addEventListener('pointerup', finishDrag);
   preview.addEventListener('pointercancel', finishDrag);
 
+  authRequiredButton.addEventListener('click', async () => {
+    const operation = tracker.capture(state.userId);
+    try {
+      await connectDrive(operation, driveServiceForUser(operation.userId));
+    } catch (error) {
+      if (!tracker.isSessionCurrent(operation, state.userId)) return;
+      console.error('Header background reconnect failed:', error);
+      window.showMsg?.('連結失敗', '需要重新授權 Google Drive 才能在這個瀏覽器顯示橫幅背景。', 'error');
+    }
+  });
+
   document.getElementById('header-background-drive-connect').addEventListener('click', async () => {
     const operation = tracker.capture(state.userId);
     try {
@@ -623,6 +775,7 @@ export async function initHeaderBackgroundPersonalization() {
     const capturedSettingsRef = settingsRef(operation.userId);
     const capturedEditorPreferences = normalizePersonalization(state.editorPreferences);
     const capturedPendingFiles = state.pendingFiles.slice();
+    const capturedPendingEntries = state.pendingEntries.map((entry) => ({ ...entry }));
     const capturedRemoveRequested = state.removeRequested;
     const oldFiles = state.preferences.backgroundFiles.slice();
     const capturedDrive = driveServiceForUser(operation.userId);
@@ -636,6 +789,7 @@ export async function initHeaderBackgroundPersonalization() {
         capturedSettingsRef,
         editorPreferences: capturedEditorPreferences,
         pendingFiles: capturedPendingFiles,
+        pendingEntries: capturedPendingEntries,
         removeRequested: capturedRemoveRequested,
         oldFiles,
         uploadKind: HEADER_BACKGROUND_UPLOAD.kind,
@@ -672,6 +826,7 @@ export async function initHeaderBackgroundPersonalization() {
     closeEditor();
     saveButton.disabled = false;
     hideLayer();
+    authRequiredButton.classList.add('hidden');
     state.settingsUnsub?.();
     state.settingsUnsub = null;
     revokeLoadedItems();

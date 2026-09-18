@@ -57,3 +57,20 @@ test('feature bootstrap loads country, account and background enhancements indep
   assert.match(bootstrap, /background-personalization\.js/);
   assert.match(root, /feature-bootstrap\.js/);
 });
+
+
+test('account settings keeps the requested feature order and leaves API settings immediately before sign out', async () => {
+  const source = await readFile(new URL('../../src/client/app/account-settings.js', import.meta.url), 'utf8');
+  assert.match(source, /enforceAccountMenuOrder/);
+  const desired = [
+    'account-open-personalization',
+    'account-open-countries',
+    'account-open-trips',
+    'account-open-brand-dictionary',
+    'account-open-coupon-management',
+    'account-open-maps',
+    'account-settings-signout'
+  ];
+  for (const id of desired) assert.match(source, new RegExp(id));
+  assert.match(source, /MutationObserver/);
+});
