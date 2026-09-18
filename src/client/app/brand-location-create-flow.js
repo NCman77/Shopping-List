@@ -226,7 +226,6 @@ export async function initBrandLocationCreateFlow({
     renderFields(prefillAliases);
     modal.classList.remove('hidden');
     modal.classList.add('flex');
-    setTimeout(() => fieldsRoot.querySelector('.location-brand-alias-input')?.focus(), 50);
   }
 
   function collectAliases() {
