@@ -1,0 +1,28 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /personalization/{userId}/{kind}/{fileName} {
+      function isOwner() {
+        return request.auth != null && request.auth.uid == userId;
+      }
+
+      function supportedKind() {
+        return kind == 'header' || kind == 'page' || kind == 'item-card';
+      }
+
+      function supportedContentType() {
+        return request.resource == null
+          || request.resource.contentType.matches('image/(jpeg|png|webp|gif)')
+          || request.resource.contentType.matches('video/(mp4|webm)');
+      }
+
+      allow read: if isOwner() && supportedKind();
+      allow create, update: if isOwner()
+        && supportedKind()
+        && request.resource.size <= 100 * 1024 * 1024
+        && supportedContentType();
+      allow delete: if isOwner() && supportedKind();
+    }
+  }
+}
