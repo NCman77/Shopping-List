@@ -1,4 +1,6 @@
 export const DEFAULT_PERSONALIZATION = Object.freeze({
+  mode: 'color',
+  color: '#FFFFFF',
   backgroundFileId: '',
   backgroundFileName: '',
   backgroundMimeType: '',
@@ -13,6 +15,38 @@ function clampNumber(value, min, max, fallback) {
   const number = Number(value);
   if (!Number.isFinite(number)) return fallback;
   return Math.min(max, Math.max(min, number));
+}
+
+export function normalizeBackgroundColor(value, fallback = '#FFFFFF') {
+  const fallbackColor = String(fallback || '#FFFFFF').trim().toUpperCase();
+  const safeFallback = /^#[0-9A-F]{6}$/.test(fallbackColor) ? fallbackColor : '#FFFFFF';
+  const color = String(value || '').trim().toUpperCase();
+  return /^#[0-9A-F]{6}$/.test(color) ? color : safeFallback;
+}
+
+export function backgroundDefaultColor(kind) {
+  if (String(kind || '').trim() === 'header') return '#FCD5CE';
+  return '#FFFFFF';
+}
+
+export function normalizeBackgroundColorPresets(values = []) {
+  const result = [];
+  for (const value of Array.isArray(values) ? values : []) {
+    const color = String(value || '').trim().toUpperCase();
+    if (!/^#[0-9A-F]{6}$/.test(color) || result.includes(color)) continue;
+    result.push(color);
+    if (result.length >= 6) break;
+  }
+  return result;
+}
+
+export function addBackgroundColorPreset(values = [], value) {
+  const color = String(value || '').trim().toUpperCase();
+  const current = normalizeBackgroundColorPresets(values);
+  if (!/^#[0-9A-F]{6}$/.test(color)) return current;
+  const next = current.filter((item) => item !== color);
+  next.push(color);
+  return next.slice(-6);
 }
 
 function normalizeFrame(source = {}, fallback = DEFAULT_PERSONALIZATION) {
@@ -54,7 +88,7 @@ export function normalizeRotationIntervalDraft(value) {
   return Math.min(60, Math.max(2, number));
 }
 
-export function normalizePersonalization(value = {}) {
+export function normalizePersonalization(value = {}, { defaultColor = '#FFFFFF' } = {}) {
   const source = value && typeof value === 'object' ? value : {};
   const backgroundFiles = normalizeBackgroundFiles(source);
   const primary = backgroundFiles[0] || {
@@ -65,7 +99,13 @@ export function normalizePersonalization(value = {}) {
     positionY: DEFAULT_PERSONALIZATION.positionY,
     scale: DEFAULT_PERSONALIZATION.scale
   };
+  const requestedMode = ['color', 'media'].includes(source.mode) ? source.mode : '';
+  const mode = requestedMode === 'media' && !backgroundFiles.length
+    ? 'color'
+    : (requestedMode || (backgroundFiles.length ? 'media' : 'color'));
   return {
+    mode,
+    color: normalizeBackgroundColor(source.color, defaultColor),
     backgroundFileId: primary.fileId,
     backgroundFileName: primary.fileName,
     backgroundMimeType: primary.mimeType,
