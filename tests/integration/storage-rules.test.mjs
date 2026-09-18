@@ -29,7 +29,7 @@ rulesTest('personalization Storage files are private to their owner', async () =
   const path = 'personalization/alice/header/banner.jpg';
   await uploadBytes(ref(alice, path), new Uint8Array([1, 2, 3]), { contentType: 'image/jpeg' });
   const bytes = await getBytes(ref(alice, path));
-  assert.equal(bytes.length, 3);
+  assert.equal(bytes.byteLength, 3);
   await assertFails(getBytes(ref(bob, path)));
   await assertFails(uploadBytes(ref(bob, path), new Uint8Array([9]), { contentType: 'image/jpeg' }));
   await deleteObject(ref(alice, path));
