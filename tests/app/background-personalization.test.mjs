@@ -412,3 +412,23 @@ test('removing a persisted item-card media background deletes its Google Drive f
   assert.equal(result.status, 'saved');
   assert.deepEqual(events, ['persist', 'delete:card-bg-1', 'after']);
 });
+
+
+test('page background editor uses the unified color and custom-image tabs with white reset default', async () => {
+  const source = await readFile(new URL('../../src/client/app/background-personalization.js', import.meta.url), 'utf8');
+  assert.match(source, /data-page-background-mode="color"[^>]*>單色</);
+  assert.match(source, /data-page-background-mode="media"[^>]*>自訂圖片</);
+  assert.match(source, /page-background-color-panel/);
+  assert.match(source, /page-background-color-hex/);
+  assert.match(source, /page-background-color-presets/);
+  assert.match(source, /page-background-reset-default/);
+  assert.match(source, /#FFFFFF/);
+  assert.match(source, /page-background-back/);
+  assert.match(source, /shopping-list:open-personalization/);
+});
+
+test('page custom-image mode remains multi-photo with slideshow support', async () => {
+  const source = await readFile(new URL('../../src/client/app/background-personalization.js', import.meta.url), 'utf8');
+  assert.match(source, /id="background-file-input"[^>]*multiple/);
+  assert.match(source, /id="background-rotation-interval"/);
+});
