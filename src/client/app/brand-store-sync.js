@@ -164,7 +164,6 @@ export async function initBrandStoreSync({
       couponModal?.classList.remove('hidden');
       couponModal?.classList.add('flex');
       state.couponWasVisible = false;
-      queueMicrotask(() => documentRef.getElementById('coupon-brand-search')?.focus());
     } else {
       state.couponWasVisible = false;
     }
