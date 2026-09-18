@@ -10,7 +10,13 @@ import {
   DEFAULT_ITEM_CARD_PERSONALIZATION,
   normalizeItemCardPersonalization
 } from './item-card-personalization-core.js';
-import { positionPreset } from './personalization-preferences.js';
+import {
+  positionPreset,
+  backgroundDefaultColor,
+  normalizeBackgroundColor,
+  normalizeBackgroundColorPresets,
+  addBackgroundColorPreset
+} from './personalization-preferences.js';
 import { createSessionOperationTracker } from './session-operation.js';
 import {
   createBackgroundMediaService,
@@ -116,33 +122,45 @@ function ensureEditor() {
   modal.className = 'fixed inset-0 z-[102] hidden bg-warmBrown/50 backdrop-blur-sm px-3 items-center justify-center';
   modal.innerHTML = `
     <div class="w-full max-w-md max-h-[92vh] overflow-hidden bg-shinBg border-4 border-warmBrown rounded-[2rem] shadow-[8px_8px_0_rgba(92,64,51,.28)] flex flex-col">
-      <div class="bg-pastelGreen border-b-4 border-warmBrown px-5 py-4 flex items-center justify-between shrink-0">
-        <div>
+      <div class="bg-pastelGreen border-b-4 border-warmBrown px-5 py-4 flex items-center gap-3 shrink-0">
+        <button id="item-card-background-back" type="button" class="w-9 h-9 shrink-0 rounded-full bg-white border-2 border-warmBrown text-warmBrown"><i class="fas fa-chevron-left"></i></button>
+        <div class="flex-1 min-w-0">
           <h2 class="text-xl font-bold text-warmBrown">商品小卡背景</h2>
-          <p class="text-[11px] text-warmBrown/60 font-bold mt-1">套用到主頁所有商品小卡</p>
+          <p class="text-[11px] text-warmBrown/60 font-bold mt-1">設定單色或自訂圖片背景</p>
         </div>
-        <button id="item-card-background-close" type="button" class="w-9 h-9 rounded-full bg-white border-2 border-warmBrown text-warmBrown"><i class="fas fa-times"></i></button>
+        <button id="item-card-background-close" type="button" class="w-9 h-9 shrink-0 rounded-full bg-white border-2 border-warmBrown text-warmBrown"><i class="fas fa-times"></i></button>
       </div>
 
       <div class="overflow-y-auto p-4 space-y-5 bg-white">
-        <div class="grid grid-cols-3 gap-2">
-          <button type="button" class="item-card-mode-button py-2 rounded-xl border-2 border-warmBrown text-xs font-bold text-warmBrown" data-item-card-mode="default">原本樣式</button>
-          <button type="button" class="item-card-mode-button py-2 rounded-xl border-2 border-warmBrown text-xs font-bold text-warmBrown" data-item-card-mode="color">單色</button>
-          <button type="button" class="item-card-mode-button py-2 rounded-xl border-2 border-warmBrown text-xs font-bold text-warmBrown" data-item-card-mode="media">靜態照片</button>
+        <div class="grid grid-cols-2 gap-2">
+          <button type="button" class="item-card-mode-button py-2.5 rounded-xl border-2 border-warmBrown text-sm font-bold text-warmBrown" data-item-card-mode="color">單色</button>
+          <button type="button" class="item-card-mode-button py-2.5 rounded-xl border-2 border-warmBrown text-sm font-bold text-warmBrown" data-item-card-mode="media">自訂圖片</button>
         </div>
 
-        <div id="item-card-color-panel" class="hidden rounded-2xl bg-shinBg border-2 border-warmBrown p-4">
+        <div id="item-card-color-panel" class="hidden rounded-2xl bg-shinBg border-2 border-warmBrown p-4 space-y-4">
           <label class="flex items-center justify-between gap-3 text-sm font-bold text-warmBrown">
             <span>小卡顏色</span>
             <input id="item-card-background-color" type="color" value="#FFFFFF" class="w-14 h-10 rounded-lg border-2 border-warmBrown bg-white p-1 cursor-pointer">
           </label>
+          <div>
+            <label for="item-card-background-color-hex" class="block text-xs font-bold text-warmBrown mb-2">色碼</label>
+            <div class="flex gap-2">
+              <input id="item-card-background-color-hex" type="text" inputmode="text" maxlength="7" value="#FFFFFF" class="flex-1 min-w-0 px-3 py-2.5 rounded-xl bg-white border-2 border-warmBrown text-warmBrown font-bold uppercase outline-none" placeholder="#FFFFFF">
+              <button id="item-card-background-save-color" type="button" class="px-3 py-2.5 rounded-xl bg-pastelYellow border-2 border-warmBrown text-warmBrown text-xs font-bold">儲存常用色</button>
+            </div>
+          </div>
+          <div>
+            <p class="text-xs font-bold text-warmBrown mb-2">常用顏色（最多 6 個）</p>
+            <div id="item-card-background-color-presets" class="grid grid-cols-6 gap-2"></div>
+          </div>
+          <button id="item-card-background-reset-default" type="button" class="w-full py-2.5 rounded-xl bg-white border-2 border-warmBrown text-warmBrown font-bold">恢復預設</button>
         </div>
 
         <div id="item-card-media-panel" class="hidden space-y-4">
           <div id="item-card-background-preview" class="relative w-full aspect-[3/2] overflow-hidden rounded-[1.5rem] bg-shinBg border-2 border-warmBrown shadow-inner">
             <div id="item-card-background-preview-empty" class="absolute inset-0 flex flex-col items-center justify-center text-warmBrown/45 text-center px-6">
               <i class="fas fa-image text-4xl mb-3"></i>
-              <span class="text-sm font-bold">選擇 JPEG、PNG 或 WebP 照片</span>
+              <span class="text-sm font-bold">選擇自訂圖片</span>
             </div>
           </div>
 
@@ -152,7 +170,7 @@ function ensureEditor() {
           </div>
 
           <label class="block text-center px-3 py-2.5 rounded-xl bg-pastelGreen border-2 border-warmBrown text-warmBrown font-bold cursor-pointer">
-            <i class="fas fa-upload mr-1"></i>選擇 JPEG、PNG 或 WebP 照片
+            <i class="fas fa-upload mr-1"></i>選擇自訂圖片
             <input id="item-card-background-file" type="file" accept="image/jpeg,image/png,image/webp" class="hidden">
           </label>
           <p id="item-card-background-file-name" class="text-[11px] text-gray-400 font-bold truncate"></p>
@@ -227,6 +245,7 @@ export async function initItemCardPersonalization() {
   const colorPanel = document.getElementById('item-card-color-panel');
   const mediaPanel = document.getElementById('item-card-media-panel');
   const colorInput = document.getElementById('item-card-background-color');
+  const colorHexInput = document.getElementById('item-card-background-color-hex');
   const fileInput = document.getElementById('item-card-background-file');
   const scaleInput = document.getElementById('item-card-background-scale');
   const preview = document.getElementById('item-card-background-preview');
@@ -237,7 +256,8 @@ export async function initItemCardPersonalization() {
     userId: '',
     preferences: { ...DEFAULT_ITEM_CARD_PERSONALIZATION },
     editor: { ...DEFAULT_ITEM_CARD_PERSONALIZATION },
-    editorMode: 'default',
+    editorMode: 'color',
+    savedColors: [],
     pendingFile: null,
     objectUrl: '',
     previewObjectUrl: '',
@@ -407,6 +427,36 @@ export async function initItemCardPersonalization() {
     document.getElementById('item-card-background-scale-value').textContent = `${Math.round(state.editor.scale * 100)}%`;
   }
 
+  function renderColorPresets() {
+    const root = document.getElementById('item-card-background-color-presets');
+    root.replaceChildren();
+    for (let index = 0; index < 6; index += 1) {
+      const color = state.savedColors[index] || '';
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'h-9 rounded-xl border-2 border-warmBrown/40 bg-white overflow-hidden';
+      button.setAttribute('aria-label', color ? `套用 ${color}` : '尚未儲存顏色');
+      if (color) {
+        button.style.backgroundColor = color;
+        button.title = color;
+        button.addEventListener('click', () => setEditorColor(color));
+      } else {
+        button.disabled = true;
+        button.classList.add('opacity-30');
+      }
+      root.appendChild(button);
+    }
+  }
+
+  function setEditorColor(value) {
+    const color = normalizeBackgroundColor(value, backgroundDefaultColor('item-card'));
+    state.editorMode = 'color';
+    state.editor = { ...state.editor, mode: 'color', color };
+    colorInput.value = color;
+    colorHexInput.value = color;
+    renderMode();
+  }
+
   function renderMode() {
     document.querySelectorAll('[data-item-card-mode]').forEach((button) => {
       button.setAttribute('aria-pressed', String(button.dataset.itemCardMode === state.editorMode));
@@ -414,12 +464,14 @@ export async function initItemCardPersonalization() {
     colorPanel.classList.toggle('hidden', state.editorMode !== 'color');
     mediaPanel.classList.toggle('hidden', state.editorMode !== 'media');
     colorInput.value = state.editor.color;
+    colorHexInput.value = state.editor.color;
+    renderColorPresets();
     renderPreview();
   }
 
   function openEditor() {
     state.editor = normalizeItemCardPersonalization(state.preferences);
-    state.editorMode = state.preferences.mode;
+    state.editorMode = state.preferences.mode === 'media' ? 'media' : 'color';
     state.pendingFile = null;
     revokeUrl('previewObjectUrl');
     const legacy = state.preferences.mode === 'media'
@@ -453,11 +505,30 @@ export async function initItemCardPersonalization() {
   });
 
   colorInput.addEventListener('input', () => {
-    state.editor = {
-      ...state.editor,
-      mode: 'color',
-      color: colorInput.value.toUpperCase()
-    };
+    setEditorColor(colorInput.value);
+  });
+  colorHexInput.addEventListener('input', () => {
+    const value = String(colorHexInput.value || '').trim().toUpperCase();
+    if (/^#[0-9A-F]{6}$/.test(value)) setEditorColor(value);
+  });
+  document.getElementById('item-card-background-save-color').addEventListener('click', async () => {
+    const value = String(colorHexInput.value || '').trim().toUpperCase();
+    if (!/^#[0-9A-F]{6}$/.test(value)) {
+      window.showMsg?.('色碼格式錯誤', '請輸入例如 #FFFFFF 的 6 位 HEX 色碼。', 'warning');
+      return;
+    }
+    const next = addBackgroundColorPreset(state.savedColors, value);
+    try {
+      await setDoc(settingsRef(), { backgroundColorPresets: next }, { merge: true });
+      state.savedColors = next;
+      renderColorPresets();
+    } catch (error) {
+      console.error('Save background color preset failed:', error);
+      window.showMsg?.('儲存失敗', '無法儲存常用顏色。', 'error');
+    }
+  });
+  document.getElementById('item-card-background-reset-default').addEventListener('click', () => {
+    setEditorColor(backgroundDefaultColor('item-card'));
   });
 
   fileInput.addEventListener('change', () => {
@@ -621,6 +692,11 @@ export async function initItemCardPersonalization() {
     }
   });
 
+  document.getElementById('item-card-background-back').addEventListener('click', () => {
+    closeEditor();
+    const EventCtor = window.CustomEvent || globalThis.CustomEvent;
+    if (typeof EventCtor === 'function') window.dispatchEvent(new EventCtor('shopping-list:open-personalization'));
+  });
   document.getElementById('item-card-background-close').addEventListener('click', closeEditor);
   document.getElementById('item-card-background-cancel').addEventListener('click', closeEditor);
   modal.addEventListener('click', (event) => { if (event.target === modal) closeEditor(); });
@@ -643,6 +719,7 @@ export async function initItemCardPersonalization() {
     state.settingsUnsub = onSnapshot(settingsRef(user.uid), (snapshot) => {
       if (!tracker.isSessionCurrent(operation, state.userId)) return;
       const data = snapshot.exists() ? snapshot.data() : {};
+      state.savedColors = normalizeBackgroundColorPresets(data.backgroundColorPresets);
       state.preferences = normalizeItemCardPersonalization(data.itemCardPersonalization);
       revokeUrl('objectUrl');
       const legacy = state.preferences.mode === 'media'
