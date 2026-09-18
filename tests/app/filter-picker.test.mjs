@@ -78,7 +78,8 @@ test('all picker includes a manage action that delegates to existing filter mana
   const source = await readFile(sourcePath, 'utf8');
   assert.match(source, /filter-picker-manage/);
   assert.match(source, /shopping-list:manage-filter/);
-  assert.match(source, /detail:\s*\{\s*kind:\s*state\.activeType\s*\}/);
+  assert.match(source, /const kind = state\.activeType/);
+  assert.match(source, /detail:\s*\{\s*kind\s*\}/);
 });
 
 test('home management listens to picker manage requests instead of enhancing the old left label', async () => {
