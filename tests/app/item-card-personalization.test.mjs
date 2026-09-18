@@ -57,3 +57,12 @@ test('feature bootstrap loads item card personalization independently', async ()
   assert.match(source, /item-card-personalization\.js/);
   assert.match(source, /initItemCardPersonalization/);
 });
+
+
+test('item-card quick-position buttons update their selected highlight', async () => {
+  const source = await sourceOrFail('../../src/client/app/item-card-personalization.js', 'item card personalization module is missing');
+  assert.match(source, /syncPositionPresetButtons/);
+  assert.match(source, /data-item-card-position-preset/);
+  assert.match(source, /classList\.toggle\('bg-pastelYellow',\s*active\)/);
+  assert.match(source, /classList\.toggle\('bg-shinBg',\s*!active\)/);
+});
