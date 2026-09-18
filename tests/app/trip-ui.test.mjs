@@ -175,3 +175,11 @@ test('trip form country options do not inject Japan when no configured or active
   assert.doesNotMatch(source, /normalizeCountries\(\[\.\.\.state\.countries, selectedCountry \|\| DEFAULT_COUNTRY\]\)/);
   assert.doesNotMatch(source, /window\.shoppingListActiveCountry \|\| DEFAULT_COUNTRY/);
 });
+
+
+test('travel records opened from settings can go back to account settings from the picker', async () => {
+  const source = await readFile(sourcePath, 'utf8');
+  assert.match(source, /openedFromSettings/);
+  assert.match(source, /shopping-list:open-account-settings/);
+  assert.match(source, /backButton\.classList\.toggle\('hidden',[\s\S]*openedFromSettings/);
+});
