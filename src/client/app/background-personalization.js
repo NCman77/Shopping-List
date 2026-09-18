@@ -433,8 +433,12 @@ export async function initBackgroundPersonalization() {
       return;
     }
     slideshowPreferences = normalized;
+    const framedItems = items.map((item) => ({
+      ...item,
+      ...(normalized.backgroundFiles.find((file) => file.fileId === item.fileId) || {})
+    }));
     layer.classList.remove('hidden');
-    slideshow.start(items, normalized);
+    slideshow.start(framedItems, normalized);
   }
 
   async function loadPersistedBackground({ force = false } = {}) {
