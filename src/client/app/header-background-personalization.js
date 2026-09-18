@@ -1034,7 +1034,16 @@ export async function initHeaderBackgroundPersonalization() {
     if (!state.userId) return;
     const operation = tracker.capture(state.userId);
     const capturedSettingsRef = settingsRef(operation.userId);
-    const capturedEditorPreferences = normalizeHeaderPersonalization({ ...state.editorPreferences, mode: state.editorMode });
+    const capturedEditorPreferences = normalizeHeaderPersonalization({
+      ...state.editorPreferences,
+      mode: state.editorMode,
+      ...(state.editorMode === 'color' ? {
+        backgroundFiles: state.preferences.backgroundFiles,
+        backgroundFileId: state.preferences.backgroundFileId,
+        backgroundFileName: state.preferences.backgroundFileName,
+        backgroundMimeType: state.preferences.backgroundMimeType
+      } : {})
+    });
     const capturedPendingFiles = state.editorMode === 'media' ? state.pendingFiles.slice() : [];
     const capturedPendingEntries = state.editorMode === 'media' ? state.pendingEntries.map((entry) => ({ ...entry })) : [];
     const capturedRemoveRequested = state.editorMode === 'media' ? state.removeRequested : false;
@@ -1100,6 +1109,7 @@ export async function initHeaderBackgroundPersonalization() {
     state.loadedBackgroundKey = '';
     state.loadingBackgroundKeys.clear();
     state.userId = user?.uid || '';
+    state.savedColors = [];
     state.preferences = normalizeHeaderPersonalization();
 
     if (!user) return;
