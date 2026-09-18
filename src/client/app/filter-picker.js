@@ -67,8 +67,11 @@ export async function initFilterPicker() {
     modal.innerHTML = `
       <div class="w-full max-w-md max-h-[82vh] bg-white border-4 border-warmBrown rounded-t-[2rem] sm:rounded-[2rem] shadow-[8px_8px_0_rgba(92,64,51,0.25)] overflow-hidden">
         <div class="px-5 py-4 bg-pastelYellow border-b-4 border-warmBrown flex items-center justify-between gap-3">
-          <div><h3 id="filter-picker-title" class="font-bold text-warmBrown text-lg">選擇項目</h3><p class="text-[11px] text-warmBrown/60">一次查看目前旅程可用的選項</p></div>
-          <button id="filter-picker-close" type="button" class="w-9 h-9 shrink-0 rounded-full bg-white border-2 border-warmBrown text-warmBrown"><i class="fas fa-times"></i></button>
+          <div class="min-w-0"><h3 id="filter-picker-title" class="font-bold text-warmBrown text-lg">選擇項目</h3><p class="text-[11px] text-warmBrown/60">一次查看目前旅程可用的選項</p></div>
+          <div class="flex items-center gap-2 shrink-0">
+            <button id="filter-picker-manage" type="button" class="px-3 h-9 rounded-full bg-white/80 border-2 border-warmBrown text-warmBrown text-xs font-bold"><i class="fas fa-sliders-h mr-1"></i>管理</button>
+            <button id="filter-picker-close" type="button" class="w-9 h-9 rounded-full bg-white border-2 border-warmBrown text-warmBrown"><i class="fas fa-times"></i></button>
+          </div>
         </div>
         <div class="p-4 bg-shinBg border-b-2 border-warmBrown/20">
           <div class="relative">
@@ -80,6 +83,12 @@ export async function initFilterPicker() {
       </div>`;
     document.body.appendChild(modal);
     modal.querySelector('#filter-picker-close')?.addEventListener('click', closeModal);
+    modal.querySelector('#filter-picker-manage')?.addEventListener('click', () => {
+      const kind = state.activeType;
+      if (!kind) return;
+      closeModal();
+      window.dispatchEvent(new CustomEvent('shopping-list:manage-filter', { detail: { kind } }));
+    });
     modal.addEventListener('click', (event) => { if (event.target === modal) closeModal(); });
     modal.querySelector('#filter-picker-search')?.addEventListener('input', (event) => {
       state.query = event.target.value;
