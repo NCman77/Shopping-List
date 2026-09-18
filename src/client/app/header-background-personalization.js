@@ -266,7 +266,7 @@ export async function initHeaderBackgroundPersonalization() {
     uploadMode: 'replace',
     removeRequested: false,
     loadedItems: [],
-    previewObjectUrls: [],
+    previewObjectUrls: new Map(),
     loadedBackgroundKey: '',
     loadingBackgroundKeys: new Set(),
     settingsUnsub: null,
@@ -312,8 +312,8 @@ export async function initHeaderBackgroundPersonalization() {
   }
 
   function revokePreviewObjectUrls() {
-    for (const url of state.previewObjectUrls) URL.revokeObjectURL(url);
-    state.previewObjectUrls = [];
+    for (const url of state.previewObjectUrls.values()) URL.revokeObjectURL(url);
+    state.previewObjectUrls.clear();
   }
 
   function hideLayer() {
@@ -413,9 +413,11 @@ export async function initHeaderBackgroundPersonalization() {
   }
 
   function previewUrlAt(index) {
-    if (state.pendingFiles.length) return state.previewObjectUrls[index] || '';
     const file = editorFiles()[index];
     if (!file) return '';
+    if (String(file.fileId || '').startsWith('pending:')) {
+      return state.previewObjectUrls.get(file.fileId) || '';
+    }
     return state.loadedItems.find((item) => item.fileId === file.fileId)?.objectUrl || '';
   }
 
@@ -424,7 +426,6 @@ export async function initHeaderBackgroundPersonalization() {
   }
 
   function currentPreviewMime() {
-    if (state.pendingFiles.length) return state.pendingFiles[state.activeEditorIndex]?.type || '';
     return activeEditorFile()?.mimeType || '';
   }
 
@@ -510,6 +511,8 @@ export async function initHeaderBackgroundPersonalization() {
   function openEditor() {
     state.editorPreferences = normalizePersonalization(state.preferences);
     state.pendingFiles = [];
+    state.pendingEntries = [];
+    state.uploadMode = 'replace';
     state.activeEditorIndex = 0;
     state.removeRequested = false;
     revokePreviewObjectUrls();
@@ -523,11 +526,53 @@ export async function initHeaderBackgroundPersonalization() {
   function closeEditor() {
     revokePreviewObjectUrls();
     state.pendingFiles = [];
+    state.pendingEntries = [];
+    state.uploadMode = 'replace';
     state.activeEditorIndex = 0;
     state.removeRequested = false;
     modal.classList.add('hidden');
     modal.classList.remove('flex');
   }
+
+  function pendingKey() {
+    if (typeof crypto?.randomUUID === 'function') return `pending:${crypto.randomUUID()}`;
+    return `pending:${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  }
+
+  function appendPendingFiles(files, { replace = false } = {}) {
+    if (replace) {
+      revokePreviewObjectUrls();
+      state.pendingEntries = [];
+    }
+    const baseFiles = replace ? [] : editorFiles().slice();
+    const added = files.map((file, index) => {
+      const key = pendingKey();
+      state.pendingEntries.push({ key, file });
+      state.previewObjectUrls.set(key, URL.createObjectURL(file));
+      return {
+        fileId: key,
+        fileName: file.name || `橫幅 ${baseFiles.length + index + 1}`,
+        mimeType: file.type || '',
+        positionX: 50,
+        positionY: 50,
+        scale: 1
+      };
+    });
+    state.pendingFiles = state.pendingEntries.map((entry) => entry.file);
+    setEditorFiles([...baseFiles, ...added]);
+    state.activeEditorIndex = replace ? 0 : Math.max(0, baseFiles.length);
+    state.removeRequested = false;
+    renderEditorPreview();
+  }
+
+  document.getElementById('header-background-replace').addEventListener('click', () => {
+    state.uploadMode = 'replace';
+    input.click();
+  });
+  document.getElementById('header-background-append').addEventListener('click', () => {
+    state.uploadMode = 'append';
+    input.click();
+  });
 
   input.addEventListener('change', () => {
     const files = Array.from(input.files || []);
@@ -541,25 +586,13 @@ export async function initHeaderBackgroundPersonalization() {
       window.showMsg?.('檔案太大', '每個背景檔案請控制在 100MB 以內。', 'warning');
       return;
     }
-    revokePreviewObjectUrls();
-    state.pendingFiles = files;
-    state.previewObjectUrls = files.map((file) => URL.createObjectURL(file));
-    state.activeEditorIndex = 0;
-    setEditorFiles(files.map((file, index) => ({
-      fileId: `pending:${index}`,
-      fileName: file.name || `橫幅 ${index + 1}`,
-      mimeType: file.type || '',
-      positionX: 50,
-      positionY: 50,
-      scale: 1
-    })));
-    state.removeRequested = false;
-    renderEditorPreview();
+    appendPendingFiles(files, { replace: state.uploadMode === 'replace' });
   });
 
   document.getElementById('header-background-remove').addEventListener('click', () => {
     revokePreviewObjectUrls();
     state.pendingFiles = [];
+    state.pendingEntries = [];
     state.activeEditorIndex = 0;
     setEditorFiles([]);
     renderEditorPreview();
@@ -569,11 +602,13 @@ export async function initHeaderBackgroundPersonalization() {
     const files = editorFiles();
     if (!files.length) return;
     const index = state.activeEditorIndex;
-    if (state.pendingFiles.length) {
-      const removedUrl = state.previewObjectUrls[index];
+    const removed = files[index];
+    if (String(removed?.fileId || '').startsWith('pending:')) {
+      const removedUrl = state.previewObjectUrls.get(removed.fileId);
       if (removedUrl) URL.revokeObjectURL(removedUrl);
-      state.pendingFiles.splice(index, 1);
-      state.previewObjectUrls.splice(index, 1);
+      state.previewObjectUrls.delete(removed.fileId);
+      state.pendingEntries = state.pendingEntries.filter((entry) => entry.key !== removed.fileId);
+      state.pendingFiles = state.pendingEntries.map((entry) => entry.file);
     }
     const nextFiles = files.filter((_, fileIndex) => fileIndex !== index);
     setEditorFiles(nextFiles);
