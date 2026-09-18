@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { groupTripsForUi, formatTripDateRange, canChangeTripCountry, canDeleteTrip } from '../../src/client/app/trip-ui.js';
+import { groupTripsForUi, formatTripDateRange, canChangeTripCountry, canDeleteTrip, collapsedTripLabel, expandedTripLabel } from '../../src/client/app/trip-ui.js';
 
 const sourcePath = new URL('../../src/client/app/trip-ui.js', import.meta.url);
 const bootstrapPath = new URL('../../src/client/app/feature-bootstrap.js', import.meta.url);
@@ -107,4 +107,38 @@ test('feature bootstrap loads trip UI independently', async () => {
   assert.match(source, /trip-ui\.js/);
   assert.match(source, /initTripUi/);
   assert.match(source, /旅程介面/);
+});
+
+
+test('compact trip selector shows country only and expanded selector shows the full trip title', () => {
+  const trip = { kind: 'trip', country: '日本', title: '東京', startDate: '2026-09-21', endDate: '2026-09-27' };
+  assert.equal(collapsedTripLabel(trip), '日本');
+  assert.equal(expandedTripLabel(trip), '日本 · 東京');
+});
+
+test('trip selector expands on first click, auto-collapses after three seconds, and second click opens picker', async () => {
+  const source = await readFile(sourcePath, 'utf8');
+  assert.match(source, /is-expanded/);
+  assert.match(source, /setTimeout\([^,]+,\s*3000\)/s);
+  assert.match(source, /selectorExpanded/);
+  assert.match(source, /if \(!selectorExpanded\)[\s\S]*expandSelector\(\)[\s\S]*return/s);
+  assert.match(source, /openModal\('picker'\)/);
+});
+
+test('compact trip selector is more transparent than before', async () => {
+  const source = await readFile(sourcePath, 'utf8');
+  assert.match(source, /bg-white\/25/);
+  assert.match(source, /backdrop-blur-sm/);
+  assert.doesNotMatch(source, /bg-white\/60/);
+});
+
+test('ended trips remain below ongoing and upcoming trips and are date-sorted newest first', () => {
+  const groups = groupTripsForUi([
+    { id: 'past-old', kind: 'trip', country: '日本', startDate: '2026-01-01', endDate: '2026-01-05' },
+    { id: 'future-late', kind: 'trip', country: '韓國', startDate: '2026-12-01', endDate: '2026-12-05' },
+    { id: 'past-new', kind: 'trip', country: '泰國', startDate: '2026-08-01', endDate: '2026-08-05' },
+    { id: 'future-soon', kind: 'trip', country: '日本', startDate: '2026-10-01', endDate: '2026-10-05' }
+  ], '2026-09-18');
+  assert.deepEqual(groups.upcoming.map((trip) => trip.id), ['future-soon', 'future-late']);
+  assert.deepEqual(groups.past.map((trip) => trip.id), ['past-new', 'past-old']);
 });
