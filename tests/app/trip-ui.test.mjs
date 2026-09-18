@@ -65,6 +65,13 @@ test('top-left trip selector uses the same 2.5rem outer height as the account av
   assert.doesNotMatch(tripSource, /#active-trip-selector\s*\{[^}]*min-height:\s*2\.5rem/s);
 });
 
+test('top-left trip selector uses an airplane icon and macaron beige background', async () => {
+  const source = await readFile(sourcePath, 'utf8');
+  assert.match(source, /fa-plane/);
+  assert.doesNotMatch(source, /fa-suitcase-rolling/);
+  assert.match(source, /bg-\[#F5E6D3\]/);
+});
+
 test('first-trip onboarding makes the trip form modal visible', async () => {
   const source = (await readFile(sourcePath, 'utf8')).replace(/\r\n?/g, '\n');
   const openFormBody = source.match(/function openForm\(trip\) \{([\s\S]*?)\n  \}\n\n  async function saveTrip/)?.[1] || '';
