@@ -38,8 +38,10 @@ test('core homepage shell is applied without waiting for async enhancement modul
   assert.equal(subtitleRemoved, true);
   assert.equal(addButton.classList.contains('fixed'), true);
   assert.equal(addButton.classList.contains('absolute'), false);
-  assert.equal(userPanel.classList.contains('absolute'), true);
-  assert.equal(userPanel.classList.contains('right-4'), true);
+  assert.equal(userPanel.classList.contains('relative'), true);
+  assert.equal(userPanel.classList.contains('absolute'), false);
+  assert.equal(userPanel.classList.contains('top-4'), false);
+  assert.equal(userPanel.classList.contains('right-4'), false);
   assert.equal(userName.classList.contains('hidden'), true);
   assert.equal(signOut.classList.contains('hidden'), true);
 });
