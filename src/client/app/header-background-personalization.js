@@ -2,10 +2,13 @@ import { createDrivePhotoService, DriveAuthorizationError } from '../photos/driv
 import {
   backgroundKindForMime,
   backgroundLoadKey,
-  isSupportedBackgroundFile,
-  runBackgroundDownload,
-  runBackgroundSaveTransaction
+  isSupportedBackgroundFile
 } from './background-personalization.js';
+import {
+  createBackgroundSlideshowController,
+  runBackgroundPlaylistDownload,
+  runBackgroundPlaylistSaveTransaction
+} from './background-playlist.js';
 import { normalizePersonalization, positionPreset, buildPanStyle } from './personalization-preferences.js';
 import { createSessionOperationTracker } from './session-operation.js';
 
@@ -60,7 +63,7 @@ function installStyles() {
     #header-background-layer .header-background-media {
       width: 100%;
       height: 100%;
-      object-fit: contain;
+      object-fit: cover;
       display: block;
       will-change: transform;
     }
@@ -73,7 +76,7 @@ function installStyles() {
     #header-background-preview-media {
       width: 100%;
       height: 100%;
-      object-fit: contain;
+      object-fit: cover;
       display: block;
       pointer-events: none;
       will-change: transform;
@@ -113,7 +116,7 @@ function ensureEditor() {
       <div class="bg-pastelYellow border-b-4 border-warmBrown px-5 py-4 flex items-center justify-between shrink-0">
         <div>
           <h2 class="text-xl font-bold text-warmBrown">首頁橫幅背景</h2>
-          <p class="text-[11px] text-warmBrown/60 font-bold mt-1">橫式圖片會完整顯示，可自行縮放與調整位置</p>
+          <p class="text-[11px] text-warmBrown/60 font-bold mt-1">圖片會依橫幅寬高鋪滿，可上傳多張輪播</p>
         </div>
         <button id="close-header-background-personalization" type="button" class="w-9 h-9 rounded-full bg-white border-2 border-warmBrown text-warmBrown"><i class="fas fa-times"></i></button>
       </div>
@@ -121,7 +124,7 @@ function ensureEditor() {
         <div id="header-background-preview-viewport" class="relative w-full aspect-[16/9] overflow-hidden rounded-[1.5rem] bg-pastelPink border-2 border-warmBrown shadow-inner">
           <div id="header-background-preview-empty" class="absolute inset-0 flex flex-col items-center justify-center text-warmBrown/45 text-center px-6">
             <i class="fas fa-panorama text-4xl mb-3"></i>
-            <span class="text-sm font-bold">選擇橫式背景後可拖曳調整位置</span>
+            <span class="text-sm font-bold">選擇橫幅背景後可拖曳調整位置</span>
           </div>
         </div>
 
@@ -133,11 +136,22 @@ function ensureEditor() {
         <div class="flex gap-2">
           <label class="flex-1 text-center px-3 py-2.5 rounded-xl bg-pastelGreen border-2 border-warmBrown text-warmBrown font-bold cursor-pointer">
             <i class="fas fa-upload mr-1"></i>選擇橫幅背景
-            <input id="header-background-file-input" type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm" class="hidden">
+            <input id="header-background-file-input" type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm" class="hidden">
           </label>
           <button id="header-background-remove" type="button" class="px-3 py-2.5 rounded-xl bg-pastelPink border-2 border-warmBrown text-warmBrown font-bold">移除</button>
         </div>
         <p id="header-background-file-name" class="text-[11px] text-gray-400 font-bold truncate"></p>
+
+        <div>
+          <div class="flex justify-between items-center mb-2">
+            <label for="header-background-rotation-interval" class="text-sm font-bold text-warmBrown">照片輪播間隔</label>
+            <span class="text-[11px] text-gray-400 font-bold">2–60 秒</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <input id="header-background-rotation-interval" type="number" min="2" max="60" step="1" value="8" class="w-24 px-3 py-2 rounded-xl bg-white border-2 border-warmBrown text-warmBrown font-bold outline-none">
+            <span class="text-sm font-bold text-warmBrown">秒</span>
+          </div>
+        </div>
 
         <div>
           <div class="flex justify-between items-center mb-2">
@@ -160,14 +174,14 @@ function ensureEditor() {
 
         <div class="rounded-2xl bg-shinBg border-2 border-warmBrown p-3 space-y-3">
           <label class="flex items-center justify-between gap-3 text-sm font-bold text-warmBrown">
-            <span>連播</span>
+            <span>畫面平移</span>
             <input id="header-background-pan-enabled" type="checkbox" class="w-5 h-5 accent-[#5C4033]">
           </label>
           <div class="grid grid-cols-2 gap-2">
             <label class="text-xs font-bold text-warmBrown">方向
               <select id="header-background-pan-direction" class="mt-1 w-full px-3 py-2 rounded-xl bg-white border-2 border-warmBrown">
-                <option value="left">往左連播</option>
-                <option value="right">往右連播</option>
+                <option value="left">往左</option>
+                <option value="right">往右</option>
               </select>
             </label>
             <label class="text-xs font-bold text-warmBrown">次數
@@ -229,6 +243,7 @@ export async function initHeaderBackgroundPersonalization() {
   const preview = document.getElementById('header-background-preview-viewport');
   const input = document.getElementById('header-background-file-input');
   const scaleInput = document.getElementById('header-background-scale');
+  const rotationInput = document.getElementById('header-background-rotation-interval');
   const panEnabledInput = document.getElementById('header-background-pan-enabled');
   const panDirectionInput = document.getElementById('header-background-pan-direction');
   const panIterationInput = document.getElementById('header-background-pan-iteration');
@@ -239,10 +254,10 @@ export async function initHeaderBackgroundPersonalization() {
     userId: '',
     preferences: normalizePersonalization(),
     editorPreferences: normalizePersonalization(),
-    pendingFile: null,
+    pendingFiles: [],
     removeRequested: false,
-    objectUrl: '',
-    previewObjectUrl: '',
+    loadedItems: [],
+    previewObjectUrls: [],
     loadedBackgroundKey: '',
     loadingBackgroundKeys: new Set(),
     settingsUnsub: null,
@@ -261,40 +276,59 @@ export async function initHeaderBackgroundPersonalization() {
     return doc(db, 'artifacts', APP_ID, 'users', userId, 'settings', 'preferences');
   }
 
-  function revokeObjectUrl(key) {
-    if (state[key]) URL.revokeObjectURL(state[key]);
-    state[key] = '';
+  const wrap = layer.querySelector('.header-background-pan-wrap');
+  let slideshowPreferences = normalizePersonalization();
+
+  const slideshow = createBackgroundSlideshowController({
+    render: (item) => {
+      wrap.replaceChildren();
+      const kind = backgroundKindForMime(item.mimeType);
+      const media = createHeaderMediaElement(kind, item.objectUrl, slideshowPreferences);
+      wrap.appendChild(media);
+      if (kind === 'video') media.play().catch(() => {});
+    },
+    setIntervalImpl: window.setInterval.bind(window),
+    clearIntervalImpl: window.clearInterval.bind(window)
+  });
+
+  function revokeLoadedItems() {
+    for (const item of state.loadedItems) {
+      if (item?.objectUrl) URL.revokeObjectURL(item.objectUrl);
+    }
+    state.loadedItems = [];
+  }
+
+  function revokePreviewObjectUrls() {
+    for (const url of state.previewObjectUrls) URL.revokeObjectURL(url);
+    state.previewObjectUrls = [];
   }
 
   function hideLayer() {
+    slideshow.stop();
     layer.classList.add('hidden');
-    layer.querySelector('.header-background-pan-wrap').replaceChildren();
+    wrap.replaceChildren();
   }
 
-  function applyLayer(url, preferences) {
+  function applyPlaylist(items, preferences) {
     const normalized = normalizePersonalization(preferences);
-    const wrap = layer.querySelector('.header-background-pan-wrap');
-    wrap.replaceChildren();
-    if (!url || !normalized.backgroundFileId) {
+    if (!items.length) {
       hideLayer();
       return;
     }
-    const kind = backgroundKindForMime(normalized.backgroundMimeType);
-    const media = createHeaderMediaElement(kind, url, normalized);
-    wrap.appendChild(media);
+    slideshowPreferences = normalized;
     const pan = buildPanStyle(normalized);
     wrap.style.animationName = pan.animationName;
     wrap.style.animationIterationCount = pan.animationIterationCount;
     wrap.style.animationPlayState = normalized.panEnabled ? 'running' : 'paused';
     layer.classList.remove('hidden');
-    if (kind === 'video') media.play().catch(() => {});
+    slideshow.start(items, normalized);
   }
 
   async function loadPersistedBackground({ force = false } = {}) {
     const capturedUserId = state.userId;
     const loadKey = backgroundLoadKey(capturedUserId, state.preferences);
     if (!force && loadKey === state.loadedBackgroundKey) {
-      if (state.objectUrl) applyLayer(state.objectUrl, state.preferences);
+      if (state.loadedItems.length) applyPlaylist(state.loadedItems, state.preferences);
       return Object.freeze({ status: 'skipped', loadKey });
     }
     if (state.loadingBackgroundKeys.has(loadKey)) {
@@ -302,7 +336,7 @@ export async function initHeaderBackgroundPersonalization() {
     }
     state.loadingBackgroundKeys.add(loadKey);
     try {
-      const result = await runBackgroundDownload({
+      const result = await runBackgroundPlaylistDownload({
         tracker,
         userId: capturedUserId,
         preferences: state.preferences,
@@ -310,14 +344,14 @@ export async function initHeaderBackgroundPersonalization() {
         createObjectUrl: (blob) => URL.createObjectURL(blob),
         revokeObjectUrl: (url) => URL.revokeObjectURL(url),
         clearBackground: () => {
-          revokeObjectUrl('objectUrl');
+          revokeLoadedItems();
           hideLayer();
         },
         hideBackground: hideLayer,
-        applyBackground: (objectUrl, preferences) => {
-          revokeObjectUrl('objectUrl');
-          state.objectUrl = objectUrl;
-          applyLayer(objectUrl, preferences);
+        applyBackgrounds: (items, preferences) => {
+          revokeLoadedItems();
+          state.loadedItems = items;
+          applyPlaylist(items, preferences);
         },
         onError: (error) => {
           if (!(error instanceof DriveAuthorizationError)) console.error('Header background download failed:', error);
@@ -355,11 +389,12 @@ export async function initHeaderBackgroundPersonalization() {
   }
 
   function currentPreviewUrl() {
-    return state.previewObjectUrl || state.objectUrl;
+    if (state.previewObjectUrls[0]) return state.previewObjectUrls[0];
+    return state.loadedItems[0]?.objectUrl || '';
   }
 
   function currentPreviewMime() {
-    return state.pendingFile?.type || state.editorPreferences.backgroundMimeType;
+    return state.pendingFiles[0]?.type || state.editorPreferences.backgroundFiles[0]?.mimeType || '';
   }
 
   function renderEditorPreview() {
@@ -377,10 +412,12 @@ export async function initHeaderBackgroundPersonalization() {
       if (kind === 'video') media.play().catch(() => {});
     }
 
+    const selectedCount = state.pendingFiles.length || state.editorPreferences.backgroundFiles.length;
     document.getElementById('header-background-file-name').textContent = state.removeRequested
       ? '將移除目前橫幅背景'
-      : (state.pendingFile?.name || state.editorPreferences.backgroundFileName || '');
+      : (selectedCount ? `已設定 ${selectedCount} 個背景檔案` : '');
     scaleInput.value = String(state.editorPreferences.scale);
+    rotationInput.value = String(state.editorPreferences.rotationIntervalSeconds);
     document.getElementById('header-background-scale-value').textContent = `${Math.round(state.editorPreferences.scale * 100)}%`;
     panEnabledInput.checked = state.editorPreferences.panEnabled;
     panDirectionInput.value = state.editorPreferences.panDirection;
@@ -389,54 +426,50 @@ export async function initHeaderBackgroundPersonalization() {
 
   function openEditor() {
     state.editorPreferences = normalizePersonalization(state.preferences);
-    state.pendingFile = null;
+    state.pendingFiles = [];
     state.removeRequested = false;
-    revokeObjectUrl('previewObjectUrl');
+    revokePreviewObjectUrls();
     const activeDrive = driveServiceForUser(state.userId);
-    driveNote.classList.toggle('hidden', !(state.preferences.backgroundFileId && !activeDrive.hasAccessToken()));
+    driveNote.classList.toggle('hidden', !(state.preferences.backgroundFiles.length && !activeDrive.hasAccessToken()));
     renderEditorPreview();
     modal.classList.remove('hidden');
     modal.classList.add('flex');
   }
 
   function closeEditor() {
-    revokeObjectUrl('previewObjectUrl');
-    state.pendingFile = null;
+    revokePreviewObjectUrls();
+    state.pendingFiles = [];
     state.removeRequested = false;
     modal.classList.add('hidden');
     modal.classList.remove('flex');
   }
 
   input.addEventListener('change', () => {
-    const file = input.files?.[0];
+    const files = Array.from(input.files || []);
     input.value = '';
-    if (!file) return;
-    if (!isSupportedBackgroundFile(file)) {
+    if (!files.length) return;
+    if (files.some((file) => !isSupportedBackgroundFile(file))) {
       window.showMsg?.('不支援的檔案', '請選擇 JPG、PNG、WebP、GIF、MP4 或 WebM。', 'warning');
       return;
     }
-    if (file.size > MAX_BACKGROUND_BYTES) {
-      window.showMsg?.('檔案太大', '背景檔案請控制在 100MB 以內。', 'warning');
+    if (files.some((file) => file.size > MAX_BACKGROUND_BYTES)) {
+      window.showMsg?.('檔案太大', '每個背景檔案請控制在 100MB 以內。', 'warning');
       return;
     }
-    revokeObjectUrl('previewObjectUrl');
-    state.pendingFile = file;
+    revokePreviewObjectUrls();
+    state.pendingFiles = files;
     state.removeRequested = false;
-    state.previewObjectUrl = URL.createObjectURL(file);
-    state.editorPreferences = normalizePersonalization({
-      ...state.editorPreferences,
-      backgroundFileName: file.name,
-      backgroundMimeType: file.type
-    });
+    state.previewObjectUrls = files.map((file) => URL.createObjectURL(file));
     renderEditorPreview();
   });
 
   document.getElementById('header-background-remove').addEventListener('click', () => {
-    revokeObjectUrl('previewObjectUrl');
-    state.pendingFile = null;
+    revokePreviewObjectUrls();
+    state.pendingFiles = [];
     state.removeRequested = true;
     state.editorPreferences = normalizePersonalization({
       ...state.editorPreferences,
+      backgroundFiles: [],
       backgroundFileId: '',
       backgroundFileName: '',
       backgroundMimeType: ''
@@ -446,6 +479,14 @@ export async function initHeaderBackgroundPersonalization() {
 
   scaleInput.addEventListener('input', () => {
     state.editorPreferences = normalizePersonalization({ ...state.editorPreferences, scale: scaleInput.value });
+    renderEditorPreview();
+  });
+
+  rotationInput.addEventListener('input', () => {
+    state.editorPreferences = normalizePersonalization({
+      ...state.editorPreferences,
+      rotationIntervalSeconds: rotationInput.value
+    });
     renderEditorPreview();
   });
 
@@ -521,22 +562,22 @@ export async function initHeaderBackgroundPersonalization() {
     const operation = tracker.capture(state.userId);
     const capturedSettingsRef = settingsRef(operation.userId);
     const capturedEditorPreferences = normalizePersonalization(state.editorPreferences);
-    const capturedPendingFile = state.pendingFile;
+    const capturedPendingFiles = state.pendingFiles.slice();
     const capturedRemoveRequested = state.removeRequested;
-    const oldFileId = state.preferences.backgroundFileId;
+    const oldFiles = state.preferences.backgroundFiles.slice();
     const capturedDrive = driveServiceForUser(operation.userId);
     saveButton.disabled = true;
 
     try {
-      await runBackgroundSaveTransaction({
+      await runBackgroundPlaylistSaveTransaction({
         tracker,
         operation,
         getCurrentUserId: () => state.userId,
         capturedSettingsRef,
         editorPreferences: capturedEditorPreferences,
-        pendingFile: capturedPendingFile,
+        pendingFiles: capturedPendingFiles,
         removeRequested: capturedRemoveRequested,
-        oldFileId,
+        oldFiles,
         uploadKind: HEADER_BACKGROUND_UPLOAD.kind,
         driveService: capturedDrive,
         connectDrive,
@@ -573,8 +614,8 @@ export async function initHeaderBackgroundPersonalization() {
     hideLayer();
     state.settingsUnsub?.();
     state.settingsUnsub = null;
-    revokeObjectUrl('objectUrl');
-    revokeObjectUrl('previewObjectUrl');
+    revokeLoadedItems();
+    revokePreviewObjectUrls();
     state.loadedBackgroundKey = '';
     state.loadingBackgroundKeys.clear();
     state.userId = user?.uid || '';
