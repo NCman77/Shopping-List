@@ -61,7 +61,6 @@ export async function initFilterPicker() {
   const state = {
     activeType: '',
     query: '',
-    selected: { category: 'all', location: 'all' },
     scheduled: false
   };
 
@@ -69,11 +68,11 @@ export async function initFilterPicker() {
     if (document.getElementById('filter-picker-modal')) return;
     const modal = document.createElement('div');
     modal.id = 'filter-picker-modal';
-    modal.className = 'fixed inset-0 z-[125] hidden bg-warmBrown/45 backdrop-blur-sm px-4 items-end sm:items-center justify-center';
+    modal.className = 'fixed inset-0 z-[125] hidden bg-warmBrown/45 backdrop-blur-sm px-4 items-center justify-center';
     modal.innerHTML = `
-      <div class="w-full max-w-md max-h-[82vh] bg-white border-4 border-warmBrown rounded-t-[2rem] sm:rounded-[2rem] shadow-[8px_8px_0_rgba(92,64,51,0.25)] overflow-hidden">
+      <div class="w-full max-w-md max-h-[82vh] bg-white border-4 border-warmBrown rounded-[2rem] shadow-[8px_8px_0_rgba(92,64,51,0.25)] overflow-hidden">
         <div class="px-5 py-4 bg-pastelYellow border-b-4 border-warmBrown flex items-center justify-between gap-3">
-          <div class="min-w-0"><h3 id="filter-picker-title" class="font-bold text-warmBrown text-lg">選擇項目</h3><p class="text-[11px] text-warmBrown/60">一次查看目前旅程可用的選項</p></div>
+          <div class="min-w-0"><h3 id="filter-picker-title" class="font-bold text-warmBrown text-lg">選擇項目</h3><p class="text-[11px] text-warmBrown/60">可複選；再點一次即可取消</p></div>
           <div class="flex items-center gap-2 shrink-0">
             <button id="filter-picker-manage" type="button" class="px-3 h-9 rounded-full bg-white/80 border-2 border-warmBrown text-warmBrown text-xs font-bold"><i class="fas fa-sliders-h mr-1"></i>管理</button>
             <button id="filter-picker-close" type="button" class="w-9 h-9 rounded-full bg-white border-2 border-warmBrown text-warmBrown"><i class="fas fa-times"></i></button>
@@ -124,7 +123,13 @@ export async function initFilterPicker() {
         label: clean(sourceButton.dataset?.filterPickerLabel || sourceButton.textContent) || clean(sourceButton.dataset?.[config.dataKey]),
         sourceButton
       }))
-      .filter((option) => option.value && option.label);
+      .filter((option) => option.value && option.value !== 'all' && option.label);
+  }
+
+  function selectedValues(type) {
+    return collectOptions(type)
+      .filter((option) => option.sourceButton.getAttribute('aria-pressed') === 'true')
+      .map((option) => option.value);
   }
 
   function renderOptions() {
@@ -142,7 +147,7 @@ export async function initFilterPicker() {
     }
 
     for (const option of options) {
-      const selected = state.selected[state.activeType] === option.value;
+      const selected = option.sourceButton.getAttribute('aria-pressed') === 'true';
       const button = document.createElement('button');
       button.type = 'button';
       button.className = `px-4 py-3 rounded-2xl border-2 border-warmBrown text-left font-bold text-warmBrown transition-all ${selected ? 'bg-pastelYellow shadow-[2px_2px_0_rgba(92,64,51,.25)]' : 'bg-white hover:bg-shinBg'}`;
@@ -154,9 +159,9 @@ export async function initFilterPicker() {
           renderOptions();
           return;
         }
-        state.selected[state.activeType] = option.value;
         sourceButton.click();
-        closeModal();
+        renderOptions();
+        ensureClearChip(state.activeType);
       });
       container.appendChild(button);
     }
@@ -199,10 +204,31 @@ export async function initFilterPicker() {
     }, true);
   }
 
+  function ensureClearChip(type) {
+    const config = FILTERS[type];
+    const root = config ? document.getElementById(config.rootId) : null;
+    const allButton = allButtonFor(type);
+    if (!root || !allButton) return;
+    let button = root.querySelector(`[data-filter-picker-clear="${type}"]`);
+    if (!button) {
+      button = document.createElement('button');
+      button.type = 'button';
+      button.dataset.filterPickerClear = type;
+      button.className = 'px-3 py-1.5 rounded-full border-2 border-warmBrown text-xs font-bold whitespace-nowrap bg-white text-warmBrown shadow-[2px_2px_0_rgba(92,64,51,.12)]';
+      button.innerHTML = '<i class="fas fa-xmark mr-1"></i>清除';
+      button.addEventListener('click', () => {
+        window.dispatchEvent(new CustomEvent('shopping-list:clear-home-filter', { detail: { kind: type } }));
+      });
+      allButton.insertAdjacentElement('afterend', button);
+    }
+    const count = selectedValues(type).length;
+    button.classList.toggle('hidden', count === 0);
+    button.setAttribute('aria-label', count ? `清除 ${count} 個已選項目` : '沒有已選項目');
+  }
+
   function selectAllWithoutPicker(type) {
     const button = allButtonFor(type);
     if (!button) return;
-    state.selected[type] = 'all';
     button.click();
   }
 
@@ -210,6 +236,8 @@ export async function initFilterPicker() {
     state.scheduled = false;
     enhanceAllChip('category');
     enhanceAllChip('location');
+    ensureClearChip('category');
+    ensureClearChip('location');
     if (state.activeType) renderOptions();
   }
 
@@ -221,14 +249,14 @@ export async function initFilterPicker() {
 
   document.addEventListener('click', (event) => {
     const category = event.target.closest?.('#category-filters .cat-btn');
-    if (category && !category.classList.contains('hidden')) {
-      state.selected.category = clean(category.getAttribute('data-cat') || category.dataset.cat) || 'all';
-      return;
-    }
     const location = event.target.closest?.('#location-filters .loc-btn');
-    if (location && !location.classList.contains('hidden')) {
-      state.selected.location = clean(location.getAttribute('data-loc') || location.dataset.loc) || 'all';
+    if ((category && !category.classList.contains('hidden')) || (location && !location.classList.contains('hidden'))) {
+      scheduleEnsure();
     }
+  });
+
+  window.addEventListener('shopping-list:home-filter-changed', () => {
+    scheduleEnsure();
   });
 
   window.addEventListener('shopping-list:active-trip-changed', () => {
@@ -243,8 +271,8 @@ export async function initFilterPicker() {
   });
 
   const observer = new MutationObserver(scheduleEnsure);
-  observer.observe(categoryRoot, { childList: true, subtree: false, attributes: true, attributeFilter: ['class'] });
-  observer.observe(locationRoot, { childList: true, subtree: false, attributes: true, attributeFilter: ['class'] });
+  observer.observe(categoryRoot, { childList: true, subtree: false, attributes: true, attributeFilter: ['class', 'aria-pressed'] });
+  observer.observe(locationRoot, { childList: true, subtree: false, attributes: true, attributeFilter: ['class', 'aria-pressed'] });
 
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && !document.getElementById('filter-picker-modal')?.classList.contains('hidden')) closeModal();
