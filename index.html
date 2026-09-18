@@ -30,6 +30,40 @@
         }
     </script>
     <style>
+        :root {
+            --homepage-pager-inset: max(.5rem, env(safe-area-inset-bottom, 0px));
+        }
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            overscroll-behavior: none;
+        }
+        body {
+            min-height: 100vh;
+            height: 100vh;
+        }
+        #shopping-app-shell {
+            height: 100%;
+            max-height: 100%;
+            overflow: hidden;
+        }
+        #item-list {
+            padding-bottom: calc(3.25rem + var(--homepage-pager-inset));
+            overscroll-behavior: contain;
+            -webkit-overflow-scrolling: touch;
+        }
+        @supports (height: 100dvh) {
+            body {
+                min-height: 100dvh;
+                height: 100dvh;
+            }
+            #shopping-app-shell {
+                height: 100dvh;
+                max-height: 100dvh;
+            }
+        }
+
         .no-scrollbar::-webkit-scrollbar {
             display: none;
         }
@@ -99,9 +133,9 @@
         }
     </style>
 </head>
-<body class="bg-gray-100 text-shinText font-sans antialiased h-screen flex justify-center">
+<body class="bg-gray-100 text-shinText font-sans antialiased flex justify-center overflow-hidden">
 
-<div class="w-full max-w-md bg-shinBg h-full flex flex-col relative border-x-4 border-warmBrown overflow-hidden shadow-xl">
+<div id="shopping-app-shell" class="w-full max-w-md bg-shinBg flex flex-col relative border-x-4 border-warmBrown overflow-hidden shadow-xl">
     
     <header class="bg-pastelPink text-warmBrown px-4 h-[196px] shrink-0 border-b-4 border-warmBrown relative z-20 flex flex-col items-center justify-center">
         <div id="header-toolbar" class="absolute top-0 left-0 right-0 h-[52px] z-30 flex items-center justify-between px-3">
@@ -164,7 +198,7 @@
     </div>
 
     <!-- 列表區塊 -->
-    <main class="flex-1 overflow-y-auto px-4 pb-20 pt-2" id="item-list">
+    <main class="flex-1 min-h-0 overflow-y-auto px-4 pt-2" id="item-list">
         <div id="loading-indicator" class="flex flex-col items-center justify-center h-full text-warmBrown">
             <i class="fas fa-circle-notch fa-spin text-4xl mb-3 text-pastelOrange"></i>
             <p class="font-bold">努力載入中...</p>
