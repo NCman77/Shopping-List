@@ -287,11 +287,11 @@ test('auth reset advances generation and restores the editor, layer, and save bu
   assert.equal(layerVisible, false);
 });
 
-test('browser handlers delegate download, save, and auth reset to the tested orchestrators', async () => {
+test('browser handlers delegate playlist download, playlist save, and auth reset to the tested orchestrators', async () => {
   const source = await readFile(new URL('../../src/client/app/background-personalization.js', import.meta.url), 'utf8');
   const init = source.slice(source.indexOf('export async function initBackgroundPersonalization'));
-  assert.match(init, /runBackgroundDownload\(\{/);
-  assert.match(init, /runBackgroundSaveTransaction\(\{/);
+  assert.match(init, /runBackgroundPlaylistDownload\(\{/);
+  assert.match(init, /runBackgroundPlaylistSaveTransaction\(\{/);
   assert.match(init, /resetBackgroundSessionUi\(\{/);
 });
 
