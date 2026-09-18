@@ -13,6 +13,7 @@ const app = read('src/client/app/app-enhancements.js');
 const home = read('src/client/app/home-ui-enhancements.js');
 const auth = read('src/client/app/auth-session.js');
 const photoVisibility = read('src/client/photos/photo-visibility-enhancements.js');
+const driveSignin = read('src/client/auth/google-drive-signin.js');
 
 test('core shopping-list DOM anchors still exist after the refactor', () => {
   for (const id of ['auth-gate', 'user-panel', 'user-avatar', 'category-filters', 'location-filters', 'item-list', 'add-item-btn', 'add-modal', 'item-photo']) {
@@ -21,9 +22,14 @@ test('core shopping-list DOM anchors still exist after the refactor', () => {
 });
 
 test('existing enhanced item features remain wired', () => {
+  for (const marker of ['item-website', 'item-address', '觀看介紹', 'itemPhotos', 'connectGoogleDrive', 'configureGoogleProviderForDrive']) {
+    assert.match(app, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, '\\test('existing enhanced item features remain wired', () => {
   for (const marker of ['item-website', 'item-address', '觀看介紹', 'drive.appdata', 'itemPhotos', 'connectGoogleDrive']) {
     assert.match(app, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), `missing app marker ${marker}`);
   }
+});')), `missing app marker ${marker}`);
+  }
+  assert.match(driveSignin, /drive\.appdata/);
 });
 
 test('homepage management and isolated startup remain wired', () => {
