@@ -103,20 +103,19 @@
 
 <div class="w-full max-w-md bg-shinBg h-full flex flex-col relative border-x-4 border-warmBrown overflow-hidden shadow-xl">
     
-    <header class="bg-pastelPink text-warmBrown px-4 h-36 shrink-0 border-b-4 border-warmBrown relative z-20 flex flex-col items-center justify-center">
-        <div class="absolute top-4 left-4 w-4 h-4 rounded-full bg-pastelYellow border-2 border-warmBrown"></div>
-        <div class="absolute top-8 right-6 w-3 h-3 rounded-full bg-pastelBlue border-2 border-warmBrown"></div>
-        <div class="absolute bottom-4 right-10 w-5 h-5 rounded-full bg-pastelGreen border-2 border-warmBrown"></div>
+    <header class="bg-pastelPink text-warmBrown px-4 h-[196px] shrink-0 border-b-4 border-warmBrown relative z-20 flex flex-col items-center justify-center">
+        <div id="header-toolbar" class="absolute top-0 left-0 right-0 h-[52px] z-30 flex items-center justify-between px-3">
+            <div id="user-panel" class="hidden items-center gap-2 bg-white/60 backdrop-blur-md border border-white/70 rounded-full p-0.5 shadow-[0_2px_10px_rgba(0,0,0,.12)] relative z-10 max-w-full">
+                <img id="user-avatar" alt="Google 帳號頭像" class="hidden w-8 h-8 rounded-full border-2 border-warmBrown object-cover">
+                <div id="user-avatar-fallback" class="w-8 h-8 rounded-full border-2 border-warmBrown bg-pastelYellow flex items-center justify-center">
+                    <i class="fas fa-user text-sm"></i>
+                </div>
+                <span id="user-name" class="text-xs font-bold truncate max-w-32"></span>
+                <button id="sign-out-btn" type="button" class="px-3 py-1.5 rounded-full bg-pastelBlue border-2 border-warmBrown text-xs font-bold hover:bg-blue-200 active:translate-y-0.5 transition-all">登出</button>
+            </div>
+        </div>
 
         <p class="text-xs font-bold tracking-widest uppercase bg-white text-warmBrown px-3 py-1 rounded-full border-2 border-warmBrown shadow-[2px_2px_0_rgba(92,64,51,1)]">Shin-chan Style</p>
-        <div id="user-panel" class="hidden items-center gap-2 mt-4 bg-white/90 border-2 border-warmBrown rounded-full py-1.5 pl-2 pr-1.5 shadow-[2px_2px_0_rgba(92,64,51,1)] relative z-10 max-w-full">
-            <img id="user-avatar" alt="Google 帳號頭像" class="hidden w-8 h-8 rounded-full border-2 border-warmBrown object-cover">
-            <div id="user-avatar-fallback" class="w-8 h-8 rounded-full border-2 border-warmBrown bg-pastelYellow flex items-center justify-center">
-                <i class="fas fa-user text-sm"></i>
-            </div>
-            <span id="user-name" class="text-xs font-bold truncate max-w-32"></span>
-            <button id="sign-out-btn" type="button" class="px-3 py-1.5 rounded-full bg-pastelBlue border-2 border-warmBrown text-xs font-bold hover:bg-blue-200 active:translate-y-0.5 transition-all">登出</button>
-        </div>
     </header>
 
     <div id="auth-gate" class="absolute inset-0 z-[45] bg-shinBg flex items-center justify-center px-6">
