@@ -125,8 +125,17 @@ test('travel country subpage hides the account header and restores it when retur
   const rootBody = source.match(/function showRootView\(\) \{([\s\S]*?)\n  \}/)?.[1] || '';
   const countryBody = source.match(/function showCountryView\(\) \{([\s\S]*?)\n  \}/)?.[1] || '';
 
-  assert.match(rootBody, /accountHeader\.classList\.remove\('hidden'\)/);
-  assert.match(countryBody, /accountHeader\.classList\.add\('hidden'\)/);
-  assert.match(source, /<h3 class="font-bold text-warmBrown">旅遊國家<\/h3>/);
+  assert.match(rootBody, /accountHeader\.style\.display = ''/);
+  assert.match(countryBody, /accountHeader\.style\.display = 'none'/);
+  assert.match(source, /<h3 class="text-xl font-bold text-warmBrown">旅遊國家<\/h3>/);
   assert.match(source, /國家管理 · 新旅程建立時可從這裡的清單選擇/);
+});
+
+
+test('travel country header matches personalization header styling and country rows show an earth icon', async () => {
+  const source = await readFile(new URL('../../src/client/app/account-settings.js', import.meta.url), 'utf8');
+  assert.match(source, /account-country-view[\s\S]*?bg-pastelBlue border-b-4 border-warmBrown px-5 py-4/s);
+  assert.match(source, /<h3 class="text-xl font-bold text-warmBrown">旅遊國家<\/h3>/);
+  assert.match(source, /國家管理 · 新旅程建立時可從這裡的清單選擇/);
+  assert.match(source, /fa-earth-asia/);
 });
