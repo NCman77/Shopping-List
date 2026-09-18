@@ -6,6 +6,7 @@ import {
 } from './background-personalization.js';
 import {
   createBackgroundSlideshowController,
+  reorderBackgroundFiles,
   runBackgroundPlaylistDownload,
   runBackgroundPlaylistSaveTransaction
 } from './background-playlist.js';
@@ -16,6 +17,8 @@ const APP_ID = 'japan-shopping-app';
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
 const MAX_BACKGROUND_BYTES = 100 * 1024 * 1024;
 const HEADER_BACKGROUND_UPLOAD = Object.freeze({ kind: 'header-background' });
+const HEADER_OVERSCAN_PERCENT = 12;
+const LONG_PRESS_MS = 450;
 
 function waitFor(predicate, timeout = 10000) {
   return new Promise((resolve, reject) => {
@@ -57,8 +60,11 @@ function installStyles() {
       overflow: hidden;
     }
     #header-background-layer .header-background-media {
-      width: 100%;
-      height: 100%;
+      position: absolute;
+      width: calc(100% + ${HEADER_OVERSCAN_PERCENT}%);
+      height: calc(100% + ${HEADER_OVERSCAN_PERCENT}%);
+      left: calc(${HEADER_OVERSCAN_PERCENT}% / -2);
+      top: calc(${HEADER_OVERSCAN_PERCENT}% / -2);
       object-fit: cover;
       display: block;
       will-change: transform;
@@ -70,12 +76,27 @@ function installStyles() {
     }
     #header-background-preview-viewport.dragging { cursor: grabbing; }
     #header-background-preview-media {
-      width: 100%;
-      height: 100%;
+      position: absolute;
+      width: calc(100% + ${HEADER_OVERSCAN_PERCENT}%);
+      height: calc(100% + ${HEADER_OVERSCAN_PERCENT}%);
+      left: calc(${HEADER_OVERSCAN_PERCENT}% / -2);
+      top: calc(${HEADER_OVERSCAN_PERCENT}% / -2);
       object-fit: cover;
       display: block;
       pointer-events: none;
       will-change: transform;
+    }
+    #header-background-auth-required {
+      position: absolute;
+      left: 50%;
+      bottom: 1rem;
+      transform: translateX(-50%);
+      z-index: 25;
+      pointer-events: auto;
+    }
+    #header-background-thumbnails.reordering [data-header-background-index] {
+      touch-action: none;
+      cursor: grabbing;
     }
   `;
   document.head.appendChild(style);
@@ -89,6 +110,14 @@ function ensureHeaderLayer(header) {
     layer.className = 'hidden';
     layer.innerHTML = '<div class="header-background-pan-wrap"></div>';
     header.prepend(layer);
+  }
+  if (!document.getElementById('header-background-auth-required')) {
+    const reconnect = document.createElement('button');
+    reconnect.id = 'header-background-auth-required';
+    reconnect.type = 'button';
+    reconnect.className = 'hidden px-3 py-1.5 rounded-full bg-white/55 backdrop-blur-md border border-white/75 text-warmBrown text-xs font-bold shadow-[0_2px_10px_rgba(0,0,0,.12)]';
+    reconnect.innerHTML = '<i class="fab fa-google-drive mr-1"></i>顯示橫幅背景';
+    header.appendChild(reconnect);
   }
   header.style.overflow = 'hidden';
   return layer;
@@ -121,13 +150,12 @@ function ensureEditor() {
           <button id="header-background-drive-connect" type="button" class="ml-1 underline">重新連結</button>
         </div>
 
-        <div class="flex gap-2">
-          <label class="flex-1 text-center px-3 py-2.5 rounded-xl bg-pastelGreen border-2 border-warmBrown text-warmBrown font-bold cursor-pointer">
-            <i class="fas fa-upload mr-1"></i>選擇橫幅背景
-            <input id="header-background-file-input" type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm" class="hidden">
-          </label>
-          <button id="header-background-remove" type="button" class="px-3 py-2.5 rounded-xl bg-pastelPink border-2 border-warmBrown text-warmBrown font-bold">移除</button>
+        <div class="grid grid-cols-2 gap-2">
+          <button id="header-background-replace" type="button" class="text-center px-3 py-2.5 rounded-xl bg-pastelYellow border-2 border-warmBrown text-warmBrown font-bold"><i class="fas fa-rotate mr-1"></i>重新上傳</button>
+          <button id="header-background-append" type="button" class="text-center px-3 py-2.5 rounded-xl bg-pastelGreen border-2 border-warmBrown text-warmBrown font-bold"><i class="fas fa-plus mr-1"></i>繼續上傳</button>
+          <input id="header-background-file-input" type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm" class="hidden">
         </div>
+        <button id="header-background-remove" type="button" class="w-full px-3 py-2 rounded-xl bg-pastelPink border-2 border-warmBrown text-warmBrown text-sm font-bold">移除全部橫幅</button>
         <p id="header-background-file-name" class="text-[11px] text-gray-400 font-bold truncate"></p>
         <div id="header-background-thumbnails" class="flex gap-2 overflow-x-auto pb-1"></div>
         <button id="header-background-delete-current" type="button" class="w-full py-2 rounded-xl bg-white border-2 border-warmBrown text-warmBrown text-sm font-bold">刪除目前這張</button>
