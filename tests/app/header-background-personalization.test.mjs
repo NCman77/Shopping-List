@@ -93,3 +93,20 @@ test('header background exposes a reconnect action when a browser has no Drive t
   assert.match(source, /authorization-required/);
   assert.match(source, /connectDrive/);
 });
+
+
+test('header preview overscan is not clamped by global image max-width and supports pinch zoom', async () => {
+  const source = await sourceOrFail('../../src/client/app/header-background-personalization.js', 'header background module is missing');
+  assert.match(source, /#header-background-preview-media\s*\{[\s\S]*max-width:\s*none[\s\S]*max-height:\s*none/);
+  assert.match(source, /\.header-background-media\s*\{[\s\S]*max-width:\s*none[\s\S]*max-height:\s*none/);
+  assert.match(source, /scaleForPinch/);
+  assert.match(source, /previewPointers/);
+  assert.match(source, /pinch/);
+});
+
+test('pinch scale follows finger distance and clamps to the supported 1x-3x range', async () => {
+  const mod = await import('../../src/client/app/header-background-personalization.js');
+  assert.equal(mod.scaleForPinch({ startScale: 1, startDistance: 100, currentDistance: 150 }), 1.5);
+  assert.equal(mod.scaleForPinch({ startScale: 2.5, startDistance: 100, currentDistance: 200 }), 3);
+  assert.equal(mod.scaleForPinch({ startScale: 1.2, startDistance: 100, currentDistance: 10 }), 1);
+});
