@@ -11,6 +11,16 @@ export function reorderBackgroundFiles(files = [], fromIndex, toIndex) {
   return source;
 }
 
+function defaultYieldToBrowser() {
+  return new Promise((resolve) => {
+    if (typeof globalThis.requestIdleCallback === 'function') {
+      globalThis.requestIdleCallback(() => resolve(), { timeout: 300 });
+      return;
+    }
+    setTimeout(resolve, 0);
+  });
+}
+
 async function cleanupDriveFile(driveService, fileId) {
   if (!fileId) return;
   try {
@@ -30,7 +40,8 @@ export async function runBackgroundPlaylistDownload({
   clearBackground,
   hideBackground,
   applyBackgrounds,
-  onError = () => {}
+  onError = () => {},
+  yieldToBrowser = defaultYieldToBrowser
 }) {
   const operation = tracker.nextRequest('background-playlist-load', userId);
   const capturedPreferences = normalizePersonalization(preferences);
@@ -47,7 +58,19 @@ export async function runBackgroundPlaylistDownload({
 
   const items = [];
   try {
-    for (const file of files) {
+    const firstFile = files[0];
+    const firstBlob = await driveService.downloadPhoto(firstFile.fileId);
+    items.push({ ...firstFile, objectUrl: createObjectUrl(firstBlob) });
+    if (!tracker.isLatestRequest(operation, userId)) {
+      items.forEach((item) => revokeObjectUrl(item.objectUrl));
+      return Object.freeze({ status: 'stale', operation, items: [] });
+    }
+
+    applyBackgrounds(items.slice(), capturedPreferences);
+
+    if (files.length > 1) await yieldToBrowser();
+
+    for (const file of files.slice(1)) {
       const blob = await driveService.downloadPhoto(file.fileId);
       const objectUrl = createObjectUrl(blob);
       items.push({ ...file, objectUrl });
@@ -56,14 +79,19 @@ export async function runBackgroundPlaylistDownload({
         return Object.freeze({ status: 'stale', operation, items: [] });
       }
     }
-    applyBackgrounds(items, capturedPreferences);
+
+    if (items.length > 1) applyBackgrounds(items, capturedPreferences);
     return Object.freeze({ status: 'applied', operation, items });
   } catch (error) {
-    items.forEach((item) => revokeObjectUrl(item.objectUrl));
     if (!tracker.isLatestRequest(operation, userId)) {
+      items.forEach((item) => revokeObjectUrl(item.objectUrl));
       return Object.freeze({ status: 'stale', operation, items: [] });
     }
     onError(error);
+    if (items.length) {
+      applyBackgrounds(items, capturedPreferences);
+      return Object.freeze({ status: 'applied', operation, items, partial: true, error });
+    }
     hideBackground();
     return Object.freeze({ status: 'error', operation, error, items: [] });
   }
