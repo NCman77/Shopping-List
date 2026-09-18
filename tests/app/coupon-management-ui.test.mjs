@@ -71,3 +71,12 @@ test('coupon management top-level header matches personalization styling and cou
   assert.match(text, /coupon-country-icon/);
   assert.match(text, /fa-earth-asia/);
 });
+
+
+test('coupon management country rows use the shared PNG country flag renderer', async () => {
+  const text = await source();
+  const render = text.match(/function renderCountries\(\) \{([\s\S]*?)\n  \}\n\n  function renderList/)?.[1] || '';
+  assert.match(text, /createCountryFlagElement/);
+  assert.match(render, /createCountryFlagElement\(documentRef,\s*country/);
+  assert.doesNotMatch(render, /fa-earth-asia/);
+});
