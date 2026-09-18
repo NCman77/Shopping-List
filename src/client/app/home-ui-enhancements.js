@@ -44,6 +44,9 @@ function installStyles() {
       width: 2.5rem !important;
       height: 2.5rem !important;
       margin: 0 !important;
+      margin-left: auto !important;
+      align-self: center;
+      flex: 0 0 2.5rem;
       padding: 0 !important;
       border: 1px solid rgba(255,255,255,.72) !important;
       border-radius: 9999px !important;
