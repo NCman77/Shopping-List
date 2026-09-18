@@ -127,8 +127,11 @@ test('header thumbnail reorder keeps the captured DOM node alive until pointer r
   const source = await sourceOrFail('../../src/client/app/header-background-personalization.js', 'header background module is missing');
   assert.match(source, /moveThumbnailDom/);
   const moveStart = source.indexOf("thumbnailsRoot.addEventListener('pointermove'");
-  const finishStart = source.indexOf('function finishThumbnailReorder', moveStart);
-  const moveHandler = source.slice(moveStart, finishStart > moveStart ? finishStart : source.length);
+  const moveEnd = source.indexOf("thumbnailsRoot.addEventListener('pointerup'", moveStart);
+  const moveHandler = source.slice(moveStart, moveEnd > moveStart ? moveEnd : source.length);
   assert.doesNotMatch(moveHandler, /renderEditorPreview\(\)/);
-  assert.match(source, /finishThumbnailReorder[\s\S]*renderEditorPreview\(\)/);
+  const finishStart = source.indexOf('function finishThumbnailReorder');
+  const finishEnd = source.indexOf("thumbnailsRoot.addEventListener('pointerdown'", finishStart);
+  const finishHandler = source.slice(finishStart, finishEnd > finishStart ? finishEnd : source.length);
+  assert.match(finishHandler, /renderEditorPreview\(\)/);
 });
