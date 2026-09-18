@@ -193,3 +193,13 @@ test('travel records header matches personalization styling and trip rows show a
   assert.match(source, /trip-row-icon/);
   assert.match(source, /fa-plane/);
 });
+
+
+test('trip picker routes creation through management instead of showing a duplicate add-trip action', async () => {
+  const source = await readFile(sourcePath, 'utf8');
+  const picker = source.match(/function renderPicker\(\) \{([\s\S]*?)\n  \}\n\n  function renderManage/)?.[1] || '';
+  const manage = source.match(/function renderManage\(\) \{([\s\S]*?)\n  \}\n\n  function renderCountryOptions/)?.[1] || '';
+  assert.doesNotMatch(picker, /＋ 新增旅程/);
+  assert.match(picker, /管理旅遊紀錄/);
+  assert.match(manage, /＋ 新增旅程/);
+});
