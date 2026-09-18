@@ -135,3 +135,23 @@ test('header thumbnail reorder keeps the captured DOM node alive until pointer r
   const finishHandler = source.slice(finishStart, finishEnd > finishStart ? finishEnd : source.length);
   assert.match(finishHandler, /renderEditorPreview\(\)/);
 });
+
+
+test('header background editor uses the unified color and custom-image tabs with reusable color controls', async () => {
+  const source = await sourceOrFail('../../src/client/app/header-background-personalization.js', 'header background module is missing');
+  assert.match(source, /data-header-background-mode="color"[^>]*>單色</);
+  assert.match(source, /data-header-background-mode="media"[^>]*>自訂圖片</);
+  assert.match(source, /header-background-color-panel/);
+  assert.match(source, /header-background-color-hex/);
+  assert.match(source, /header-background-color-presets/);
+  assert.match(source, /header-background-reset-default/);
+  assert.match(source, /#FCD5CE/);
+  assert.match(source, /header-background-back/);
+  assert.match(source, /shopping-list:open-personalization/);
+});
+
+test('header custom-image mode remains multi-photo with slideshow support', async () => {
+  const source = await sourceOrFail('../../src/client/app/header-background-personalization.js', 'header background module is missing');
+  assert.match(source, /id="header-background-file-input"[^>]*multiple/);
+  assert.match(source, /id="header-background-rotation-interval"/);
+});
