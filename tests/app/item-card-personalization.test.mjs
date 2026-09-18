@@ -10,13 +10,21 @@ async function sourceOrFail(path, message) {
   }
 }
 
-test('item card personalization supports default, solid color, and media modes', async () => {
+test('item card editor exposes only the unified solid-color and custom-image tabs', async () => {
   const source = await sourceOrFail('../../src/client/app/item-card-personalization.js', 'item card personalization module is missing');
   assert.match(source, /itemCardPersonalization/);
-  assert.match(source, /mode:\s*['"]color['"]/);
-  assert.match(source, /mode:\s*['"]media['"]/);
+  assert.match(source, /data-item-card-mode="color"[^>]*>單色</);
+  assert.match(source, /data-item-card-mode="media"[^>]*>自訂圖片</);
+  assert.doesNotMatch(source, /data-item-card-mode="default"/);
   assert.match(source, /type="color"/);
+  assert.match(source, /item-card-background-color-hex/);
+  assert.match(source, /item-card-background-color-presets/);
+  assert.match(source, /item-card-background-reset-default/);
+  assert.match(source, /#FFFFFF/);
+  assert.match(source, /item-card-background-back/);
+  assert.match(source, /shopping-list:open-personalization/);
   assert.match(source, /accept="image\/jpeg,image\/png,image\/webp"/);
+  assert.doesNotMatch(source, /id="item-card-background-file"[^>]*multiple/);
   assert.match(source, /item-card-background-scale/);
   assert.match(source, /data-item-card-position-preset/);
 });
