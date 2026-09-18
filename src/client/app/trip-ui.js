@@ -163,7 +163,7 @@ function ensureModal() {
     <div class="w-full max-w-md max-h-[88vh] overflow-hidden bg-shinBg border-4 border-warmBrown rounded-[2rem] shadow-[8px_8px_0_rgba(92,64,51,.28)]">
       <div id="trip-modal-header" class="bg-pastelBlue border-b-4 border-warmBrown px-5 py-4 flex items-center justify-between">
         <button id="trip-modal-back" type="button" class="hidden w-9 h-9 rounded-full bg-white border-2 border-warmBrown text-warmBrown"><i class="fas fa-chevron-left"></i></button>
-        <div class="flex-1 px-3"><h2 id="trip-modal-title" class="text-xl font-bold text-warmBrown">選擇旅程</h2><p id="trip-modal-subtitle" class="text-[11px] text-warmBrown/60 font-bold mt-1"></p></div>
+        <div class="flex-1 px-3"><h2 id="trip-modal-title" class="text-xl font-bold text-warmBrown">選擇旅程</h2><p id="trip-modal-subtitle" class="hidden"></p></div>
         <button id="trip-modal-close" type="button" class="w-9 h-9 rounded-full bg-white border-2 border-warmBrown text-warmBrown"><i class="fas fa-times"></i></button>
       </div>
       <div id="trip-picker-view" class="p-4 bg-white overflow-y-auto max-h-[70vh]"></div>
@@ -234,7 +234,7 @@ export async function initTripUi() {
     formView.classList.toggle('hidden', view !== 'form');
     backButton.classList.toggle('hidden', view === 'picker' && !state.openedFromSettings);
     document.getElementById('trip-modal-title').textContent = view === 'picker' ? '選擇旅程' : view === 'manage' ? '旅遊紀錄' : (state.editingTripId ? '編輯旅程' : '新增旅程');
-    document.getElementById('trip-modal-subtitle').textContent = view === 'picker' ? '目前商品只會顯示在選定的這一趟' : '';
+    document.getElementById('trip-modal-subtitle').textContent = '';
   }
 
   function openModal(view = 'picker', { fromSettings = false } = {}) {
@@ -360,18 +360,13 @@ export async function initTripUi() {
     }
 
     const actions = document.createElement('div');
-    actions.className = 'grid grid-cols-2 gap-2 mt-4 pt-4 border-t-2 border-warmBrown/10';
-    const add = document.createElement('button');
-    add.type = 'button';
-    add.className = 'py-2.5 rounded-xl bg-pastelGreen border-2 border-warmBrown text-warmBrown text-sm font-bold';
-    add.textContent = '＋ 新增旅程';
-    add.addEventListener('click', () => openForm(null));
+    actions.className = 'grid grid-cols-1 gap-2 mt-4 pt-4 border-t-2 border-warmBrown/10';
     const manage = document.createElement('button');
     manage.type = 'button';
     manage.className = 'py-2.5 rounded-xl bg-pastelBlue border-2 border-warmBrown text-warmBrown text-sm font-bold';
     manage.textContent = '管理旅遊紀錄';
     manage.addEventListener('click', () => { setView('manage'); renderManage(); });
-    actions.append(add, manage);
+    actions.append(manage);
     pickerView.appendChild(actions);
   }
 
