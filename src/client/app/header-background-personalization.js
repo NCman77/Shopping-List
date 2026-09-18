@@ -99,8 +99,21 @@ function installStyles() {
       z-index: 25;
       pointer-events: auto;
     }
-    #header-background-thumbnails.reordering [data-header-background-index] {
+    #header-background-thumbnails [data-header-background-index] {
       touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+      cursor: grab;
+    }
+    #header-background-thumbnails [data-header-background-index] img {
+      pointer-events: none;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-user-drag: none;
+      -webkit-touch-callout: none;
+    }
+    #header-background-thumbnails.reordering [data-header-background-index] {
       cursor: grabbing;
     }
   `;
@@ -481,6 +494,7 @@ export async function initHeaderBackgroundPersonalization() {
         const image = document.createElement('img');
         image.src = url;
         image.alt = file.fileName || `橫幅 ${index + 1}`;
+        image.draggable = false;
         image.className = 'w-full h-full object-cover';
         button.appendChild(image);
       } else {
@@ -505,16 +519,38 @@ export async function initHeaderBackgroundPersonalization() {
     state.thumbnailLongPressTimer = null;
   }
 
-  function finishThumbnailReorder() {
+  function moveThumbnailDom(fromIndex, toIndex) {
+    const buttons = [...thumbnailsRoot.querySelectorAll('[data-header-background-index]')];
+    const moved = buttons[fromIndex];
+    const target = buttons[toIndex];
+    if (!moved || !target || moved === target) return;
+    if (fromIndex < toIndex) target.insertAdjacentElement('afterend', moved);
+    else target.insertAdjacentElement('beforebegin', moved);
+    [...thumbnailsRoot.querySelectorAll('[data-header-background-index]')].forEach((button, index) => {
+      button.dataset.headerBackgroundIndex = String(index);
+    });
+  }
+
+  function finishThumbnailReorder(event) {
     cancelThumbnailLongPress();
     if (!state.thumbnailDrag) return;
+    const drag = state.thumbnailDrag;
     thumbnailsRoot.classList.remove('reordering');
-    if (state.thumbnailDrag.active) {
+    if (drag.captureElement?.hasPointerCapture?.(drag.pointerId)) {
+      drag.captureElement.releasePointerCapture?.(drag.pointerId);
+    }
+    if (drag.active) {
       state.suppressThumbnailClick = true;
       setTimeout(() => { state.suppressThumbnailClick = false; }, 0);
+      renderEditorPreview();
     }
     state.thumbnailDrag = null;
   }
+
+  thumbnailsRoot.addEventListener('contextmenu', (event) => {
+    if (!event.target.closest?.('[data-header-background-index]')) return;
+    event.preventDefault();
+  });
 
   thumbnailsRoot.addEventListener('pointerdown', (event) => {
     const button = event.target.closest?.('[data-header-background-index]');
@@ -524,14 +560,15 @@ export async function initHeaderBackgroundPersonalization() {
     state.thumbnailDrag = {
       pointerId: event.pointerId,
       index,
-      active: false
+      active: false,
+      captureElement: button
     };
     state.thumbnailLongPressTimer = setTimeout(() => {
       if (!state.thumbnailDrag || state.thumbnailDrag.pointerId !== event.pointerId) return;
       state.thumbnailDrag.active = true;
       state.activeEditorIndex = index;
       thumbnailsRoot.classList.add('reordering');
-      thumbnailsRoot.setPointerCapture?.(event.pointerId);
+      button.setPointerCapture?.(event.pointerId);
     }, LONG_PRESS_MS);
   });
 
@@ -541,11 +578,12 @@ export async function initHeaderBackgroundPersonalization() {
     const target = document.elementFromPoint?.(event.clientX, event.clientY)?.closest?.('[data-header-background-index]');
     const targetIndex = Number(target?.dataset?.headerBackgroundIndex);
     if (!Number.isInteger(targetIndex) || targetIndex === drag.index) return;
-    const reordered = reorderBackgroundFiles(editorFiles(), drag.index, targetIndex);
+    const fromIndex = drag.index;
+    const reordered = reorderBackgroundFiles(editorFiles(), fromIndex, targetIndex);
+    setEditorFiles(reordered);
+    moveThumbnailDom(fromIndex, targetIndex);
     drag.index = targetIndex;
     state.activeEditorIndex = targetIndex;
-    setEditorFiles(reordered);
-    renderEditorPreview();
     event.preventDefault();
   });
 
