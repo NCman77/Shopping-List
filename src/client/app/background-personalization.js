@@ -772,7 +772,8 @@ export async function initBackgroundPersonalization() {
     }
     const next = addBackgroundColorPreset(state.savedColors, value);
     try {
-      await setDoc(settingsRef(), { backgroundColorPresets: next }, { merge: true });
+      const savePreset = setDoc(settingsRef(), { backgroundColorPresets: next }, { merge: true });
+      await savePreset;
       state.savedColors = next;
       renderColorPresets();
     } catch (error) {
