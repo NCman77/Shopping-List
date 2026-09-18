@@ -68,3 +68,42 @@ test('playlist save can append pending files while retaining old files and chose
   assert.equal(persisted[0].backgroundFiles[1].positionX, 60);
   assert.equal(persisted[0].rotationIntervalSeconds, 7);
 });
+
+
+test('saving after removing a persisted background deletes that Drive file after settings commit', async () => {
+  const tracker = createSessionOperationTracker();
+  tracker.advance('user-a');
+  const operation = tracker.capture('user-a');
+  const events = [];
+
+  const result = await runBackgroundPlaylistSaveTransaction({
+    tracker,
+    operation,
+    getCurrentUserId: () => 'user-a',
+    capturedSettingsRef: { owner: 'user-a' },
+    editorPreferences: {
+      backgroundFiles: [
+        { fileId: 'keep-1', fileName: 'keep.jpg', mimeType: 'image/jpeg', positionX: 50, positionY: 50, scale: 1 }
+      ]
+    },
+    pendingFiles: [],
+    pendingEntries: [],
+    removeRequested: false,
+    oldFiles: [
+      { fileId: 'keep-1' },
+      { fileId: 'delete-2' }
+    ],
+    driveService: {
+      hasAccessToken: () => true,
+      deletePhoto: async (id) => events.push('delete:' + id),
+      queueCleanup: () => {}
+    },
+    connectDrive: async () => {},
+    persistSettings: async () => events.push('persist'),
+    afterCommit: async () => events.push('after'),
+    onError: () => {}
+  });
+
+  assert.equal(result.status, 'saved');
+  assert.deepEqual(events, ['persist', 'delete:delete-2', 'after']);
+});
