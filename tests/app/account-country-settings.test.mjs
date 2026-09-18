@@ -128,7 +128,7 @@ test('travel country subpage hides the account header and restores it when retur
   assert.match(rootBody, /accountHeader\.style\.display = ''/);
   assert.match(countryBody, /accountHeader\.style\.display = 'none'/);
   assert.match(source, /<h3 class="text-xl font-bold text-warmBrown">旅遊國家<\/h3>/);
-  assert.match(source, /國家管理 · 新旅程建立時可從這裡的清單選擇/);
+  assert.doesNotMatch(source, /國家管理 · 新旅程建立時可從這裡的清單選擇/);
 });
 
 
