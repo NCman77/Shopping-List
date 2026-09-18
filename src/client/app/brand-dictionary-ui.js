@@ -65,7 +65,7 @@ function ensureModal(documentRef) {
       <div id="brand-country-view" class="flex flex-col max-h-[84vh]">
         <div id="brand-country-header" class="bg-pastelBlue border-b-4 border-warmBrown px-5 py-4 flex items-center gap-3">
           <button id="brand-back-settings" type="button" class="w-9 h-9 rounded-full bg-white border-2 border-warmBrown text-warmBrown"><i class="fas fa-chevron-left"></i></button>
-          <div class="flex-1 min-w-0"><h3 class="text-xl font-bold text-warmBrown">品牌字典</h3><p class="text-[11px] text-warmBrown/60 font-bold mt-1">每個旅遊國家分開管理，不會混成同一份清單</p></div>
+          <div class="flex-1 min-w-0"><h3 class="text-xl font-bold text-warmBrown">品牌字典</h3></div>
           <button id="brand-close" type="button" class="w-9 h-9 rounded-full bg-white border-2 border-warmBrown text-warmBrown"><i class="fas fa-times"></i></button>
         </div>
         <div id="brand-country-list" class="p-4 space-y-2 overflow-y-auto bg-white"></div>
@@ -239,9 +239,11 @@ export async function initBrandDictionaryUi({
     const brands = countryBrands();
     empty.classList.toggle('hidden', brands.length > 0);
     for (const brand of brands) {
+      const row = documentRef.createElement('div');
+      row.className = 'w-full flex items-stretch gap-2';
       const card = documentRef.createElement('button');
       card.type = 'button';
-      card.className = 'w-full min-w-0 rounded-2xl border-2 border-warmBrown bg-white p-3 text-left text-warmBrown hover:bg-shinBg';
+      card.className = 'flex-1 min-w-0 rounded-2xl border-2 border-warmBrown bg-white p-3 text-left text-warmBrown hover:bg-shinBg';
       const aliases = (Array.isArray(brand.aliases) ? brand.aliases : [])
         .map((alias) => `${clean(alias.language) || '其他'}：${clean(alias.value)}`)
         .filter(Boolean);
@@ -256,7 +258,14 @@ export async function initBrandDictionaryUi({
       card.querySelector('h4').textContent = clean(brand.displayName) || aliases[0] || '未命名品牌';
       card.querySelector('.brand-alias-summary').textContent = aliases.join(' · ');
       card.addEventListener('click', () => openEditor(brand));
-      root.appendChild(card);
+      const remove = documentRef.createElement('button');
+      remove.type = 'button';
+      remove.className = 'brand-row-delete w-11 shrink-0 rounded-2xl bg-pastelPink border-2 border-warmBrown text-red-500';
+      remove.setAttribute('aria-label', `刪除品牌${clean(brand.displayName) || ''}`);
+      remove.innerHTML = '<i class="fas fa-trash text-xs"></i>';
+      remove.addEventListener('click', () => void removeBrand(brand));
+      row.append(card, remove);
+      root.appendChild(row);
     }
   }
 
