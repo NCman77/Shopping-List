@@ -1,4 +1,4 @@
-import { DEFAULT_COUNTRY, normalizeCountries } from './travel-country.js';
+import { normalizeCountries } from './travel-country.js';
 import { classifyTrip, normalizeTrip, sortTripsForPicker, tripDisplayTitle, validateTripDraft } from './travel-trip.js';
 
 const APP_ID = 'japan-shopping-app';
@@ -207,7 +207,7 @@ export async function initTripUi() {
     userId: '',
     trips: [],
     activeTrip: null,
-    countries: [DEFAULT_COUNTRY],
+    countries: [],
     itemCounts: new Map(),
     editingTripId: '',
     formReturnView: 'picker',
@@ -385,7 +385,7 @@ export async function initTripUi() {
 
   function renderCountryOptions(selectedCountry) {
     countrySelect.innerHTML = '';
-    const countries = normalizeCountries([...state.countries, selectedCountry || DEFAULT_COUNTRY]);
+    const countries = normalizeCountries([...state.countries, selectedCountry]);
     for (const country of countries) {
       const option = document.createElement('option');
       option.value = country;
@@ -404,7 +404,7 @@ export async function initTripUi() {
     document.getElementById('trip-form-title').value = normalized?.title || '';
     document.getElementById('trip-form-start').value = normalized?.startDate || '';
     document.getElementById('trip-form-end').value = normalized?.endDate || '';
-    const selectedCountry = normalized?.country || state.activeTrip?.country || window.shoppingListActiveCountry || DEFAULT_COUNTRY;
+    const selectedCountry = normalized?.country || state.activeTrip?.country || window.shoppingListActiveCountry || state.countries[0] || '';
     renderCountryOptions(selectedCountry);
     const countryEditable = normalized ? canChangeTripCountry(normalized, tripCount(normalized.id)) : true;
     countrySelect.disabled = !countryEditable;
