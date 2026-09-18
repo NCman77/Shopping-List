@@ -320,9 +320,9 @@
         categories: ['美妝'], 
         locations: [], 
         filters: {
-            status: 'all', 
-            category: 'all',
-            location: 'all'
+            status: 'all',
+            category: [],
+            location: []
         },
         currentPhotoBase64: null,
         inputModalCallback: null,
@@ -342,8 +342,9 @@
         state.categories = ['美妝'];
         state.locations = [];
         state.filters.status = 'all';
-        state.filters.category = 'all';
-        state.filters.location = 'all';
+        state.filters.category = [];
+        state.filters.location = [];
+        syncHomeFilterSelections();
 
         document.querySelectorAll('.status-btn').forEach((button) => {
             const isAllButton = button.dataset.status === 'all';
@@ -508,6 +509,11 @@
                 const data = docSnap.data();
                 if (data.categories) state.categories = data.categories;
                 if (data.locations) state.locations = data.locations;
+                state.filters.category = normalizeFilterSelection(state.filters.category)
+                    .filter((value) => state.categories.includes(value));
+                state.filters.location = normalizeFilterSelection(state.filters.location)
+                    .filter((value) => state.locations.includes(value));
+                syncHomeFilterSelections();
             } else {
                 saveSettings();
             }
@@ -560,12 +566,63 @@
         });
     }
 
+    function normalizeFilterSelection(values = []) {
+        const normalized = [];
+        const seen = new Set();
+        for (const value of Array.isArray(values) ? values : []) {
+            const cleanValue = String(value ?? '').trim();
+            if (!cleanValue || cleanValue === 'all' || seen.has(cleanValue)) continue;
+            seen.add(cleanValue);
+            normalized.push(cleanValue);
+        }
+        return normalized;
+    }
+
+    function toggleFilterSelection(values = [], value = '') {
+        const selected = normalizeFilterSelection(values);
+        const target = String(value ?? '').trim();
+        if (!target || target === 'all') return [];
+        return selected.includes(target)
+            ? selected.filter((item) => item !== target)
+            : [...selected, target];
+    }
+
+    function syncHomeFilterSelections() {
+        const detail = {
+            category: normalizeFilterSelection(state.filters.category),
+            location: normalizeFilterSelection(state.filters.location)
+        };
+        state.filters.category = detail.category;
+        state.filters.location = detail.location;
+        window.shoppingListHomeFilterSelections = {
+            category: [...detail.category],
+            location: [...detail.location]
+        };
+        window.shoppingListMultiLocationFilter = [...detail.location];
+        window.dispatchEvent(new CustomEvent('shopping-list:home-filter-changed', { detail }));
+        window.dispatchEvent(new CustomEvent('shopping-list:multi-location-filter-changed', {
+            detail: { locations: [...detail.location] }
+        }));
+    }
+
+    function setHomeFilterSelection(kind, values) {
+        if (!['category', 'location'].includes(kind)) return;
+        state.filters[kind] = normalizeFilterSelection(values);
+        syncHomeFilterSelections();
+        renderFilterTabs();
+        renderItemList();
+    }
+
+    window.shoppingListHomeFilterSelections = { category: [], location: [] };
+    window.shoppingListMultiLocationFilter = [];
+
     function makeFilterButton({ kind, value, label, active, activeClasses, inactiveClasses }) {
         const button = document.createElement('button');
         button.type = 'button';
         button.dataset[kind] = String(value ?? '');
         button.className = `px-4 py-1.5 rounded-full border-2 border-warmBrown text-sm font-bold whitespace-nowrap transition-all ${active ? activeClasses : inactiveClasses}`;
         button.style.minWidth = 'fit-content';
+        button.setAttribute('aria-pressed', active ? 'true' : 'false');
         button.textContent = String(label ?? '');
         return button;
     }
@@ -581,13 +638,15 @@
         const catContainer = document.getElementById('category-filters');
         if(!catContainer) return;
 
+        const selectedCategories = normalizeFilterSelection(state.filters.category);
+        const selectedLocations = normalizeFilterSelection(state.filters.location);
         const activeCategoryClasses = 'bg-pastelOrange shadow-[2px_2px_0_rgba(92,64,51,1)] text-warmBrown';
         const inactiveClasses = 'bg-white text-gray-500 hover:bg-gray-50';
         const categoryButtons = [makeFilterButton({
             kind: 'cat',
             value: 'all',
             label: '全部',
-            active: state.filters.category === 'all',
+            active: selectedCategories.length === 0,
             activeClasses: activeCategoryClasses,
             inactiveClasses
         })];
@@ -597,7 +656,7 @@
                 kind: 'cat',
                 value: cat,
                 label: cat,
-                active: state.filters.category === cat,
+                active: selectedCategories.includes(cat),
                 activeClasses: activeCategoryClasses,
                 inactiveClasses
             }));
@@ -606,9 +665,10 @@
         categoryButtons.forEach(button => {
             button.classList.add('cat-btn');
             button.addEventListener('click', () => {
-                state.filters.category = button.dataset.cat;
-                renderFilterTabs();
-                renderItemList();
+                const value = button.dataset.cat;
+                setHomeFilterSelection('category', value === 'all'
+                    ? []
+                    : toggleFilterSelection(state.filters.category, value));
             });
         });
         catContainer.replaceChildren(...categoryButtons);
@@ -621,7 +681,7 @@
             kind: 'loc',
             value: 'all',
             label: '全部',
-            active: state.filters.location === 'all',
+            active: selectedLocations.length === 0,
             activeClasses: activeLocationClasses,
             inactiveClasses
         })];
@@ -631,7 +691,7 @@
                 kind: 'loc',
                 value: loc,
                 label: loc,
-                active: state.filters.location === loc,
+                active: selectedLocations.includes(loc),
                 activeClasses: activeLocationClasses,
                 inactiveClasses
             }));
@@ -640,13 +700,20 @@
         locationButtons.forEach(button => {
             button.classList.add('loc-btn');
             button.addEventListener('click', () => {
-                state.filters.location = button.dataset.loc;
-                renderFilterTabs();
-                renderItemList();
+                const value = button.dataset.loc;
+                setHomeFilterSelection('location', value === 'all'
+                    ? []
+                    : toggleFilterSelection(state.filters.location, value));
             });
         });
         locContainer.replaceChildren(...locationButtons);
     }
+
+    window.addEventListener('shopping-list:clear-home-filter', (event) => {
+        const kind = String(event?.detail?.kind || '').trim();
+        if (!['category', 'location'].includes(kind)) return;
+        setHomeFilterSelection(kind, []);
+    });
 
     document.querySelectorAll('.status-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
@@ -690,8 +757,13 @@
         let filteredItems = state.items.filter(item => {
             if (state.filters.status === 'purchased' && !item.purchased) return false;
             if (state.filters.status === 'unpurchased' && item.purchased) return false;
-            if (state.filters.category !== 'all' && item.category !== state.filters.category) return false;
-            if (state.filters.location !== 'all' && !resolveItemLocations(item).includes(state.filters.location)) return false;
+            const selectedCategories = normalizeFilterSelection(state.filters.category);
+            const selectedLocations = normalizeFilterSelection(state.filters.location);
+            if (selectedCategories.length && !selectedCategories.includes(String(item.category ?? '').trim())) return false;
+            if (selectedLocations.length) {
+                const itemLocations = resolveItemLocations(item);
+                if (!selectedLocations.some((location) => itemLocations.includes(location))) return false;
+            }
             return true;
         });
 
