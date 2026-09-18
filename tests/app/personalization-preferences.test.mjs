@@ -55,3 +55,30 @@ test('pan style encodes direction and one-time/infinite playback', () => {
     animationIterationCount: 'infinite'
   });
 });
+
+
+test('normalizes multiple background files and slideshow interval while keeping legacy single-file data', () => {
+  const multi = normalizePersonalization({
+    backgroundFiles: [
+      { fileId: ' a ', fileName: 'one.jpg', mimeType: 'image/jpeg' },
+      { fileId: 'b', fileName: 'two.png', mimeType: 'image/png' }
+    ],
+    rotationIntervalSeconds: 1
+  });
+  assert.deepEqual(multi.backgroundFiles, [
+    { fileId: 'a', fileName: 'one.jpg', mimeType: 'image/jpeg' },
+    { fileId: 'b', fileName: 'two.png', mimeType: 'image/png' }
+  ]);
+  assert.equal(multi.backgroundFileId, 'a');
+  assert.equal(multi.rotationIntervalSeconds, 2);
+
+  const legacy = normalizePersonalization({
+    backgroundFileId: 'legacy-id',
+    backgroundFileName: 'legacy.jpg',
+    backgroundMimeType: 'image/jpeg'
+  });
+  assert.deepEqual(legacy.backgroundFiles, [
+    { fileId: 'legacy-id', fileName: 'legacy.jpg', mimeType: 'image/jpeg' }
+  ]);
+  assert.equal(legacy.rotationIntervalSeconds, 8);
+});

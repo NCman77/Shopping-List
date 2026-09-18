@@ -1,0 +1,173 @@
+import { normalizePersonalization } from './personalization-preferences.js';
+
+async function cleanupDriveFile(driveService, fileId) {
+  if (!fileId) return;
+  try {
+    await driveService.deletePhoto(fileId);
+  } catch {
+    try { await driveService.queueCleanup(fileId); } catch {}
+  }
+}
+
+export async function runBackgroundPlaylistDownload({
+  tracker,
+  userId,
+  preferences,
+  driveService,
+  createObjectUrl,
+  revokeObjectUrl,
+  clearBackground,
+  hideBackground,
+  applyBackgrounds,
+  onError = () => {}
+}) {
+  const operation = tracker.nextRequest('background-playlist-load', userId);
+  const capturedPreferences = normalizePersonalization(preferences);
+  const files = capturedPreferences.backgroundFiles;
+
+  if (!operation.userId || !files.length) {
+    if (tracker.isLatestRequest(operation, userId)) clearBackground();
+    return Object.freeze({ status: 'empty', operation, items: [] });
+  }
+  if (!driveService.hasAccessToken()) {
+    if (tracker.isLatestRequest(operation, userId)) hideBackground();
+    return Object.freeze({ status: 'authorization-required', operation, items: [] });
+  }
+
+  const items = [];
+  try {
+    for (const file of files) {
+      const blob = await driveService.downloadPhoto(file.fileId);
+      const objectUrl = createObjectUrl(blob);
+      items.push({ ...file, objectUrl });
+      if (!tracker.isLatestRequest(operation, userId)) {
+        items.forEach((item) => revokeObjectUrl(item.objectUrl));
+        return Object.freeze({ status: 'stale', operation, items: [] });
+      }
+    }
+    applyBackgrounds(items, capturedPreferences);
+    return Object.freeze({ status: 'applied', operation, items });
+  } catch (error) {
+    items.forEach((item) => revokeObjectUrl(item.objectUrl));
+    if (!tracker.isLatestRequest(operation, userId)) {
+      return Object.freeze({ status: 'stale', operation, items: [] });
+    }
+    onError(error);
+    hideBackground();
+    return Object.freeze({ status: 'error', operation, error, items: [] });
+  }
+}
+
+export async function runBackgroundPlaylistSaveTransaction({
+  tracker,
+  operation,
+  getCurrentUserId,
+  capturedSettingsRef,
+  editorPreferences,
+  pendingFiles = [],
+  removeRequested,
+  oldFiles = [],
+  uploadKind = 'background',
+  driveService,
+  connectDrive,
+  persistSettings,
+  afterCommit,
+  onError = () => {}
+}) {
+  const uploadedFiles = [];
+  let persistenceCommitted = false;
+  let nextPreferences = normalizePersonalization(editorPreferences);
+  const isCurrent = () => tracker.isSessionCurrent(operation, getCurrentUserId());
+
+  const cleanupUploaded = async () => {
+    for (const file of uploadedFiles) await cleanupDriveFile(driveService, file.fileId);
+  };
+  const staleResult = async () => {
+    if (!persistenceCommitted) await cleanupUploaded();
+    return Object.freeze({ status: 'stale', persistenceCommitted, nextPreferences });
+  };
+
+  try {
+    if (pendingFiles.length) {
+      if (!driveService.hasAccessToken()) await connectDrive(operation, driveService);
+      if (!isCurrent()) return staleResult();
+
+      for (const pendingFile of pendingFiles) {
+        const uploaded = await driveService.uploadFile({
+          blob: pendingFile,
+          fileName: pendingFile.name || `background-${Date.now()}`,
+          appProperties: { kind: uploadKind, owner: operation.userId }
+        });
+        const saved = {
+          fileId: uploaded.id,
+          fileName: uploaded.name || pendingFile.name || '',
+          mimeType: uploaded.mimeType || pendingFile.type || ''
+        };
+        uploadedFiles.push(saved);
+        if (!isCurrent()) return staleResult();
+      }
+
+      nextPreferences = normalizePersonalization({
+        ...nextPreferences,
+        backgroundFiles: uploadedFiles
+      });
+    } else if (removeRequested) {
+      nextPreferences = normalizePersonalization({
+        ...nextPreferences,
+        backgroundFiles: [],
+        backgroundFileId: '',
+        backgroundFileName: '',
+        backgroundMimeType: ''
+      });
+    }
+
+    if (!isCurrent()) return staleResult();
+    await persistSettings(capturedSettingsRef, nextPreferences);
+    persistenceCommitted = true;
+
+    const keepIds = new Set(nextPreferences.backgroundFiles.map((file) => file.fileId));
+    for (const file of Array.isArray(oldFiles) ? oldFiles : []) {
+      const fileId = String(file?.fileId || '').trim();
+      if (fileId && !keepIds.has(fileId)) await cleanupDriveFile(driveService, fileId);
+    }
+
+    if (!isCurrent()) return staleResult();
+    await afterCommit(nextPreferences);
+    return Object.freeze({ status: 'saved', persistenceCommitted, nextPreferences });
+  } catch (error) {
+    if (!persistenceCommitted) await cleanupUploaded();
+    if (isCurrent()) onError(error);
+    return Object.freeze({ status: 'error', persistenceCommitted, nextPreferences, error });
+  }
+}
+
+export function createBackgroundSlideshowController({
+  render,
+  setIntervalImpl = setInterval,
+  clearIntervalImpl = clearInterval
+}) {
+  let items = [];
+  let index = 0;
+  let timer = null;
+
+  const stop = () => {
+    if (timer !== null) clearIntervalImpl(timer);
+    timer = null;
+  };
+
+  const start = (nextItems, preferences) => {
+    stop();
+    items = Array.isArray(nextItems) ? nextItems.slice() : [];
+    index = 0;
+    if (!items.length) return;
+    render(items[0], 0);
+    if (items.length < 2) return;
+    const seconds = normalizePersonalization(preferences).rotationIntervalSeconds;
+    timer = setIntervalImpl(() => {
+      index = (index + 1) % items.length;
+      render(items[index], index);
+    }, seconds * 1000);
+  };
+
+  return Object.freeze({ start, stop });
+}
