@@ -185,13 +185,13 @@ test('travel records opened from settings can go back to account settings from t
 });
 
 
-test('travel records header matches personalization styling and trip rows show a plane icon', async () => {
+test('travel records header matches personalization styling and trip rows use country flags', async () => {
   const source = await readFile(sourcePath, 'utf8');
   assert.match(source, /id="trip-modal-header"[^>]*bg-pastelBlue[^>]*border-b-4[^>]*px-5 py-4/);
   assert.match(source, /id="trip-modal-title" class="text-xl font-bold text-warmBrown"/);
   assert.match(source, /id="trip-modal-subtitle" class="text-\[11px\] text-warmBrown\/60 font-bold mt-1"/);
   assert.match(source, /trip-row-icon/);
-  assert.match(source, /fa-plane/);
+  assert.match(source, /createCountryFlagElement/);
 });
 
 
@@ -202,4 +202,13 @@ test('trip picker routes creation through management instead of showing a duplic
   assert.doesNotMatch(picker, /＋ 新增旅程/);
   assert.match(picker, /管理旅遊紀錄/);
   assert.match(manage, /＋ 新增旅程/);
+});
+
+
+test('travel record rows use each trip country PNG flag instead of the plane icon', async () => {
+  const source = await readFile(sourcePath, 'utf8');
+  const row = source.match(/function makeTripRow\(trip,[\s\S]*?\n  \}\n\n  function appendSection/)?.[0] || '';
+  assert.match(source, /createCountryFlagElement/);
+  assert.match(row, /createCountryFlagElement\(document,\s*trip\.country/);
+  assert.doesNotMatch(row, /fa-plane/);
 });
