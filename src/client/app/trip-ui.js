@@ -1,4 +1,5 @@
 import { normalizeCountries } from './travel-country.js';
+import { createCountryFlagElement } from './country-flag.js';
 import { classifyTrip, normalizeTrip, sortTripsForPicker, tripDisplayTitle, validateTripDraft } from './travel-trip.js';
 
 const APP_ID = 'japan-shopping-app';
@@ -295,9 +296,9 @@ export async function initTripUi() {
   function makeTripRow(trip, { manage = false } = {}) {
     const row = document.createElement('div');
     row.className = 'trip-picker-row flex items-center gap-2 p-3 rounded-2xl border-2 border-warmBrown bg-shinBg';
-    const icon = document.createElement('span');
-    icon.className = 'trip-row-icon w-9 h-9 shrink-0 rounded-full bg-white border-2 border-warmBrown flex items-center justify-center text-warmBrown';
-    icon.innerHTML = '<i class="fas fa-plane text-xs"></i>';
+    const icon = createCountryFlagElement(document, trip.country, {
+      className: 'trip-row-icon w-9 h-9 shrink-0 flex items-center justify-center'
+    });
     const select = document.createElement('button');
     select.type = 'button';
     select.className = 'flex-1 text-left min-w-0';
