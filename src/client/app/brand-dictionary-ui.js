@@ -1,4 +1,5 @@
 import { DEFAULT_COUNTRY, normalizeCountries } from './travel-country.js';
+import { createCountryFlagElement } from './country-flag.js';
 import {
   defaultLanguageFieldsForCountry,
   effectiveLanguageFields,
@@ -224,7 +225,10 @@ export async function initBrandDictionaryUi({
       const button = documentRef.createElement('button');
       button.type = 'button';
       button.className = 'w-full flex items-center gap-3 px-4 py-3 rounded-2xl border-2 border-warmBrown bg-shinBg text-left text-warmBrown';
-      button.innerHTML = `<span class="w-9 h-9 rounded-full bg-pastelYellow border-2 border-warmBrown flex items-center justify-center"><i class="fas fa-store text-sm"></i></span><span class="flex-1 min-w-0"><span class="block font-bold"></span><span class="block text-[10px] opacity-55 mt-0.5">${count} 個品牌${active ? ' · 目前旅程' : ''}</span></span><i class="fas fa-chevron-right text-xs"></i>`;
+      button.innerHTML = `<span class="flex-1 min-w-0"><span class="block font-bold"></span><span class="block text-[10px] opacity-55 mt-0.5">${count} 個品牌${active ? ' · 目前旅程' : ''}</span></span><i class="fas fa-chevron-right text-xs"></i>`;
+      button.prepend(createCountryFlagElement(documentRef, country, {
+        className: 'brand-country-flag w-9 h-9 shrink-0 flex items-center justify-center'
+      }));
       button.querySelector('.font-bold').textContent = country;
       button.addEventListener('click', () => openCountry(country));
       root.appendChild(button);
