@@ -389,19 +389,15 @@ export async function initShoppingListEnhancements() {
       }
 
       for (const location of resolveItemLocations(item)) {
-        const locationMap = document.createElement('button');
-        locationMap.type = 'button';
+        const locationMap = document.createElement('a');
+        locationMap.href = createGoogleMapsUrl(location);
+        locationMap.target = '_blank';
+        locationMap.rel = 'noopener noreferrer';
         locationMap.className = 'text-[10px] font-bold bg-pastelYellow text-warmBrown px-2.5 py-1 rounded-full border border-warmBrown hover:brightness-95';
         locationMap.setAttribute('aria-label', `在 Google 地圖搜尋${location}附近分店`);
         const icon = document.createElement('i');
         icon.className = 'fas fa-location-dot mr-1';
         locationMap.append(icon, document.createTextNode(location));
-        locationMap.addEventListener('click', (event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          const url = createGoogleMapsUrl(location);
-          if (url) window.open(url, '_blank', 'noopener,noreferrer');
-        });
         actions.appendChild(locationMap);
       }
 
