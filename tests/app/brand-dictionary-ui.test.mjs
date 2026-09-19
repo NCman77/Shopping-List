@@ -56,11 +56,11 @@ test('opening brand editor does not autofocus an alias input on mobile', async (
 });
 
 
-test('brand dictionary top-level header matches personalization styling without changing its existing row icon behavior', async () => {
+test('brand dictionary top-level header matches personalization styling with country flag rows', async () => {
   const source = await readFile(new URL('../../src/client/app/brand-dictionary-ui.js', import.meta.url), 'utf8');
   assert.match(source, /id="brand-country-header"[^>]*bg-pastelBlue[^>]*border-b-4[^>]*px-5 py-4/);
   assert.match(source, /<h3 class="text-xl font-bold text-warmBrown">品牌字典<\/h3>/);
-  assert.match(source, /fa-store/);
+  assert.match(source, /createCountryFlagElement/);
 });
 
 
@@ -70,4 +70,13 @@ test('brand list exposes a visible delete-brand action without adding any countr
   assert.match(source, /aria-label.*刪除品牌|setAttribute\('aria-label',\s*`刪除品牌/);
   assert.match(source, /removeBrand\(brand\)/);
   assert.doesNotMatch(source, /deleteCountry|removeCountry|刪除國家/);
+});
+
+
+test('brand dictionary country rows use the shared PNG country flag renderer', async () => {
+  const source = await readFile(new URL('../../src/client/app/brand-dictionary-ui.js', import.meta.url), 'utf8');
+  const render = source.match(/function renderCountries\(\) \{([\s\S]*?)\n  \}\n\n  function renderBrandList/)?.[1] || '';
+  assert.match(source, /createCountryFlagElement/);
+  assert.match(render, /createCountryFlagElement\(documentRef,\s*country/);
+  assert.doesNotMatch(render, /fa-store/);
 });
