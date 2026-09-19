@@ -1,4 +1,5 @@
 import { normalizeCountries } from './travel-country.js';
+import { createCountryFlagElement } from './country-flag.js';
 import { normalizeMapsApiKeys } from '../location/places-usage-policy.js';
 
 const APP_ID = 'japan-shopping-app';
@@ -341,9 +342,9 @@ export async function initAccountSettings() {
     for (const country of state.countries) {
       const row = document.createElement('div');
       row.className = 'w-full flex items-center gap-2 px-3 py-3 rounded-2xl border-2 border-warmBrown text-warmBrown bg-shinBg font-bold';
-      const icon = document.createElement('span');
-      icon.className = 'country-row-icon w-9 h-9 shrink-0 rounded-full bg-white border-2 border-warmBrown flex items-center justify-center';
-      icon.innerHTML = '<i class="fas fa-earth-asia text-xs"></i>';
+      const icon = createCountryFlagElement(document, country, {
+        className: 'country-row-icon w-9 h-9 shrink-0 flex items-center justify-center'
+      });
       const label = document.createElement('span');
       label.className = 'flex-1 min-w-0 truncate';
       label.textContent = country;
