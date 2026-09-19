@@ -1,4 +1,5 @@
 import { DEFAULT_COUNTRY, normalizeCountries } from './travel-country.js';
+import { createCountryFlagElement } from './country-flag.js';
 import { cleanupCoupons, couponDateStatus, searchBrandsByAlias, validateCouponDraft } from './coupon-core.js';
 import { resolveLocationDisplayName } from './brand-location-resolver.js';
 
@@ -262,9 +263,9 @@ export async function initCouponManagementUi({
       const button = documentRef.createElement('button');
       button.type = 'button';
       button.className = 'w-full flex items-center gap-3 px-4 py-3 rounded-2xl border-2 border-warmBrown bg-shinBg text-left text-warmBrown';
-      const icon = documentRef.createElement('span');
-      icon.className = 'coupon-country-icon w-9 h-9 shrink-0 rounded-full bg-white border-2 border-warmBrown flex items-center justify-center';
-      icon.innerHTML = '<i class="fas fa-earth-asia text-xs"></i>';
+      const icon = createCountryFlagElement(documentRef, country, {
+        className: 'coupon-country-icon w-9 h-9 shrink-0 flex items-center justify-center'
+      });
       const name = documentRef.createElement('span');
       name.className = 'flex-1 min-w-0 font-bold';
       name.textContent = country;
